@@ -13,6 +13,13 @@ from agentscope_platform.infrastructure.agentscope.runner import (
     AgentScopeRunner,
 )
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
+from agentscope_platform.infrastructure.observability.logging_observer import (
+    LoggingRunObserver,
+)
+from agentscope_platform.infrastructure.observability.setup import (
+    configure_logging,
+    configure_tracing,
+)
 from agentscope_platform.infrastructure.security.internal_jwt import InternalJwtVerifier
 
 
@@ -28,8 +35,13 @@ def create_app(
     runner: AgentRunner | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
+    configure_logging(app_settings)
     platform_client = PlatformClient(app_settings)
-    app_runner = runner or AgentScopeRunner(app_settings, platform_client)
+    app_runner = runner or AgentScopeRunner(
+        app_settings,
+        platform_client,
+        LoggingRunObserver(),
+    )
     container = Container(
         settings=app_settings,
         jwt_verifier=InternalJwtVerifier(app_settings),
@@ -44,6 +56,7 @@ def create_app(
         version="0.1.0",
     )
     app.state.container = container
+    configure_tracing(app, app_settings)
 
     @app.middleware("http")
     async def trace_context(request: Request, call_next):  # type: ignore[no-untyped-def]

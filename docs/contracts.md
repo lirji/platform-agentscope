@@ -28,8 +28,9 @@
 }
 ```
 
-Phase 0 已保持字段名和基本形状，但 `steps` 尚未采集完整 AgentScope Event 轨迹。完成
-Phase 1 前不能宣称与旧接口完全等价。
+Phase 1 已将 AgentScope tool call/result 事件按调用顺序映射为 `steps`，并保留并行工具的
+原始调用顺序。`thought` 固定为空字符串，避免暴露隐藏推理。真实模型输出质量、延迟与
+成本尚需在旧/新服务双跑环境中验收，因此仍不能宣称生产等价。
 
 ## 3. 停止原因
 
@@ -57,7 +58,7 @@ AgentScope 的 finished reason 和异常必须在应用层映射，不把框架�
 
 无效或缺失 token 在认证开启时返回 401。`/health`、`/readiness`、`/info` 不要求业务身份。
 
-Phase 0 的出站工具沿用经过验证的入口内部 token。后续如必须延长多跳调用窗口，应新增与
+Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须延长多跳调用窗口，应新增与
 `platform-security` 一致的内部 token 签发端口，而不是静默使用 master secret。
 
 ## 5. Trace
@@ -78,10 +79,20 @@ Phase 0 的出站工具沿用经过验证的入口内部 token。后续如必须
 - 取消后不得被迟到 worker 覆盖为成功。
 - webhook 至少一次投递语义及幂等消费说明。
 
-## 7. 契约资产计划
+## 7. 契约资产
+
+当前已提交：
+
+- `contracts/legacy/agent-run-request.schema.json`
+- `contracts/legacy/agent-step.schema.json`
+- `contracts/legacy/agent-run-reply.schema.json`
+- `contracts/openapi.json`
+
+运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。
+
+后续计划：
 
 1. 从旧平台导出 OpenAPI。
-2. 为旧 DTO 生成 JSON Schema 快照。
-3. 增加旧服务 provider contract 和新服务 consumer/compatibility tests。
-4. 每次变更比较 OpenAPI breaking changes。
-5. 最终将语言中立契约发布为独立版本化制品。
+2. 增加旧服务 provider contract 和新服务 consumer/compatibility tests。
+3. 每次变更比较 OpenAPI breaking changes。
+4. 最终将语言中立契约发布为独立版本化制品。

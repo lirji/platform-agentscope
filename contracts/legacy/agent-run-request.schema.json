@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "goal": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Goal",
+      "type": "string"
+    },
+    "webhookUrl": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Webhookurl"
+    }
+  },
+  "required": [
+    "goal"
+  ],
+  "title": "AgentRunRequest",
+  "type": "object"
+}

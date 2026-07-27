@@ -1,0 +1,33 @@
+{
+  "properties": {
+    "action": {
+      "default": "",
+      "title": "Action",
+      "type": "string"
+    },
+    "actionInput": {
+      "default": "",
+      "title": "Actioninput",
+      "type": "string"
+    },
+    "n": {
+      "title": "N",
+      "type": "integer"
+    },
+    "observation": {
+      "default": "",
+      "title": "Observation",
+      "type": "string"
+    },
+    "thought": {
+      "default": "",
+      "title": "Thought",
+      "type": "string"
+    }
+  },
+  "required": [
+    "n"
+  ],
+  "title": "AgentStep",
+  "type": "object"
+}

@@ -1,0 +1,75 @@
+{
+  "$defs": {
+    "AgentStep": {
+      "properties": {
+        "action": {
+          "default": "",
+          "title": "Action",
+          "type": "string"
+        },
+        "actionInput": {
+          "default": "",
+          "title": "Actioninput",
+          "type": "string"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "observation": {
+          "default": "",
+          "title": "Observation",
+          "type": "string"
+        },
+        "thought": {
+          "default": "",
+          "title": "Thought",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "title": "AgentStep",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "depth": {
+      "default": 0,
+      "title": "Depth",
+      "type": "integer"
+    },
+    "finalAnswer": {
+      "title": "Finalanswer",
+      "type": "string"
+    },
+    "goal": {
+      "title": "Goal",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/AgentStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "stopReason": {
+      "title": "Stopreason",
+      "type": "string"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "goal",
+    "finalAnswer",
+    "stopReason",
+    "tenantId"
+  ],
+  "title": "AgentRunReply",
+  "type": "object"
+}

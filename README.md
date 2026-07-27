@@ -4,9 +4,10 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 0 项目骨架**。已具备分层边界、FastAPI 服务、内部 JWT 验签、
-LiteLLM/AgentScope Runner、健康检查、兼容 `/agent/run` 契约和测试基础；尚未宣称与旧
-`agent-service` 功能等价。
+当前状态：**Phase 1 只读 ReAct 代码切片**。已具备分层边界、FastAPI 服务、内部 JWT
+验签、LiteLLM/AgentScope Runner、兼容 `/agent/run` 契约、只读工具、执行轨迹、运行
+治理日志和可选 OpenTelemetry。离线门禁已通过；尚未完成真实 LiteLLM/旧服务环境中的
+新旧质量、P95 延迟和成本对比，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -31,9 +32,21 @@ src/agentscope_platform/
 ├── infrastructure/
 │   ├── agentscope/         # AgentScope 2.0 适配器
 │   ├── http/               # 旧 Java 平台工具客户端
+│   ├── observability/      # 安全结构化日志与可选 OTel
 │   └── security/           # 内部 JWT 兼容实现
 └── main.py
 ```
+
+当前只注册五个只读工具：
+
+- `current_time`
+- `rag_search`
+- `order_query`
+- `schema_explore`
+- `analytics_sql`
+
+所有业务服务调用都从已验证的运行上下文传播内部 token 和 `X-Trace-Id`，模型参数不能
+覆盖租户身份。遗留响应中的 `thought` 字段保留为空，不暴露模型隐藏推理。
 
 ## 本地启动
 
@@ -68,9 +81,13 @@ docker compose down
 ## 验证
 
 ```bash
+uv run python scripts/export_contracts.py --check
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy src
-uv run pytest
+uv run pytest --cov=agentscope_platform --cov-report=term-missing --cov-fail-under=80
+uv build
+docker compose -f compose.yml config
 ```
 
 ## 文档入口

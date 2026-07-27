@@ -6,7 +6,7 @@
 
 ## Phase 0：项目骨架
 
-状态：进行中。
+状态：已完成（2026-07-27，提交 `64bb738`）。
 
 范围：
 
@@ -26,6 +26,8 @@
 - 合法 token 的 tenantId 正确回写响应。
 
 ## Phase 1：只读 ReAct 垂直切片
+
+状态：代码切片与离线门禁已完成；双跑质量、延迟、成本和灰度发布待外部环境。
 
 范围：
 
@@ -114,11 +116,13 @@
 
 ## 工作清单
 
-- [ ] 导出旧 `/agent/**` OpenAPI 和 JSON Schema。
-- [ ] 建立双跑数据集与指标基线。
-- [ ] 完成 AgentScope Event 轨迹映射。
-- [ ] 迁移只读工具。
-- [ ] 接入审计、计量和 OTel。
+- [x] 生成新服务兼容 OpenAPI 和遗留 DTO JSON Schema 快照。
+- [ ] 从运行中的旧服务导出 `/agent/**` OpenAPI 并做 breaking-change 比较。
+- [x] 建立只读离线评测数据集。
+- [ ] 在真实旧/新服务环境执行双跑并批准指标阈值。
+- [x] 完成 AgentScope Event 轨迹映射。
+- [x] 迁移只读工具。
+- [x] 接入安全运行日志、token 计量和可选 OTel。
 - [ ] 实现 DAG 与 sibling orchestrators。
 - [ ] 对接 async-task。
 - [ ] 建立副作用 Tool Policy。

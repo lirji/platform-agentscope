@@ -1,24 +1,35 @@
+import asyncio
+import logging
 from datetime import UTC, datetime
+from time import monotonic
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import httpx
 from agentscope.agent import Agent, ReActConfig
 from agentscope.credential import OpenAICredential
-from agentscope.message import TextBlock, ToolResultState, UserMsg
+from agentscope.event import ModelCallEndEvent, ToolCallEndEvent
+from agentscope.message import Msg, TextBlock, ToolResultState, UserMsg
 from agentscope.model import OpenAIChatModel
 from agentscope.tool import ToolChunk, Toolkit
 from pydantic import SecretStr
 
+from agentscope_platform.application.observer import (
+    NoopRunObserver,
+    RunObservation,
+    RunObserver,
+)
 from agentscope_platform.application.ports import AgentRunner
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import (
     bind_run_context,
-    current_run_context,
     reset_run_context,
 )
 from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.infrastructure.agentscope.readonly_tools import ReadonlyToolset
 from agentscope_platform.infrastructure.agentscope.tools import ReadOnlyFunctionTool
+from agentscope_platform.infrastructure.agentscope.trajectory import TrajectoryCollector
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
+
+log = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """
 你是企业级 Agent 编排服务。必须遵守以下规则:
@@ -35,21 +46,137 @@ class AgentNotConfiguredError(RuntimeError):
 
 
 class AgentScopeRunner(AgentRunner):
-    def __init__(self, settings: Settings, platform_client: PlatformClient) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        platform_client: PlatformClient,
+        observer: RunObserver | None = None,
+    ) -> None:
         self._settings = settings
         self._platform_client = platform_client
+        self._observer = observer or NoopRunObserver()
 
     async def run(self, goal: str, context: RunContext) -> AgentExecution:
         if not self._settings.agent_enabled:
             raise AgentNotConfiguredError("GATEWAY_API_KEY is not configured")
 
+        started = monotonic()
+        collector = TrajectoryCollector(loop_window=self._settings.agent_loop_window)
+        execution = AgentExecution(
+            final_answer="Agent execution failed.",
+            stop_reason="ERROR",
+        )
         context_token = bind_run_context(context)
         try:
             agent = self._build_agent()
-            reply = await agent.reply(UserMsg(name="user", content=goal))
-            return AgentExecution(final_answer=reply.get_text_content() or "")
+            if self._settings.agent_timeout_seconds > 0:
+                async with asyncio.timeout(self._settings.agent_timeout_seconds):
+                    execution = await self._consume_reply(agent, goal, collector)
+            else:
+                execution = await self._consume_reply(agent, goal, collector)
+        except TimeoutError:
+            execution = AgentExecution(
+                final_answer=collector.best_effort_text or "Agent execution timed out.",
+                stop_reason="TIMEOUT",
+                steps=collector.steps(),
+            )
+        except asyncio.CancelledError:
+            execution = AgentExecution(
+                final_answer=collector.best_effort_text or "Agent execution was cancelled.",
+                stop_reason="CANCELLED",
+                steps=collector.steps(),
+            )
+        except Exception as exc:
+            log.warning("agent execution failed: %s", type(exc).__name__)
+            execution = AgentExecution(
+                final_answer=collector.best_effort_text or "Agent execution failed.",
+                stop_reason="ERROR",
+                steps=collector.steps(),
+            )
         finally:
             reset_run_context(context_token)
+            self._record_observation(
+                context=context,
+                collector=collector,
+                execution=execution,
+                started=started,
+            )
+        return execution
+
+    async def _consume_reply(
+        self,
+        agent: Agent,
+        goal: str,
+        collector: TrajectoryCollector,
+    ) -> AgentExecution:
+        final_message: Msg | None = None
+        stop_override: str | None = None
+        stream = agent.reply_stream(
+            UserMsg(name="user", content=goal),
+            yield_final_msg=True,
+        )
+        async for item in stream:
+            if isinstance(item, Msg):
+                final_message = item
+                continue
+
+            collector.consume(item)
+            if (
+                isinstance(item, ModelCallEndEvent)
+                and self._settings.agent_max_tokens > 0
+                and collector.total_tokens >= self._settings.agent_max_tokens
+            ):
+                stop_override = "BUDGET"
+                await stream.aclose()
+                break
+            if isinstance(item, ToolCallEndEvent) and collector.repeated_action(
+                self._settings.agent_max_repeats
+            ):
+                collector.mark_loop()
+                stop_override = "LOOP"
+                await stream.aclose()
+                break
+
+        stop_reason = stop_override or collector.stop_reason()
+        final_answer = (
+            final_message.get_text_content()
+            if final_message is not None
+            else collector.best_effort_text
+        )
+        if not final_answer and stop_reason == "DONE":
+            stop_reason = "ERROR"
+            final_answer = "Agent did not produce a final message."
+        elif not final_answer:
+            final_answer = f"Agent stopped: {stop_reason}"
+
+        return AgentExecution(
+            final_answer=final_answer,
+            stop_reason=stop_reason,
+            steps=collector.steps(),
+        )
+
+    def _record_observation(
+        self,
+        context: RunContext,
+        collector: TrajectoryCollector,
+        execution: AgentExecution,
+        started: float,
+    ) -> None:
+        observation = RunObservation(
+            trace_id=context.trace_id,
+            tenant_id=context.identity.tenant_id,
+            user_id=context.identity.user_id,
+            model=self._settings.gateway_model,
+            stop_reason=execution.stop_reason,
+            duration_ms=max(0, int((monotonic() - started) * 1000)),
+            input_tokens=collector.input_tokens,
+            output_tokens=collector.output_tokens,
+            tools=collector.tool_names,
+        )
+        try:
+            self._observer.record(observation)
+        except Exception as exc:
+            log.warning("agent run observer failed: %s", type(exc).__name__)
 
     def _build_agent(self) -> Agent:
         credential = OpenAICredential(
@@ -65,6 +192,7 @@ class AgentScopeRunner(AgentRunner):
             ),
             stream=False,
         )
+        retained_tools = ReadonlyToolset(self._settings, self._platform_client).tools()
         toolkit = Toolkit(
             tools=[
                 ReadOnlyFunctionTool(
@@ -73,13 +201,8 @@ class AgentScopeRunner(AgentRunner):
                     description="Return the current time in an IANA timezone.",
                     is_read_only=True,
                 ),
-                ReadOnlyFunctionTool(
-                    self._rag_search,
-                    name="rag_search",
-                    description="Search the current tenant's retained Java knowledge service.",
-                    is_read_only=True,
-                ),
-            ],
+                *retained_tools,
+            ]
         )
         return Agent(
             name="platform-agent",
@@ -100,22 +223,3 @@ class AgentScopeRunner(AgentRunner):
             )
         value = datetime.now(zone if timezone != "UTC" else UTC).isoformat()
         return ToolChunk(content=[TextBlock(text=value)])
-
-    async def _rag_search(self, query: str, top_k: int = 5) -> ToolChunk:
-        """Search knowledge visible to the current tenant."""
-        top_k = min(max(top_k, 1), 20)
-        try:
-            payload = await self._platform_client.query_knowledge(
-                query=query,
-                top_k=top_k,
-                context=current_run_context(),
-            )
-        except (httpx.HTTPError, ValueError) as exc:
-            return ToolChunk(
-                content=[TextBlock(text=f"knowledge search failed: {exc}")],
-                state=ToolResultState.ERROR,
-            )
-        return ToolChunk(
-            content=[TextBlock(text=str(payload))],
-            metadata={"source": "knowledge-service"},
-        )

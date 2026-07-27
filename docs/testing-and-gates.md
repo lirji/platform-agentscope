@@ -66,8 +66,15 @@
 ## 4. 本地命令
 
 ```bash
+uv sync --frozen --dev
+uv run python scripts/export_contracts.py --check
 uv run ruff check .
+uv run ruff format --check .
 uv run mypy src
-uv run pytest --cov=agentscope_platform --cov-report=term-missing
-docker compose config
+uv run pytest --cov=agentscope_platform --cov-report=term-missing --cov-fail-under=80
+uv build
+docker compose -f compose.yml config
 ```
+
+Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它只验证案例结构、预期
+工具和禁止副作用，不替代真实模型环境的新旧双跑。

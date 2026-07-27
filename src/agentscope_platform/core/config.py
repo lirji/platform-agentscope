@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     gateway_model: str = "chat-default"
     gateway_temperature: float = Field(default=0.2, ge=0, le=2)
     agent_max_steps: int = Field(default=8, ge=1, le=100)
+    agent_max_tokens: int = Field(default=0, ge=0)
+    agent_timeout_seconds: float = Field(default=0, ge=0)
+    agent_max_repeats: int = Field(default=3, ge=2, le=20)
+    agent_loop_window: int = Field(default=6, ge=2, le=100)
+    agent_rag_top_k: int = Field(default=5, ge=1, le=20)
+    agent_rag_min_score: float = Field(default=0, ge=0)
+    agent_rag_category: str | None = None
 
     internal_auth_required: bool = True
     internal_jwt_header: str = "X-Internal-Token"

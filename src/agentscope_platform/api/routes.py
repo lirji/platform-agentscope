@@ -35,7 +35,7 @@ async def readiness(request: Request) -> JSONResponse:
 async def info() -> dict[str, str]:
     return {
         "name": "agentscope-platform",
-        "phase": "0-scaffold",
+        "phase": "1-readonly-react",
         "framework": "AgentScope 2.0",
     }
 
