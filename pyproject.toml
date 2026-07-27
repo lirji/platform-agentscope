@@ -36,6 +36,7 @@ dev = [
 [project.scripts]
 agentscope-platform = "agentscope_platform.main:run"
 agentscope-shadow-eval = "agentscope_platform.evaluation.cli:main"
+agentscope-shadow-cost = "agentscope_platform.evaluation.cost_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentscope_platform"]

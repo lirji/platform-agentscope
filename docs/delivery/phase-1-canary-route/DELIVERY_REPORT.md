@@ -61,4 +61,5 @@ candidate after it is healthy. Roll back edge first, then disable and restart th
 ## Remaining Risks Or External Actions
 
 - Edge test-tenant routing and rollback are not changed by this repository.
-- Semantic answer quality and per-target cost remain cutover blockers.
+- Open-ended model-graded answer quality and actual edge exercise remain cutover blockers. The
+  follow-up deterministic order evidence and trace-attributed estimated cost gates pass.

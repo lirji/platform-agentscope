@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 import httpx
 from pydantic import ValidationError
@@ -116,7 +117,15 @@ async def evaluate_shadow(
         for case in cases:
             for run_number in range(1, runs + 1):
                 for target in normalized_targets:
-                    samples.append(await _execute(client, case, target, run_number))
+                    samples.append(
+                        await _execute(
+                            client,
+                            case,
+                            target,
+                            run_number,
+                            uuid4().hex,
+                        ),
+                    )
 
     legacy_summary = summarize("legacy", samples)
     candidate_summary = summarize("candidate", samples)
@@ -139,8 +148,13 @@ async def _execute(
     case: ShadowCase,
     target: Target,
     run_number: int,
+    trace_id: str,
 ) -> RunSample:
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Trace-Id": trace_id,
+        "traceparent": f"00-{trace_id}-{uuid4().hex[:16]}-01",
+    }
     if target.auth_token:
         headers[target.auth_header] = target.auth_token
     started = monotonic()
@@ -151,7 +165,14 @@ async def _execute(
             headers=headers,
         )
     except httpx.HTTPError:
-        return _failed_sample(case, target, run_number, started, "NETWORK_ERROR")
+        return _failed_sample(
+            case,
+            target,
+            run_number,
+            started,
+            "NETWORK_ERROR",
+            trace_id=trace_id,
+        )
 
     latency_ms = _elapsed_ms(started)
     if response.is_error:
@@ -163,6 +184,7 @@ async def _execute(
             f"HTTP_{response.status_code}",
             status_code=response.status_code,
             latency_ms=latency_ms,
+            trace_id=trace_id,
         )
     if len(response.content) > MAX_RESPONSE_BYTES:
         return _failed_sample(
@@ -173,6 +195,7 @@ async def _execute(
             "RESPONSE_TOO_LARGE",
             status_code=response.status_code,
             latency_ms=latency_ms,
+            trace_id=trace_id,
         )
     try:
         reply = AgentRunReply.model_validate_json(response.content)
@@ -185,6 +208,7 @@ async def _execute(
             "INVALID_CONTRACT",
             status_code=response.status_code,
             latency_ms=latency_ms,
+            trace_id=trace_id,
         )
 
     tools = tuple(step.action for step in reply.steps if step.action)
@@ -194,7 +218,11 @@ async def _execute(
     tool_score = sum(tool in tool_set for tool in case.expected_tools) / len(case.expected_tools)
     tool_order_valid = _is_subsequence(case.expected_tools, tools)
     completed = reply.stop_reason == "DONE" and bool(reply.final_answer.strip())
-    passed = completed and not missing and not forbidden and tool_order_valid
+    answer_evaluated, answer_passed, answer_score = _evaluate_answer(
+        reply.final_answer,
+        case,
+    )
+    passed = completed and not missing and not forbidden and tool_order_valid and answer_passed
     error = None
     if forbidden:
         error = "FORBIDDEN_TOOL"
@@ -204,10 +232,13 @@ async def _execute(
         error = "EXPECTED_TOOL_ORDER"
     elif not completed:
         error = "NOT_COMPLETED"
+    elif not answer_passed:
+        error = "ANSWER_ASSERTION"
     return RunSample(
         case_id=case.id,
         target=target.name,
         run=run_number,
+        trace_id=trace_id,
         status_code=response.status_code,
         latency_ms=latency_ms,
         contract_valid=True,
@@ -219,6 +250,9 @@ async def _execute(
         forbidden_tools=forbidden,
         tool_order_valid=tool_order_valid,
         tool_score=tool_score,
+        answer_evaluated=answer_evaluated,
+        answer_passed=answer_passed,
+        answer_score=answer_score,
         error=error,
     )
 
@@ -232,17 +266,23 @@ def _failed_sample(
     *,
     status_code: int = 0,
     latency_ms: int | None = None,
+    trace_id: str = "",
 ) -> RunSample:
+    answer_evaluated = case.answer_assertions is not None
     return RunSample(
         case_id=case.id,
         target=target.name,
         run=run_number,
+        trace_id=trace_id,
         status_code=status_code,
         latency_ms=_elapsed_ms(started) if latency_ms is None else latency_ms,
         contract_valid=False,
         completed=False,
         passed=False,
         missing_tools=case.expected_tools,
+        answer_evaluated=answer_evaluated,
+        answer_passed=not answer_evaluated,
+        answer_score=0 if answer_evaluated else 1,
         error=error,
     )
 
@@ -256,6 +296,7 @@ def summarize(name: str, samples: list[RunSample]) -> TargetSummary:
         reason = sample.stop_reason or sample.error or "UNKNOWN"
         stop_reasons[reason] = stop_reasons.get(reason, 0) + 1
     total = len(selected)
+    answer_samples = [sample for sample in selected if sample.answer_evaluated]
     return TargetSummary(
         name=name,
         total_runs=total,
@@ -267,6 +308,12 @@ def summarize(name: str, samples: list[RunSample]) -> TargetSummary:
         contract_errors=sum(not sample.contract_valid for sample in selected),
         p95_latency_ms=_percentile95([sample.latency_ms for sample in selected]),
         stop_reasons=stop_reasons,
+        answer_evaluated_runs=len(answer_samples),
+        answer_pass_rate=(
+            sum(sample.answer_passed for sample in answer_samples) / len(answer_samples)
+            if answer_samples
+            else 1
+        ),
     )
 
 
@@ -315,6 +362,20 @@ def evaluate_gate(
         candidate.tool_accuracy,
         thresholds.tool_accuracy_tolerance,
     )
+    if legacy.answer_evaluated_runs or candidate.answer_evaluated_runs:
+        _absolute_rate_gate(
+            regressions,
+            "minimum_answer_pass_rate",
+            candidate.answer_pass_rate,
+            thresholds.min_answer_pass_rate,
+        )
+        _relative_rate_gate(
+            regressions,
+            "answer_pass_rate",
+            legacy.answer_pass_rate,
+            candidate.answer_pass_rate,
+            thresholds.answer_pass_rate_tolerance,
+        )
     if candidate.forbidden_violations:
         regressions.append(
             f"forbidden_tool regression: candidate executed "
@@ -391,6 +452,24 @@ def _is_subsequence(expected: tuple[str, ...], actual: tuple[str, ...]) -> bool:
             if expected_index == len(expected):
                 return True
     return False
+
+
+def _evaluate_answer(
+    answer: str,
+    case: ShadowCase,
+) -> tuple[bool, bool, float]:
+    assertions = case.answer_assertions
+    if assertions is None:
+        return False, True, 1
+
+    normalized = answer.casefold()
+    checks = [
+        *(term.casefold() in normalized for term in assertions.all_of),
+        *(any(term.casefold() in normalized for term in group) for group in assertions.any_of),
+        *(term.casefold() not in normalized for term in assertions.none_of),
+    ]
+    passed_checks = sum(checks)
+    return True, passed_checks == len(checks), passed_checks / len(checks)
 
 
 def write_report(report: ShadowReport, path: Path) -> None:

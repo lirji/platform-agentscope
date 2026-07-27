@@ -6,7 +6,8 @@ A safe, reproducible old/new Agent Shadow evaluation CLI is complete. It changes
 traffic route and is ready to run in an explicitly named test environment.
 
 A post-delivery localhost live run found and repaired an iteration-budget compatibility defect. A
-seeded-tenant three-run four-case gate then passed; semantic and attributable-cost gates remain.
+seeded-tenant three-run four-case gate then passed. The follow-up semantic/cost delivery closes
+deterministic order facts and trace-attributed estimated cost.
 
 ## Requirement Coverage
 
@@ -47,8 +48,8 @@ seeded-tenant three-run four-case gate then passed; semantic and attributable-co
 
 - Code review: pass; no unresolved high/medium finding.
 - QA: conditional-pass because live model/platform testing is external.
-- Live protocol/tool-chain QA: repeated seeded-tenant gate pass; semantic and cost QA remain
-  conditional.
+- Live protocol/tool-chain QA: repeated seeded-tenant gate pass; open-ended model grading remains
+  conditional after the follow-up deterministic semantic/cost gate.
 
 ## Documentation Changes
 
@@ -75,5 +76,5 @@ because this delivery does not modify routing.
 
 ## Remaining Risks Or External Actions
 
-Semantic answer grading, target-attributed cost comparison, and edge test-tenant cutover/rollback
+Open-ended answer grading, provider invoice reconciliation, and edge test-tenant cutover/rollback
 evidence are still required before production cutover.

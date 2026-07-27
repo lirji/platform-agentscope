@@ -11,6 +11,7 @@
 - 是否执行禁止工具；
 - 通过率、工具准确率和 P95 延迟是否相对旧服务回归；
 - candidate 是否达到绝对最低门槛。
+- 可选的答案业务事实证据是否满足。
 
 该工具不会改变 edge 路由，也不会把完整回答、observation、请求 token 或响应正文写入报告。
 
@@ -39,8 +40,30 @@ uv run agentscope-shadow-eval \
 ```
 
 测试身份必须能读取 suite 对应的种子数据。例如仓库默认订单 101 属于 `tenantA`；使用
-其他租户会因租户隔离得到 404。当前门禁只验证工具选择，不会把“选对工具但业务数据未
-命中”自动判为语义失败，因此运行前必须验证 fixture 与租户匹配，并结合语义 grader。
+其他租户会因租户隔离得到 404。关键案例应配置下述答案证据；其他开放式答案仍应结合
+语义 grader。
+
+## 答案证据
+
+用例可以声明不落回答原文的确定性断言：
+
+```json
+{
+  "answerAssertions": {
+    "allOf": ["101", "已支付", "张三", "2026-05-03"],
+    "anyOf": [["1200", "1,200"]],
+    "noneOf": ["未找到订单", "查询失败"]
+  }
+}
+```
+
+- `allOf`：每个词都必须出现；
+- `anyOf`：每个内层数组至少命中一个等价表达；
+- `noneOf`：所有词都不得出现。
+
+比较使用大小写无关包含匹配。报告只记录 `answerPassed`/`answerScore`，不保存回答、命中
+片段或断言文本。默认 candidate 答案通过率不得低于 80%，且不得比 legacy 低超过 5 个
+百分点，可用 `--min-answer-pass-rate` 和 `--answer-pass-rate-tolerance` 调整。
 
 如果两端使用不同 token：
 
@@ -89,8 +112,36 @@ export SHADOW_CANDIDATE_TOKEN='replace-with-candidate-test-token'
 ## 成本归因
 
 若 LiteLLM 使用 `PLATFORM_GATEWAY_TENANT_ATTRIBUTION=none`，新旧请求及 RAG embedding
-记录会混在同一时间窗，不能用于可信的新旧成本比较。成本门禁前应为 legacy/candidate
-使用不同虚拟 key，或注入可查询的 target/run tag，再按唯一请求聚合 token 与 spend。
+记录会混在同一时间窗，不能按时间窗口做可信比较。Shadow v2 为每次目标调用生成唯一
+`X-Trace-Id` 和 W3C `traceparent`，并把 trace ID 写入脱敏报告。测试栈应开启：
+
+```bash
+MANAGEMENT_TRACING_ENABLED=true   # retained Java services
+OTEL_ENABLED=true                 # candidate
+```
+
+从 Jaeger 的对应 trace 中只提取 `litellm_request` span 的 `gen_ai.response.id`，再按该 ID
+关联 LiteLLM `LiteLLM_SpendLogs.request_id`。导出以下 JSONL 安全账本，不要导出 span 的
+prompt/completion tag、数据库 `messages`/`response` 或 API key：
+
+```json
+{"traceId":"32-hex-trace","requestId":"chatcmpl-unique","inputTokens":100,"outputTokens":20,"costUsd":"0.00012"}
+```
+
+一个 trace 可有多行，覆盖 Agent 多步调用和 RAG embedding。`requestId` 必须全局唯一，
+避免重复导出导致成本翻倍。随后执行：
+
+```bash
+uv run agentscope-shadow-cost \
+  --shadow-report reports/readonly-shadow.json \
+  --ledger reports/readonly-cost-ledger.jsonl \
+  --output reports/readonly-cost.json
+```
+
+默认 candidate 成本上限为 `legacy × 1.25 + 0.001 USD`。任一运行没有账本记录即失败；
+CLI 退出码仍为 0=通过、1=门禁失败、2=输入/配置错误。成本报告只含 trace、token、USD
+汇总和门禁结果。LiteLLM 对本地 Ollama 的 `spend` 是按模型价目计算的估算值，不是外部
+账单。
 
 ## CI 与真实双跑
 

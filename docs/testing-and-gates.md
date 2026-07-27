@@ -34,6 +34,7 @@
 - 工具选择准确率。
 - 工具参数正确率。
 - grounded answer 比例。
+- 关键案例的确定性业务事实证据（不保存答案）。
 - 越权率。
 - P50/P95/P99 延迟。
 - token 与货币成本。
@@ -78,8 +79,13 @@ uv build
 docker compose -f compose.yml config
 ```
 
-Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它只验证案例结构、预期
-工具和禁止副作用。CI 使用 HTTPX 离线 stub 验证双跑门禁本身；这不替代真实模型环境的
-新旧双跑。测试环境执行方法见 [Shadow 双跑指南](shadow-evaluation.md)。
+Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它验证案例结构、预期
+工具、禁止副作用和已声明的答案事实证据。CI 使用 HTTPX 离线 stub 验证双跑门禁本身；
+这不替代真实模型环境的新旧双跑。测试环境执行方法见
+[Shadow 双跑指南](shadow-evaluation.md)。
 候选服务侧启用和回滚方法见[候选路由指南](candidate-route.md)；它不替代 edge 的实际
 按租户切流演练。
+
+Shadow v2 每次调用都有唯一 W3C trace。`agentscope-shadow-cost` 要求每个运行都有至少
+一条 trace 账本记录并拒绝重复 `requestId`，从而把 Agent 多步及下游 embedding 合并到
+同一次运行。账本契约和安全导出方法见 [Shadow 双跑指南](shadow-evaluation.md)。

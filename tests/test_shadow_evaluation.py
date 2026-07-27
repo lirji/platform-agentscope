@@ -78,6 +78,13 @@ async def test_evaluates_same_cases_and_sanitizes_report(tmp_path: Path) -> None
         "legacy.localhost",
         "candidate.localhost",
     }
+    trace_ids = [request.headers["X-Trace-Id"] for request in requests]
+    assert len(set(trace_ids)) == 4
+    assert {sample.trace_id for sample in report.samples} == set(trace_ids)
+    assert all(
+        request.headers["traceparent"].startswith(f"00-{request.headers['X-Trace-Id']}-")
+        for request in requests
+    )
     assert report.gate.legacy.pass_rate == 1
     assert report.gate.candidate.forbidden_violations == 2
     assert not report.gate.passed
@@ -278,3 +285,59 @@ def test_suite_loader_rejects_duplicate_or_write_cases(tmp_path: Path) -> None:
 def test_case_contract_rejects_missing_expected_tools() -> None:
     with pytest.raises(ValidationError):
         case(expectedTools=[])
+
+
+async def test_answer_assertions_gate_semantic_evidence_without_leaking_answer(
+    tmp_path: Path,
+) -> None:
+    asserted = case(
+        id="order",
+        expectedTools=["order_query"],
+        forbiddenTools=[],
+        answerAssertions={
+            "allOf": ["101", "1200", "已支付"],
+            "anyOf": [["张三", "customer-1"]],
+            "noneOf": ["未找到订单", "查询失败"],
+        },
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "legacy.localhost":
+            final_answer = "订单 101 金额 1200, 已支付, 客户张三"
+        else:
+            final_answer = "未找到订单 101, 查询失败"
+        body = reply("order", ["order_query"])
+        body["finalAnswer"] = final_answer
+        return httpx.Response(200, json=body)
+
+    report = await evaluate_shadow(
+        (asserted,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert report.samples[0].answer_evaluated
+    assert report.samples[0].answer_passed
+    assert report.samples[0].answer_score == 1
+    assert report.samples[1].answer_evaluated
+    assert not report.samples[1].answer_passed
+    assert report.samples[1].error == "ANSWER_ASSERTION"
+    assert report.gate.legacy.answer_pass_rate == 1
+    assert report.gate.candidate.answer_pass_rate == 0
+    assert any("answer_pass_rate" in item for item in report.gate.regressions)
+
+    output = tmp_path / "semantic-report.json"
+    write_report(report, output)
+    serialized = output.read_text(encoding="utf-8")
+    assert "订单 101 金额" not in serialized
+    assert "未找到订单 101" not in serialized
+
+
+def test_answer_assertions_reject_empty_terms_and_groups() -> None:
+    with pytest.raises(ValidationError):
+        case(answerAssertions={})
+    with pytest.raises(ValidationError):
+        case(answerAssertions={"allOf": [" "]})
+    with pytest.raises(ValidationError):
+        case(answerAssertions={"anyOf": [[]]})

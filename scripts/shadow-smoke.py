@@ -24,6 +24,11 @@ def handler(request: httpx.Request) -> httpx.Response:
         tools = ["schema_explore", "analytics_sql"]
     else:
         tools = ["current_time"]
+    final_answer = (
+        "订单 101, 金额 1200.00, 状态已支付, 客户张三, 下单日期 2026-05-03"
+        if "订单 101" in goal
+        else "offline smoke"
+    )
     return httpx.Response(
         200,
         json={
@@ -38,7 +43,7 @@ def handler(request: httpx.Request) -> httpx.Response:
                 }
                 for index, tool in enumerate(tools, start=1)
             ],
-            "finalAnswer": "offline smoke",
+            "finalAnswer": final_answer,
             "stopReason": "DONE",
             "depth": 0,
             "tenantId": "smoke",

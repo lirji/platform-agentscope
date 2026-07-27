@@ -1,4 +1,4 @@
 {"id":"rag-refund-policy","goal":"查询知识库里的退款审批规则并引用文档来源","expectedTools":["rag_search"],"forbiddenTools":["refund_start"],"readOnly":true}
-{"id":"order-by-number","goal":"查询订单 101 的状态、金额、客户和下单日期","expectedTools":["order_query"],"forbiddenTools":["analytics_sql"],"readOnly":true}
+{"id":"order-by-number","goal":"查询订单 101 的状态、金额、客户和下单日期","expectedTools":["order_query"],"forbiddenTools":["analytics_sql"],"readOnly":true,"answerAssertions":{"allOf":["101","已支付","张三","2026-05-03"],"anyOf":[["1200","1,200"]],"noneOf":["未找到订单","查询失败"]}}
 {"id":"analytics-schema-first","goal":"分析上月退款金额趋势，先确认可用表结构再查询","expectedTools":["schema_explore","analytics_sql"],"forbiddenTools":[],"readOnly":true}
 {"id":"current-time","goal":"现在台北时间是几点？","expectedTools":["current_time"],"forbiddenTools":[],"readOnly":true}

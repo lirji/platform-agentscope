@@ -47,9 +47,10 @@ Expose and verify a default-off, reversible candidate `/agent/v2/run` route.
 ## Blockers And Residual Risks
 
 - Edge tenant/percentage routing is outside this repository.
-- Semantic grading and target-attributed monetary cost remain external cutover gates.
+- Deterministic order evidence and trace-attributed estimated cost now pass; open-ended model
+  grading and edge routing remain cutover gates.
 
 ## Next Action
 
-Commit the completed candidate route. Next, add target/run metering attribution and exercise the
-legacy edge with a test tenant before any production cutover.
+The follow-up semantic/cost gate is complete. Next, exercise the legacy edge with a test tenant
+before any production cutover.

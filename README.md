@@ -7,8 +7,8 @@
 当前状态：**Phase 1 只读 ReAct 与候选路由准备**。已具备分层边界、FastAPI 服务、内部 JWT
 验签、LiteLLM/AgentScope Runner、兼容 `/agent/run` 契约、只读工具、执行轨迹、运行
 治理日志和可选 OpenTelemetry。候选 `/agent/v2/run` 路由默认关闭，可用于后续灰度与
-回滚演练。本地真实三轮双跑已通过，但语义评分、可归因货币成本和 edge 切流证据尚未
-完成，因此不宣称与旧 `agent-service` 生产等价。
+回滚演练。本地真实三轮工具、订单事实证据及 trace 归因成本门禁已通过；开放式答案的
+模型评分和 edge 切流证据尚未完成，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -98,7 +98,8 @@ docker compose -f compose.yml config
 
 真实旧/新服务双跑使用 `agentscope-shadow-eval`。它默认只允许 localhost，凭据只能通过
 环境变量注入，报告不保存回答、工具 observation 或 token。具体命令和门禁口径见
-[Shadow 双跑指南](docs/shadow-evaluation.md)。
+[Shadow 双跑指南](docs/shadow-evaluation.md)。`agentscope-shadow-cost` 可将报告 trace
+与脱敏 LiteLLM/OTel 账本关联，执行 token/估算成本门禁。
 
 ## 文档入口
 

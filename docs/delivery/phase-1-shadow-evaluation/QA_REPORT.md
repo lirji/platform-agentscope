@@ -8,7 +8,8 @@
 - Test data: `eval/baseline/readonly-cases.jsonl`.
 - Live extension: localhost LiteLLM, retained Java services, legacy Agent on `8085`, and candidate
   on `18085`, using one short-lived internal test identity.
-- Known limitations: no edge test-tenant cutover or attributable monetary cost.
+- Known limitations at this delivery point: no edge test-tenant cutover or attributable cost. The
+  subsequent semantic/cost delivery closes deterministic order facts and estimated-cost attribution.
 
 ## Cases
 
@@ -46,7 +47,8 @@
 ## Blocked External Checks
 
 - Semantic/tool-result answer grading.
-- Target-attributed LiteLLM monetary cost comparison.
+- Open-ended model grading and provider invoice reconciliation remain after the follow-up
+  trace-attributed estimated-cost gate.
 - Edge test-tenant routing and rollback exercise.
 
 ## Verdict

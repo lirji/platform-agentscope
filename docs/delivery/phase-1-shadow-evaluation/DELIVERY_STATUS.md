@@ -72,12 +72,11 @@ Provide a safe, repeatable old/new Agent shadow-evaluation gate without changing
 
 ## Blockers And Residual Risks
 
-- The selection gate does not grade observation or final-answer semantics; retain Java
-  eval-service/model-judge evidence for cutover.
-- Cost is not present in `/agent/run`, and current LiteLLM rows have no target/run attribution.
+- The follow-up semantic/cost delivery now grades deterministic order facts and joins trace-level
+  estimated cost; open-ended answers still need Java eval-service/model-judge evidence.
 - Local repeated results do not replace an actual edge test-tenant exercise.
 
 ## Next Action
 
-Add target/run tags or distinct virtual keys for attributable cost evidence, run semantic grading,
-then perform an edge test-tenant cutover and rollback using the prepared `/agent/v2/run` route.
+Run open-ended RAG/analytics model grading, then perform an edge test-tenant cutover and rollback
+using the prepared `/agent/v2/run` route.

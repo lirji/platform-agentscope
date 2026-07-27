@@ -34,6 +34,8 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--pass-rate-tolerance", type=float, default=0.05)
     value.add_argument("--completion-rate-tolerance", type=float, default=0.05)
     value.add_argument("--tool-accuracy-tolerance", type=float, default=0.05)
+    value.add_argument("--min-answer-pass-rate", type=float, default=0.8)
+    value.add_argument("--answer-pass-rate-tolerance", type=float, default=0.05)
     value.add_argument("--p95-latency-ratio", type=float, default=1.5)
     value.add_argument("--p95-latency-slack-ms", type=int, default=250)
     value.add_argument(
@@ -57,6 +59,8 @@ async def async_main(argv: Sequence[str] | None = None) -> int:
             pass_rate_tolerance=args.pass_rate_tolerance,
             completion_rate_tolerance=args.completion_rate_tolerance,
             tool_accuracy_tolerance=args.tool_accuracy_tolerance,
+            min_answer_pass_rate=args.min_answer_pass_rate,
+            answer_pass_rate_tolerance=args.answer_pass_rate_tolerance,
             p95_latency_ratio=args.p95_latency_ratio,
             p95_latency_slack_ms=args.p95_latency_slack_ms,
         )
