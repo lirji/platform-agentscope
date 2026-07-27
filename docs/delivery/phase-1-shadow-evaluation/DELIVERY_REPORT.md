@@ -5,8 +5,8 @@
 A safe, reproducible old/new Agent Shadow evaluation CLI is complete. It changes no runtime API or
 traffic route and is ready to run in an explicitly named test environment.
 
-A post-delivery localhost live run found and repaired an iteration-budget compatibility defect. The
-single-run four-case retest passed; repeated statistical and cost gates remain pending.
+A post-delivery localhost live run found and repaired an iteration-budget compatibility defect. A
+seeded-tenant three-run four-case gate then passed; semantic and attributable-cost gates remain.
 
 ## Requirement Coverage
 
@@ -34,18 +34,21 @@ single-run four-case retest passed; repeated statistical and cost gates remain p
 
 ## Build And Test Results
 
-- 54 tests passed with 90.22% total coverage.
+- 57 tests passed with 90.31% total coverage.
 - Ruff, formatting, Mypy strict, contract drift, package build, shell syntax, Compose, and diff checks
   passed.
 - Offline Shadow smoke passed with eight paired samples.
 - Live retest: candidate completion/pass/tool accuracy `1.0/1.0/1.0`, no forbidden tools, P95
   `39.531s`; legacy `0.75/0.50/1.0`, one forbidden-tool case, P95 `37.155s`.
+- Three-run seeded-tenant gate: both targets completion/pass/tool accuracy `1.0/1.0/1.0`, no
+  forbidden tools; candidate P95 `12.734s`, legacy P95 `15.805s`.
 
 ## Code Review And QA Verdicts
 
 - Code review: pass; no unresolved high/medium finding.
 - QA: conditional-pass because live model/platform testing is external.
-- Live protocol/tool-chain QA: single-run pass after repair; repeated-run QA remains conditional.
+- Live protocol/tool-chain QA: repeated seeded-tenant gate pass; semantic and cost QA remain
+  conditional.
 
 ## Documentation Changes
 
@@ -72,5 +75,5 @@ because this delivery does not modify routing.
 
 ## Remaining Risks Or External Actions
 
-At least three repeated test-environment runs, approved thresholds, cost comparison, edge shadow
-routing, and rollback evidence are still required before production cutover.
+Semantic answer grading, target-attributed cost comparison, and edge test-tenant cutover/rollback
+evidence are still required before production cutover.

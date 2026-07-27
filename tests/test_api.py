@@ -94,6 +94,72 @@ def test_agent_run_preserves_legacy_contract_and_tenant() -> None:
     assert runner.context.trace_id == "trace-123"
 
 
+def test_candidate_route_is_absent_by_default() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    response = client.post(
+        "/agent/v2/run",
+        json={"goal": "test"},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 404
+
+
+def test_candidate_route_preserves_contract_security_and_context() -> None:
+    runner = FakeRunner()
+    client = TestClient(
+        create_app(
+            settings(agent_v2_enabled=True),
+            runner,
+        ),
+    )
+
+    missing = client.post("/agent/v2/run", json={"goal": "test"})
+    forged = client.post(
+        "/agent/v2/run",
+        json={"goal": "test"},
+        headers={
+            "X-Internal-Token": jwt.encode(
+                {
+                    "sub": "acme",
+                    "uid": "mallory",
+                    "scopes": ["agent"],
+                    "exp": datetime.now(UTC) + timedelta(minutes=5),
+                },
+                "another-test-secret-with-at-least-32-bytes",
+                algorithm="HS256",
+            ),
+        },
+    )
+    accepted = client.post(
+        "/agent/v2/run",
+        json={"goal": " candidate query "},
+        headers={
+            "X-Internal-Token": internal_token(),
+            "X-Trace-Id": "candidate-trace",
+        },
+    )
+
+    assert missing.status_code == 401
+    assert forged.status_code == 401
+    assert accepted.status_code == 200
+    assert accepted.headers["X-Trace-Id"] == "candidate-trace"
+    assert accepted.json() == {
+        "goal": "candidate query",
+        "steps": [],
+        "finalAnswer": "completed: candidate query",
+        "stopReason": "DONE",
+        "depth": 0,
+        "tenantId": "acme",
+    }
+    assert runner.context is not None
+    assert runner.context.identity.user_id == "alice"
+    assert runner.context.identity.department == "acme_rd"
+    assert runner.context.identity.scopes == frozenset({"chat", "agent"})
+    assert runner.context.trace_id == "candidate-trace"
+
+
 def test_agent_run_rejects_forged_token() -> None:
     client = TestClient(create_app(settings(), FakeRunner()))
     forged = jwt.encode(
@@ -125,6 +191,21 @@ def test_readiness_reports_missing_model_configuration() -> None:
     assert response.status_code == 503
     assert response.json()["status"] == "DEGRADED"
     assert response.json()["checks"]["modelConfiguration"] == "MISSING_GATEWAY_API_KEY"
+    assert response.json()["checks"]["candidateRoute"] == "DISABLED"
+
+
+def test_readiness_reports_enabled_candidate_route() -> None:
+    client = TestClient(
+        create_app(
+            settings(agent_v2_enabled=True),
+            FakeRunner(),
+        ),
+    )
+
+    response = client.get("/readiness")
+
+    assert response.status_code == 200
+    assert response.json()["checks"]["candidateRoute"] == "ENABLED"
 
 
 def test_local_auth_can_be_explicitly_disabled() -> None:

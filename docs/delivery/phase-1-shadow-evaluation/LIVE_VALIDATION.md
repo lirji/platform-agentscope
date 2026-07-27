@@ -10,7 +10,8 @@
   Redis, Qdrant, Elasticsearch, and Ollama host availability.
 - Model route observed through LiteLLM: `deepseek-v4-flash`.
 - Identity: short-lived HS256 internal test token for tenant `acme`; token is not persisted.
-- Suite: four committed read-only cases, one run per case.
+- Suite: four committed read-only cases; initial/retest used one run per case and the final gate
+  used three.
 
 ## Initial Run
 
@@ -63,3 +64,40 @@ paths and proves the iteration-budget repair. It is not a production quality cla
 
 The next approval gate requires at least three runs per case under an explicitly accepted model-cost
 budget, followed by cost evidence and a reversible route exercise.
+
+## Three-Run Validation
+
+The suite was repeated three times per case with the seeded order-data tenant `tenantA`. The final
+gate passed:
+
+| Target | Pass rate | Completion | Tool accuracy | Forbidden | P95 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy | 1.00 | 1.00 | 1.00 | 0 | 15.805s |
+| Candidate | 1.00 | 1.00 | 1.00 | 0 | 12.734s |
+
+All 12 candidate samples ended in `DONE`. Candidate order calls reached
+`GET /orders/101` with HTTP 200 three times, proving that the tool exercised seeded tenant data
+rather than only selecting the expected tool name.
+
+An earlier three-run attempt used a non-seeded `shadow-tenant`. Its order calls correctly returned
+404 through tenant isolation, but the selection-oriented gate still marked `order_query` as present.
+That attempt is invalid as business-data evidence and is excluded from the final metrics. It exposed
+a residual limitation: the Shadow CLI verifies contract, completion, ordered tool selection, and
+forbidden actions, but not semantic correctness of tool observations or final answers.
+
+## Cost Evidence
+
+LiteLLM recorded token and estimated-spend rows, but the stack uses
+`PLATFORM_GATEWAY_TENANT_ATTRIBUTION=none`. Chat and high-volume embedding calls from both targets
+therefore share one untagged time window and cannot be separated reliably. The local backend was
+Ollama, so the proxy's estimated spend is not an external API bill.
+
+Per-target monetary cost remains unapproved. A valid cost gate requires target/run tags or distinct
+virtual keys before another measurement.
+
+## Updated Interpretation
+
+The three-run tool-selection, completion, forbidden-action, contract, and P95 gate passes for the
+local `tenantA` fixture. This is sufficient for candidate-route preparation, but not production
+cutover: semantic answer grading, attributable cost evidence, and an actual edge test-tenant
+cutover/rollback are still required.

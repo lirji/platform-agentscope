@@ -38,6 +38,10 @@ uv run agentscope-shadow-eval \
   --output reports/readonly-shadow.json
 ```
 
+测试身份必须能读取 suite 对应的种子数据。例如仓库默认订单 101 属于 `tenantA`；使用
+其他租户会因租户隔离得到 404。当前门禁只验证工具选择，不会把“选对工具但业务数据未
+命中”自动判为语义失败，因此运行前必须验证 fixture 与租户匹配，并结合语义 grader。
+
 如果两端使用不同 token：
 
 ```bash
@@ -81,6 +85,12 @@ export SHADOW_CANDIDATE_TOKEN='replace-with-candidate-test-token'
 
 报告不包含目标 URL、token、goal、最终答案、actionInput 或 observation。
 单个目标响应超过 2 MB 会以 `RESPONSE_TOO_LARGE` 失败，不进入契约解析。
+
+## 成本归因
+
+若 LiteLLM 使用 `PLATFORM_GATEWAY_TENANT_ATTRIBUTION=none`，新旧请求及 RAG embedding
+记录会混在同一时间窗，不能用于可信的新旧成本比较。成本门禁前应为 legacy/candidate
+使用不同虚拟 key，或注入可查询的 target/run tag，再按唯一请求聚合 token 与 spend。
 
 ## CI 与真实双跑
 

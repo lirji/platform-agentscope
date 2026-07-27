@@ -9,6 +9,7 @@ services:
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: 8085
+      AGENT_V2_ENABLED: ${AGENT_V2_ENABLED:-false}
       GATEWAY_BASE_URL: ${DOCKER_GATEWAY_BASE_URL:-http://host.docker.internal:4000/v1}
       KNOWLEDGE_BASE_URL: ${DOCKER_KNOWLEDGE_BASE_URL:-http://host.docker.internal:8084}
       ANALYTICS_BASE_URL: ${DOCKER_ANALYTICS_BASE_URL:-http://host.docker.internal:8083}

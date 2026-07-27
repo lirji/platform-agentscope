@@ -24,6 +24,10 @@ Provide a safe, repeatable old/new Agent shadow-evaluation gate without changing
   and candidate AgentScope service against the same logical model and short-lived tenant identity.
 - The first live gate exposed an AgentScope/legacy step-budget semantic mismatch; the mapping was
   repaired and the same four-case live gate then passed.
+- A seeded-tenant three-run gate passed for both targets; candidate completed and passed all 12
+  samples with no forbidden tool and a 12.734s P95.
+- An invalid non-seeded-tenant run exposed that tool-selection success does not prove tool-result
+  or final-answer correctness.
 
 ## Changed Files
 
@@ -45,7 +49,7 @@ Provide a safe, repeatable old/new Agent shadow-evaluation gate without changing
 | Contract snapshot check | pass | No drift |
 | Ruff lint / format | pass | 65 files |
 | `uv run mypy src` | pass | 33 source files |
-| Pytest with coverage gate | pass | 54 passed, 90.22% coverage |
+| Pytest with coverage gate | pass | Latest run: 57 passed, 90.31% coverage |
 | `uv run python scripts/shadow-smoke.py` | pass | 8 paired samples |
 | Real localhost dual-target CLI integration | pass | Report written, exit 0 |
 | Package build | pass | sdist and wheel |
@@ -53,6 +57,8 @@ Provide a safe, repeatable old/new Agent shadow-evaluation gate without changing
 | Live Shadow run before iteration fix | fail | Candidate analytics stopped at `MAX_STEPS`; 75% completion |
 | Focused runner regression | pass | Legacy 1/4/8 steps map to AgentScope 1/7/15 iterations |
 | Live Shadow retest after fix | pass | Candidate 4/4 complete, 100% tool accuracy, no forbidden tool |
+| Three-run seeded-tenant Shadow gate | pass | Both 12/12 pass; candidate P95 12.734s |
+| LiteLLM cost attribution inspection | blocked | Shared untagged chat/embedding rows cannot be split by target |
 
 ## Decisions And Deviations
 
@@ -66,13 +72,12 @@ Provide a safe, repeatable old/new Agent shadow-evaluation gate without changing
 
 ## Blockers And Residual Risks
 
-- Real old/new model evaluation still needs an explicitly named test environment and credentials.
-- Cost is not present in `/agent/run`; approve it from LiteLLM/platform metering evidence alongside
-  this report.
-- The live retest used one run per case. At least three repeated runs are still required before a
-  statistical quality/latency decision.
+- The selection gate does not grade observation or final-answer semantics; retain Java
+  eval-service/model-judge evidence for cutover.
+- Cost is not present in `/agent/run`, and current LiteLLM rows have no target/run attribution.
+- Local repeated results do not replace an actual edge test-tenant exercise.
 
 ## Next Action
 
-Repeat the live suite at least three times under an approved cost budget, approve thresholds and
-cost evidence, then perform a reversible `/agent/v2` or façade shadow-routing exercise.
+Add target/run tags or distinct virtual keys for attributable cost evidence, run semantic grading,
+then perform an edge test-tenant cutover and rollback using the prepared `/agent/v2/run` route.

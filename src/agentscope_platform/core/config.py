@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     agent_rag_top_k: int = Field(default=5, ge=1, le=20)
     agent_rag_min_score: float = Field(default=0, ge=0)
     agent_rag_category: str | None = None
+    agent_v2_enabled: bool = False
 
     internal_auth_required: bool = True
     internal_jwt_header: str = "X-Internal-Token"

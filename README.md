@@ -4,10 +4,11 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 1 只读 ReAct 代码切片**。已具备分层边界、FastAPI 服务、内部 JWT
+当前状态：**Phase 1 只读 ReAct 与候选路由准备**。已具备分层边界、FastAPI 服务、内部 JWT
 验签、LiteLLM/AgentScope Runner、兼容 `/agent/run` 契约、只读工具、执行轨迹、运行
-治理日志和可选 OpenTelemetry。离线门禁已通过；尚未完成真实 LiteLLM/旧服务环境中的
-新旧质量、P95 延迟和成本对比，因此不宣称与旧 `agent-service` 生产等价。
+治理日志和可选 OpenTelemetry。候选 `/agent/v2/run` 路由默认关闭，可用于后续灰度与
+回滚演练。本地真实三轮双跑已通过，但语义评分、可归因货币成本和 edge 切流证据尚未
+完成，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -67,6 +68,9 @@ curl http://localhost:8085/readiness
 `/agent/run` 默认要求来自旧平台 edge-gateway 的 `X-Internal-Token`。本地只验证路由时，
 可以在 `.env` 中临时设置 `INTERNAL_AUTH_REQUIRED=false`；该设置不得用于共享或生产环境。
 
+`/agent/v2/run` 默认不注册。只有显式设置 `AGENT_V2_ENABLED=true` 并重启后才可访问，
+操作与回滚顺序见[候选路由指南](docs/candidate-route.md)。
+
 ## Docker 启动
 
 ```bash
@@ -104,5 +108,6 @@ docker compose -f compose.yml config
 - [兼容契约](docs/contracts.md)
 - [测试与发布门禁](docs/testing-and-gates.md)
 - [Shadow 双跑指南](docs/shadow-evaluation.md)
+- [候选路由与回滚](docs/candidate-route.md)
 - [开发指南](docs/development.md)
 - [ADR-0001：采用绞杀者迁移](docs/adr/0001-strangler-agent-orchestrator.md)

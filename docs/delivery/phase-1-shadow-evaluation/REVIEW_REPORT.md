@@ -29,18 +29,21 @@
 
 - Ruff lint and format: pass.
 - Mypy strict: pass.
-- 54 tests: pass.
-- Coverage: 90.22%.
+- Latest full suite, including candidate-route regression: 57 tests pass.
+- Coverage: 90.31%.
 - Offline paired-target smoke: pass.
 - Package and Compose validation: pass.
 - Live four-case Shadow retest: pass after the iteration-budget repair.
+- Live seeded-tenant three-run Shadow gate: pass, both targets 12/12.
 
 ## Residual Risks
 
 - Model answer correctness still needs Java eval-service semantic/judge evidence in the test stack.
-- Monetary cost must be joined from LiteLLM/platform metering because `/agent/run` does not expose it.
+- Monetary cost must be joined from target-attributed LiteLLM/platform metering because
+  `/agent/run` does not expose it and current rows mix targets and embeddings.
 - Explicit `--allow-remote-targets` is an operator trust boundary; the runbook prohibits production.
-- The live retest sample size is one run per case; non-deterministic metrics require repeated runs.
+- Tool presence does not prove that an upstream result or final answer is semantically correct; a
+  non-seeded-tenant attempt demonstrated this by passing selection checks after an order 404.
 
 ## Verdict
 

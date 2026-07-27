@@ -13,6 +13,7 @@
 ### 契约测试
 
 - `/agent/run` 请求/响应与旧 DTO 对齐。
+- `/agent/v2/run` 默认关闭，开启时复用相同契约、安全和租户语义。
 - 错误码、content-type、空列表、字段名。
 - SSE 事件名、顺序和重连。
 - interop-service 作为 consumer 的兼容性。
@@ -80,3 +81,5 @@ docker compose -f compose.yml config
 Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它只验证案例结构、预期
 工具和禁止副作用。CI 使用 HTTPX 离线 stub 验证双跑门禁本身；这不替代真实模型环境的
 新旧双跑。测试环境执行方法见 [Shadow 双跑指南](shadow-evaluation.md)。
+候选服务侧启用和回滚方法见[候选路由指南](candidate-route.md)；它不替代 edge 的实际
+按租户切流演练。

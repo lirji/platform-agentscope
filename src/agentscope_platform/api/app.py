@@ -4,7 +4,7 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from agentscope_platform.api.routes import router
+from agentscope_platform.api.routes import candidate_router, router
 from agentscope_platform.application.ports import AgentRunner
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.core.config import Settings, get_settings
@@ -80,4 +80,6 @@ def create_app(
         )
 
     app.include_router(router)
+    if app_settings.agent_v2_enabled:
+        app.include_router(candidate_router)
     return app
