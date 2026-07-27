@@ -57,8 +57,8 @@
 
 ## Phase 2：多 Agent 编排
 
-状态：`/agent/dag/run`、`/agent/dag/plan-run` 与 `/agent/analyst/run` 同步切片已完成；
-评审重规划和 sibling orchestrators 待迁移。
+状态：`/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 与
+critic/replan 同步质量闭环已完成；sibling orchestrators 待迁移。
 
 范围：
 
@@ -136,7 +136,7 @@
 - [x] 实现显式 DAG run、分层并行 worker 与 synthesis。
 - [x] 建立 DAG 结构兼容旧/新双跑案例和门禁 CLI。
 - [x] 实现 DAG plan-run 与 Analyst Planner。
-- [ ] 实现 critic/replan。
+- [x] 实现 critic/replan、加权阈值和有限重规划。
 - [ ] 实现 sibling orchestrators。
 - [ ] 对接 async-task。
 - [ ] 建立副作用 Tool Policy。

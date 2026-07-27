@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
@@ -33,6 +34,7 @@ class DagShadowCase(BaseModel):
         default_factory=list,
         alias="requiredDescriptionTerms",
     )
+    require_critique: bool = Field(default=False, alias="requireCritique")
     read_only: bool = Field(alias="readOnly")
 
 
@@ -220,6 +222,8 @@ async def _execute(
         for term in case.required_description_terms
     ):
         error = "PLANNER_REQUIREMENT_MISSING"
+    elif case.require_critique and not _valid_attempts(reply):
+        error = "CRITIQUE_MISSING"
     elif len(tenant_ids) != 1:
         error = "TENANT_MISMATCH"
     elif reply.synthesis.stop_reason != "DONE" or not reply.synthesis.final_answer.strip():
@@ -272,4 +276,24 @@ def _valid_topology(reply: AgentDagRunReply) -> bool:
         dependency not in level_by_id or level_by_id[dependency] < level_by_id[result.task_id]
         for result in reply.task_results
         for dependency in result.depends_on
+    )
+
+
+def _valid_attempts(reply: AgentDagRunReply) -> bool:
+    if not reply.attempts:
+        return False
+    for index, attempt in enumerate(reply.attempts, start=1):
+        if (
+            attempt.n != index
+            or attempt.critique is None
+            or attempt.aggregate is None
+            or not math.isfinite(attempt.aggregate)
+            or not 0 <= attempt.aggregate <= 1
+        ):
+            return False
+    final = reply.attempts[-1]
+    return (
+        final.levels == reply.levels
+        and final.task_results == reply.task_results
+        and final.synthesis == reply.synthesis
     )

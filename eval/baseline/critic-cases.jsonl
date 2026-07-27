@@ -1,0 +1,1 @@
+{"id":"dag-critic-single-task","endpoint":"/agent/dag/run","request":{"goal":"基于证据给出简洁结论","tasks":[{"id":"t1","description":"收集并核对只读证据","dependsOn":[]}]},"expectedLevels":[["t1"]],"requireCritique":true,"readOnly":true}

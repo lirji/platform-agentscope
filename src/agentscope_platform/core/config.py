@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     agent_v2_enabled: bool = False
     agent_dag_max_tasks: int = Field(default=6, ge=1, le=100)
     agent_dag_max_parallel_workers: int = Field(default=8, ge=1, le=32)
+    agent_dag_replan_enabled: bool = True
+    agent_dag_replan_max_replans: int = Field(default=1, ge=0, le=5)
+    agent_dag_replan_threshold: float = Field(default=0.75, ge=0, le=1)
+    agent_dag_replan_weight_correctness: float = Field(default=0.5, ge=0)
+    agent_dag_replan_weight_completeness: float = Field(default=0.35, ge=0)
+    agent_dag_replan_weight_clarity: float = Field(default=0.15, ge=0)
     agent_planner_max_tokens: int = Field(default=1_200, ge=128, le=8_192)
     agent_planner_timeout_seconds: float = Field(default=30, gt=0, le=300)
     agent_planner_max_retries: int = Field(default=0, ge=0, le=3)

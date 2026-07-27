@@ -68,3 +68,15 @@ def test_planner_dual_run_fixture_is_safe_and_well_formed() -> None:
         "schema_explore",
         "analytics_sql",
     ]
+
+
+def test_critic_dual_run_fixture_requires_review_evidence() -> None:
+    path = ROOT / "eval" / "baseline" / "critic-cases.jsonl"
+    cases = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+    assert cases
+    assert all(case["readOnly"] is True for case in cases)
+    assert all(case["requireCritique"] is True for case in cases)
+    assert all(case["expectedLevels"] for case in cases)

@@ -6,8 +6,9 @@
 
 当前状态：**Phase 2 DAG 与 Planner 同步切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
 `/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
-同层有界并行 worker、直接上游结果传播、通用/分析专用规划和 synthesis。critic/replan、
-异步任务和 edge 切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
+同层有界并行 worker、直接上游结果传播、通用/分析专用规划、synthesis 以及
+critic/replan 质量闭环。异步任务、其他 sibling orchestrators 和 edge 切流尚未迁移，
+因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 

@@ -1,7 +1,11 @@
 from typing import Protocol
 
 from agentscope_platform.domain.agent import AgentExecution, RunContext
-from agentscope_platform.domain.dag import DagPlan, DagPlanKind
+from agentscope_platform.domain.dag import (
+    AgentDagCritique,
+    DagPlan,
+    DagPlanKind,
+)
 
 
 class AgentRunner(Protocol):
@@ -21,3 +25,27 @@ class DagPlanner(Protocol):
         kind: DagPlanKind,
     ) -> DagPlan:
         """Produce a language-neutral DAG plan for one request."""
+
+
+class DagQualityError(RuntimeError):
+    """A sanitized critic or replanner failure."""
+
+
+class DagQualityReviewer(Protocol):
+    async def critique(
+        self,
+        goal: str,
+        answer: str,
+        context: RunContext,
+    ) -> AgentDagCritique:
+        """Score one synthesized answer."""
+
+    async def revise(
+        self,
+        goal: str,
+        previous_plan: DagPlan,
+        previous_answer: str,
+        critique: AgentDagCritique,
+        context: RunContext,
+    ) -> DagPlan:
+        """Return a revised language-neutral DAG plan."""

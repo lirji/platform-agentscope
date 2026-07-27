@@ -65,12 +65,12 @@ class AgentDagTaskResult(BaseModel):
 
 
 class AgentDagCritique(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
-    correctness: float
-    completeness: float
-    clarity: float
-    main_issue: str = Field(alias="mainIssue")
+    correctness: float = Field(ge=0, le=1)
+    completeness: float = Field(ge=0, le=1)
+    clarity: float = Field(ge=0, le=1)
+    main_issue: str = Field(min_length=1, max_length=2_000, alias="mainIssue")
 
 
 class AgentDagAttempt(BaseModel):

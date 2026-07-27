@@ -1,14 +1,18 @@
 import asyncio
 from dataclasses import dataclass
 
-from agentscope_platform.application.ports import AgentRunner
+from agentscope_platform.application.ports import AgentRunner, DagQualityReviewer
 from agentscope_platform.application.service import to_agent_reply
-from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.domain.agent import AgentRunReply, RunContext
 from agentscope_platform.domain.dag import (
+    AgentDagAttempt,
+    AgentDagCritique,
     AgentDagRunReply,
     AgentDagRunRequest,
     AgentDagTask,
     AgentDagTaskResult,
+    DagPlan,
+    DagPlanTask,
 )
 
 
@@ -23,6 +27,28 @@ class _NormalizedTask:
     depends_on: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class CritiqueWeights:
+    correctness: float = 0.5
+    completeness: float = 0.35
+    clarity: float = 0.15
+
+
+@dataclass(frozen=True, slots=True)
+class DagReviewPolicy:
+    enabled: bool = False
+    max_replans: int = 1
+    threshold: float = 0.75
+    weights: CritiqueWeights = CritiqueWeights()
+
+
+@dataclass(frozen=True, slots=True)
+class _DagExecution:
+    levels: list[list[_NormalizedTask]]
+    results: list[AgentDagTaskResult]
+    synthesis: AgentRunReply
+
+
 class AgentDagApplicationService:
     def __init__(
         self,
@@ -30,10 +56,16 @@ class AgentDagApplicationService:
         *,
         max_tasks: int = 6,
         max_parallel_workers: int = 8,
+        reviewer: DagQualityReviewer | None = None,
+        review_policy: DagReviewPolicy | None = None,
     ) -> None:
         self._runner = runner
         self._max_tasks = max(1, max_tasks)
         self._worker_slots = asyncio.Semaphore(max(1, max_parallel_workers))
+        self._reviewer = reviewer
+        self._review_policy = review_policy or DagReviewPolicy()
+        if self._review_policy.enabled and self._reviewer is None:
+            raise ValueError("reviewer is required when DAG replan is enabled")
 
     async def run(
         self,
@@ -44,6 +76,47 @@ class AgentDagApplicationService:
         if not goal:
             raise DagValidationError("goal is required")
         tasks = self._validate_and_normalize(request.tasks)
+        execution = await self._execute(goal, tasks, context)
+        if not self._review_policy.enabled:
+            return self._to_reply(goal, execution, context, [], True)
+
+        attempts: list[AgentDagAttempt] = []
+        accepted = False
+        max_replans = max(0, self._review_policy.max_replans)
+        for attempt_number in range(1, max_replans + 2):
+            critique = await self._critique(goal, execution, context)
+            aggregate = self._aggregate(critique)
+            attempts.append(
+                AgentDagAttempt(
+                    n=attempt_number,
+                    levels=[[task.id for task in level] for level in execution.levels],
+                    taskResults=execution.results,
+                    synthesis=execution.synthesis,
+                    critique=critique,
+                    aggregate=aggregate,
+                )
+            )
+            if aggregate >= self._review_policy.threshold:
+                accepted = True
+                break
+            if attempt_number > max_replans:
+                break
+            tasks = await self._revise(
+                goal,
+                tasks,
+                execution,
+                critique,
+                context,
+            )
+            execution = await self._execute(goal, tasks, context)
+        return self._to_reply(goal, execution, context, attempts, accepted)
+
+    async def _execute(
+        self,
+        goal: str,
+        tasks: list[_NormalizedTask],
+        context: RunContext,
+    ) -> _DagExecution:
         levels = self._topological_levels(tasks)
 
         by_id: dict[str, AgentDagTaskResult] = {}
@@ -56,15 +129,94 @@ class AgentDagApplicationService:
         synthesis_goal = self._synthesis_goal(goal, ordered)
         synthesis_execution = await self._runner.run(synthesis_goal, context)
         synthesis = to_agent_reply(synthesis_goal, synthesis_execution, context)
+        return _DagExecution(
+            levels=levels,
+            results=ordered,
+            synthesis=synthesis,
+        )
+
+    @staticmethod
+    def _to_reply(
+        goal: str,
+        execution: _DagExecution,
+        context: RunContext,
+        attempts: list[AgentDagAttempt],
+        accepted: bool,
+    ) -> AgentDagRunReply:
         return AgentDagRunReply(
             goal=goal,
-            levels=[[task.id for task in level] for level in levels],
-            taskResults=ordered,
-            synthesis=synthesis,
+            levels=[[task.id for task in level] for level in execution.levels],
+            taskResults=execution.results,
+            synthesis=execution.synthesis,
             tenantId=context.identity.tenant_id,
-            attempts=[],
-            acceptedByThreshold=True,
+            attempts=attempts,
+            acceptedByThreshold=accepted,
         )
+
+    async def _critique(
+        self,
+        goal: str,
+        execution: _DagExecution,
+        context: RunContext,
+    ) -> AgentDagCritique:
+        if self._reviewer is None:
+            raise RuntimeError("DAG reviewer is unavailable")
+        return await self._reviewer.critique(
+            goal,
+            execution.synthesis.final_answer,
+            context,
+        )
+
+    async def _revise(
+        self,
+        goal: str,
+        tasks: list[_NormalizedTask],
+        execution: _DagExecution,
+        critique: AgentDagCritique,
+        context: RunContext,
+    ) -> list[_NormalizedTask]:
+        if self._reviewer is None:
+            raise RuntimeError("DAG reviewer is unavailable")
+        previous_plan = DagPlan(
+            tasks=[
+                DagPlanTask(
+                    id=task.id,
+                    description=task.description,
+                    dependsOn=list(task.depends_on),
+                )
+                for task in tasks
+            ]
+        )
+        revised = await self._reviewer.revise(
+            goal,
+            previous_plan,
+            execution.synthesis.final_answer,
+            critique,
+            context,
+        )
+        if not revised.tasks:
+            raise DagValidationError("replanner returned an empty plan")
+        return self._validate_and_normalize(
+            [
+                AgentDagTask(
+                    id=task.id,
+                    description=task.description,
+                    dependsOn=task.depends_on,
+                )
+                for task in revised.tasks
+            ]
+        )
+
+    def _aggregate(self, critique: AgentDagCritique) -> float:
+        weights = self._review_policy.weights
+        total = weights.correctness + weights.completeness + weights.clarity
+        if total <= 0:
+            return (critique.correctness + critique.completeness + critique.clarity) / 3
+        return (
+            weights.correctness * critique.correctness
+            + weights.completeness * critique.completeness
+            + weights.clarity * critique.clarity
+        ) / total
 
     async def _run_level(
         self,

@@ -10,7 +10,7 @@
 |---|---|---|
 | ReAct | `agent-service/DeepAgentService` | 迁移到 AgentScope Agent |
 | 工具注册 | `AgentAction` + Spring Bean | AgentScope Toolkit + 自有 Tool Policy |
-| DAG | `agent-service/dag` | `run`、`plan-run` 已迁；critic/replan 待迁 |
+| DAG | `agent-service/dag` | 同步 run、plan-run、critic/replan 已迁；异步待迁 |
 | Analyst/Process | `agent-service/analyst`,`process` | Analyst 同步 Planner 已迁；Process 待迁 |
 | Voting/Reflexion/Chain | `agent-service` 对应包 | 迁移为应用编排器 |
 | 异步任务 | `agent-service/async` + `async-task-service` | 中央任务服务保留 |

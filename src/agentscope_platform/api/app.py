@@ -7,14 +7,24 @@ from fastapi.responses import JSONResponse
 from agentscope_platform.api.routes import candidate_router, router
 from agentscope_platform.application.dag import (
     AgentDagApplicationService,
+    CritiqueWeights,
+    DagReviewPolicy,
     DagValidationError,
 )
 from agentscope_platform.application.planning import AgentDagPlanningService
-from agentscope_platform.application.ports import AgentRunner, DagPlanner
+from agentscope_platform.application.ports import (
+    AgentRunner,
+    DagPlanner,
+    DagQualityError,
+    DagQualityReviewer,
+)
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.core.config import Settings, get_settings
 from agentscope_platform.infrastructure.agentscope.planner import (
     AgentScopeDagPlanner,
+)
+from agentscope_platform.infrastructure.agentscope.reviewer import (
+    AgentScopeDagQualityReviewer,
 )
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
@@ -44,6 +54,7 @@ def create_app(
     settings: Settings | None = None,
     runner: AgentRunner | None = None,
     planner: DagPlanner | None = None,
+    reviewer: DagQualityReviewer | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings)
@@ -53,10 +64,26 @@ def create_app(
         platform_client,
         LoggingRunObserver(),
     )
+    app_reviewer = reviewer or (
+        AgentScopeDagQualityReviewer(app_settings)
+        if app_settings.agent_dag_replan_enabled
+        else None
+    )
     dag_service = AgentDagApplicationService(
         app_runner,
         max_tasks=app_settings.agent_dag_max_tasks,
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
+        reviewer=app_reviewer,
+        review_policy=DagReviewPolicy(
+            enabled=app_settings.agent_dag_replan_enabled,
+            max_replans=app_settings.agent_dag_replan_max_replans,
+            threshold=app_settings.agent_dag_replan_threshold,
+            weights=CritiqueWeights(
+                correctness=(app_settings.agent_dag_replan_weight_correctness),
+                completeness=(app_settings.agent_dag_replan_weight_completeness),
+                clarity=app_settings.agent_dag_replan_weight_clarity,
+            ),
+        ),
     )
     app_planner = planner or AgentScopeDagPlanner(app_settings)
     container = Container(
@@ -106,6 +133,19 @@ def create_app(
         return JSONResponse(
             status_code=400,
             content={"error": str(exc)},
+        )
+
+    @app.exception_handler(DagQualityError)
+    async def dag_quality_failed(
+        request: Request,
+        exc: DagQualityError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "DAG quality review failed",
+                "traceId": request.state.trace_id,
+            },
         )
 
     app.include_router(router)

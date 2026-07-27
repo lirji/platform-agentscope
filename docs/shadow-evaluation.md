@@ -215,3 +215,6 @@ Phase 2 的 DAG 使用独立的 `agentscope-dag-shadow-eval`。它比较响应�
 运行方法见 [DAG 编排指南](dag-orchestration.md)。同一 CLI 使用
 `eval/baseline/planner-cases.jsonl` 时验证通用 Planner 和 Analyst Planner；动态计划不做
 逐字比较，只校验有效拓扑及声明的 Planner 约束。
+
+`eval/baseline/critic-cases.jsonl` 验证 Critic attempt 证据：评分范围、聚合值有限性以及
+最后一轮与顶层最终结果的一致性。报告仍不保存答案、任务结果或 critique 文本。

@@ -95,10 +95,11 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 ```
 
 响应保留 `levels`、`taskResults`、`synthesis`、`tenantId`、`attempts` 和
-`acceptedByThreshold`。当前首个切片未启用 critic/replan，因此 `attempts=[]` 且
+`acceptedByThreshold`。critic/replan 默认开启：每次执行写入一个 attempt，低于阈值时
+有限次修订并重跑；关闭 `AGENT_DAG_REPLAN_ENABLED` 后 `attempts=[]` 且
 `acceptedByThreshold=true`。任务上限默认 6；空任务、重复 ID 和循环图返回
 `400 {"error": "..."}`。为兼容旧实现，未知依赖会从拓扑计算中忽略，但仍在
-`dependsOn` 回显。
+`dependsOn` 回显。Critic/Replanner 模型或结构失败返回脱敏 502，不把未评审结果标为达标。
 
 异步 DAG/Analyst 端点和进度事件仍由旧服务处理，尚不属于新服务契约。
 

@@ -66,8 +66,9 @@ api ───────▶ application ───────▶ domain
 8. 工具经 HTTP/MCP 调用 Java 服务，并传播 token 与 trace。
 9. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变
    `RunContext`，但创建独立 Agent。
-10. AgentScope 返回结果，应用层映射成稳定 DTO。
-11. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
+10. replan 开启时，Critic 评审 synthesis；低于阈值则 Replanner 修订 DAG 并有限次重跑。
+11. AgentScope 返回结果，应用层映射成稳定 DTO。
+12. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
 
 每次请求创建独立 Agent 是 Phase 0 的安全选择，优先保证租户和会话隔离。引入持久会话后，
 必须使用 `(tenant_id, user_id, session_id)` 复合键，并验证不同租户不能恢复彼此状态。
@@ -93,7 +94,7 @@ api ───────▶ application ───────▶ domain
 ## 7. 后续演进
 
 - Phase 1：只读 ReAct 工具与完整轨迹。
-- Phase 2：DAG run、plan-run 与 Analyst 同步入口已迁；继续迁移 critic/replan、
+- Phase 2：DAG run、plan-run、Analyst 与 critic/replan 已迁；继续迁移
   Reflexion/Voting/Chaining。
 - Phase 3：统一异步任务、SSE、取消和 webhook。
 - Phase 4：受治理的副作用工具、Browser、MCP、Sandbox。

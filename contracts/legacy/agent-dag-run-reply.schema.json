@@ -58,20 +58,29 @@
       "type": "object"
     },
     "AgentDagCritique": {
+      "additionalProperties": false,
       "properties": {
         "clarity": {
+          "maximum": 1,
+          "minimum": 0,
           "title": "Clarity",
           "type": "number"
         },
         "completeness": {
+          "maximum": 1,
+          "minimum": 0,
           "title": "Completeness",
           "type": "number"
         },
         "correctness": {
+          "maximum": 1,
+          "minimum": 0,
           "title": "Correctness",
           "type": "number"
         },
         "mainIssue": {
+          "maxLength": 2000,
+          "minLength": 1,
           "title": "Mainissue",
           "type": "string"
         }

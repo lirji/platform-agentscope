@@ -5,10 +5,17 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from agentscope_platform.api.app import create_app
-from agentscope_platform.application.ports import DagPlanningError
+from agentscope_platform.application.ports import (
+    DagPlanningError,
+    DagQualityError,
+)
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentExecution, RunContext
-from agentscope_platform.domain.dag import DagPlan, DagPlanKind
+from agentscope_platform.domain.dag import (
+    AgentDagCritique,
+    DagPlan,
+    DagPlanKind,
+)
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
 )
@@ -80,12 +87,51 @@ class FailedPlanner(FakePlanner):
         raise DagPlanningError("safe fallback")
 
 
+class AcceptingReviewer:
+    async def critique(
+        self,
+        goal: str,
+        answer: str,
+        context: RunContext,
+    ) -> AgentDagCritique:
+        del goal, answer, context
+        return AgentDagCritique(
+            correctness=0.9,
+            completeness=0.9,
+            clarity=0.8,
+            mainIssue="n/a",
+        )
+
+    async def revise(
+        self,
+        goal: str,
+        previous_plan: DagPlan,
+        previous_answer: str,
+        critique: AgentDagCritique,
+        context: RunContext,
+    ) -> DagPlan:
+        del goal, previous_plan, previous_answer, critique, context
+        raise AssertionError("accepted critique must not replan")
+
+
+class FailedReviewer(AcceptingReviewer):
+    async def critique(
+        self,
+        goal: str,
+        answer: str,
+        context: RunContext,
+    ) -> AgentDagCritique:
+        del goal, answer, context
+        raise DagQualityError("provider secret must not leak")
+
+
 def settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "internal_auth_required": True,
         "internal_jwt_algorithm": "HS256",
         "internal_jwt_secret": SecretStr(TEST_SECRET),
         "gateway_api_key": SecretStr("test-gateway-key"),
+        "agent_dag_replan_enabled": False,
     }
     values.update(overrides)
     return Settings(**values)
@@ -268,6 +314,68 @@ def test_agent_dag_run_preserves_legacy_contract_and_context() -> None:
     assert runner.context.identity.user_id == "alice"
     assert runner.context.identity.department == "acme_rd"
     assert runner.context.trace_id == "dag-trace"
+
+
+def test_agent_dag_run_populates_critique_attempt_when_enabled() -> None:
+    client = TestClient(
+        create_app(
+            settings(agent_dag_replan_enabled=True),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+        )
+    )
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "quality",
+            "tasks": [{"id": "t1", "description": "work"}],
+        },
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["acceptedByThreshold"] is True
+    assert len(body["attempts"]) == 1
+    assert body["attempts"][0]["critique"] == {
+        "correctness": 0.9,
+        "completeness": 0.9,
+        "clarity": 0.8,
+        "mainIssue": "n/a",
+    }
+    assert body["attempts"][0]["aggregate"] == 0.885
+
+
+def test_agent_dag_run_maps_quality_failure_without_leaking_detail() -> None:
+    client = TestClient(
+        create_app(
+            settings(agent_dag_replan_enabled=True),
+            FakeRunner(),
+            FakePlanner(),
+            FailedReviewer(),
+        )
+    )
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "quality",
+            "tasks": [{"id": "t1", "description": "work"}],
+        },
+        headers={
+            "X-Internal-Token": internal_token(),
+            "X-Trace-Id": "quality-trace",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": "DAG quality review failed",
+        "traceId": "quality-trace",
+    }
+    assert "provider secret" not in response.text
 
 
 def test_agent_dag_run_returns_legacy_validation_error_shape() -> None:

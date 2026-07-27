@@ -61,6 +61,29 @@ def planned_reply(
     )
 
 
+def reviewed_reply(
+    request: dict[str, object],
+    levels: list[list[str]],
+) -> dict[str, object]:
+    body = dag_reply(request, levels)
+    body["attempts"] = [
+        {
+            "n": 1,
+            "levels": body["levels"],
+            "taskResults": body["taskResults"],
+            "synthesis": body["synthesis"],
+            "critique": {
+                "correctness": 0.9,
+                "completeness": 0.9,
+                "clarity": 0.8,
+                "mainIssue": "n/a",
+            },
+            "aggregate": 0.885,
+        }
+    ]
+    return body
+
+
 async def test_dag_shadow_accepts_matching_legacy_and_candidate() -> None:
     cases = load_dag_cases(ROOT / "eval" / "baseline" / "dag-cases.jsonl")
     levels_by_goal = {case.request.goal: case.expected_levels for case in cases}
@@ -188,6 +211,28 @@ async def test_dag_shadow_fails_closed_when_analyst_plan_misses_tool_rule() -> N
 
     assert report.passed is False
     assert all(sample.error == "PLANNER_REQUIREMENT_MISSING" for sample in report.samples)
+
+
+async def test_dag_shadow_requires_critic_attempt_evidence() -> None:
+    case = load_dag_cases(ROOT / "eval" / "baseline" / "critic-cases.jsonl")[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        body = reviewed_reply(payload, case.expected_levels or [])
+        if request.url.host == "candidate.localhost":
+            body["attempts"] = []
+        return httpx.Response(200, json=body)
+
+    report = await evaluate_dag_shadow(
+        (case,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert report.passed is False
+    assert report.samples[0].passed is True
+    assert report.samples[1].error == "CRITIQUE_MISSING"
 
 
 async def test_dag_cli_writes_only_sanitized_report(

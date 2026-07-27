@@ -16,6 +16,7 @@
 - `/agent/v2/run` 默认关闭，开启时复用相同契约、安全和租户语义。
 - `/agent/dag/run` 的 camelCase DTO、拓扑层级、任务顺序与旧错误形状。
 - `/agent/dag/plan-run` 与 `/agent/analyst/run` 的规划类型、回退和上下文传播。
+- critic 加权阈值、replan 次数、attempt 快照、耗尽未达标和关闭回滚。
 - 错误码、content-type、空列表、字段名。
 - SSE 事件名、顺序和重连。
 - interop-service 作为 consumer 的兼容性。
@@ -95,6 +96,9 @@ Phase 2 的只读 DAG 双跑样例位于 `eval/baseline/dag-cases.jsonl`。使�
 Planner 双跑样例位于 `eval/baseline/planner-cases.jsonl`。动态计划不要求新旧任务文本
 逐字一致，但要求生成 1～6 个有效无环任务、响应顺序与拓扑一致；Analyst 用例额外要求
 任务描述覆盖 `schema_explore` 和 `analytics_sql`。
+
+Critic 双跑样例位于 `eval/baseline/critic-cases.jsonl`。门禁要求每个 attempt 有合法
+三维评分和有限聚合值，且最后一个 attempt 与顶层最终结果一致。
 
 Shadow v2 每次调用都有唯一 W3C trace。`agentscope-shadow-cost` 要求每个运行都有至少
 一条 trace 账本记录并拒绝重复 `requestId`，从而把 Agent 多步及下游 embedding 合并到
