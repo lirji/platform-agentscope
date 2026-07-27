@@ -4,11 +4,11 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 2 DAG 与 Planner 同步切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
+当前状态：**Phase 2 多 Agent 同步编排切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
 `/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
 同层有界并行 worker、直接上游结果传播、通用/分析专用规划、synthesis 以及
-critic/replan 质量闭环。异步任务、其他 sibling orchestrators 和 edge 切流尚未迁移，
-因此不宣称与旧 `agent-service` 生产等价。
+critic/replan 质量闭环；同步 Prompt Chaining、Voting 和 Reflexion 也已迁移。Process、
+流式/异步任务和 edge 切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -77,6 +77,10 @@ curl http://localhost:8085/readiness
 `/agent/dag/plan-run` 会先生成通用 DAG；`/agent/analyst/run` 使用“先探表后取数”的
 只读数据分析 Planner。两者都复用相同 DAG 引擎。
 
+同步 sibling 入口为 `/agent/chain`、`/agent/vote` 和 `/agent/reflexive`。服务端步骤、
+并发/阈值配置、安全边界与未迁范围见
+[Sibling Orchestrators 指南](docs/sibling-orchestrators.md)。
+
 ## Docker 启动
 
 ```bash
@@ -120,5 +124,6 @@ DAG 结构兼容双跑使用 `agentscope-dag-shadow-eval`，只在报告中保�
 - [Shadow 双跑指南](docs/shadow-evaluation.md)
 - [候选路由与回滚](docs/candidate-route.md)
 - [DAG 编排指南](docs/dag-orchestration.md)
+- [Sibling Orchestrators 指南](docs/sibling-orchestrators.md)
 - [开发指南](docs/development.md)
 - [ADR-0001：采用绞杀者迁移](docs/adr/0001-strangler-agent-orchestrator.md)

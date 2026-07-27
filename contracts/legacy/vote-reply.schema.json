@@ -1,0 +1,62 @@
+{
+  "$defs": {
+    "VotingStrategy": {
+      "enum": [
+        "majority",
+        "synthesis"
+      ],
+      "title": "VotingStrategy",
+      "type": "string"
+    }
+  },
+  "properties": {
+    "agreement": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Agreement"
+    },
+    "confident": {
+      "title": "Confident",
+      "type": "boolean"
+    },
+    "decision": {
+      "title": "Decision",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "strategy": {
+      "$ref": "#/$defs/VotingStrategy"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "votes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Votes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "question",
+    "votes",
+    "strategy",
+    "decision",
+    "agreement",
+    "confident",
+    "tenantId"
+  ],
+  "title": "VoteReply",
+  "type": "object"
+}

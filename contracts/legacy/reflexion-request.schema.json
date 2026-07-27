@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "question": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Question"
+    }
+  },
+  "title": "ReflexionRequest",
+  "type": "object"
+}

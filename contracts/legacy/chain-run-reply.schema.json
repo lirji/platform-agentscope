@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "ChainStepResult": {
+      "properties": {
+        "gatePassed": {
+          "title": "Gatepassed",
+          "type": "boolean"
+        },
+        "gateReason": {
+          "title": "Gatereason",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "output": {
+          "title": "Output",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "output",
+        "gatePassed",
+        "gateReason"
+      ],
+      "title": "ChainStepResult",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "completed": {
+      "title": "Completed",
+      "type": "boolean"
+    },
+    "finalOutput": {
+      "title": "Finaloutput",
+      "type": "string"
+    },
+    "input": {
+      "title": "Input",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/ChainStepResult"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "input",
+    "steps",
+    "finalOutput",
+    "completed",
+    "tenantId"
+  ],
+  "title": "ChainRunReply",
+  "type": "object"
+}

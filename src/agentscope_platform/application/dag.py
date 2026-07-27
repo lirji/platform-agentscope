@@ -1,7 +1,8 @@
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from agentscope_platform.application.ports import AgentRunner, DagQualityReviewer
+from agentscope_platform.application.quality import CritiqueWeights, aggregate_critique
 from agentscope_platform.application.service import to_agent_reply
 from agentscope_platform.domain.agent import AgentRunReply, RunContext
 from agentscope_platform.domain.dag import (
@@ -28,18 +29,11 @@ class _NormalizedTask:
 
 
 @dataclass(frozen=True, slots=True)
-class CritiqueWeights:
-    correctness: float = 0.5
-    completeness: float = 0.35
-    clarity: float = 0.15
-
-
-@dataclass(frozen=True, slots=True)
 class DagReviewPolicy:
     enabled: bool = False
     max_replans: int = 1
     threshold: float = 0.75
-    weights: CritiqueWeights = CritiqueWeights()
+    weights: CritiqueWeights = field(default_factory=CritiqueWeights)
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,15 +202,7 @@ class AgentDagApplicationService:
         )
 
     def _aggregate(self, critique: AgentDagCritique) -> float:
-        weights = self._review_policy.weights
-        total = weights.correctness + weights.completeness + weights.clarity
-        if total <= 0:
-            return (critique.correctness + critique.completeness + critique.clarity) / 3
-        return (
-            weights.correctness * critique.correctness
-            + weights.completeness * critique.completeness
-            + weights.clarity * critique.clarity
-        ) / total
+        return aggregate_critique(critique, self._review_policy.weights)
 
     async def _run_level(
         self,

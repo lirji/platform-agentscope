@@ -387,6 +387,87 @@
         "title": "AgentStep",
         "type": "object"
       },
+      "ChainRunReply": {
+        "properties": {
+          "completed": {
+            "title": "Completed",
+            "type": "boolean"
+          },
+          "finalOutput": {
+            "title": "Finaloutput",
+            "type": "string"
+          },
+          "input": {
+            "title": "Input",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ChainStepResult"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "input",
+          "steps",
+          "finalOutput",
+          "completed",
+          "tenantId"
+        ],
+        "title": "ChainRunReply",
+        "type": "object"
+      },
+      "ChainRunRequest": {
+        "properties": {
+          "input": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input"
+          }
+        },
+        "title": "ChainRunRequest",
+        "type": "object"
+      },
+      "ChainStepResult": {
+        "properties": {
+          "gatePassed": {
+            "title": "Gatepassed",
+            "type": "boolean"
+          },
+          "gateReason": {
+            "title": "Gatereason",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output": {
+            "title": "Output",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "output",
+          "gatePassed",
+          "gateReason"
+        ],
+        "title": "ChainStepResult",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -398,6 +479,110 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ReflexionAttempt": {
+        "properties": {
+          "aggregate": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Aggregate",
+            "type": "number"
+          },
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "clarity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Clarity",
+            "type": "number"
+          },
+          "completeness": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Completeness",
+            "type": "number"
+          },
+          "correctness": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Correctness",
+            "type": "number"
+          },
+          "mainIssue": {
+            "title": "Mainissue",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "n",
+          "answer",
+          "aggregate",
+          "correctness",
+          "completeness",
+          "clarity",
+          "mainIssue"
+        ],
+        "title": "ReflexionAttempt",
+        "type": "object"
+      },
+      "ReflexionReply": {
+        "properties": {
+          "acceptedByThreshold": {
+            "title": "Acceptedbythreshold",
+            "type": "boolean"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/ReflexionAttempt"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "finalAnswer": {
+            "title": "Finalanswer",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "finalAnswer",
+          "attempts",
+          "acceptedByThreshold",
+          "tenantId"
+        ],
+        "title": "ReflexionReply",
+        "type": "object"
+      },
+      "ReflexionRequest": {
+        "properties": {
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          }
+        },
+        "title": "ReflexionRequest",
         "type": "object"
       },
       "ValidationError": {
@@ -439,6 +624,94 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "VoteReply": {
+        "properties": {
+          "agreement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement"
+          },
+          "confident": {
+            "title": "Confident",
+            "type": "boolean"
+          },
+          "decision": {
+            "title": "Decision",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "strategy": {
+            "$ref": "#/components/schemas/VotingStrategy"
+          },
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          },
+          "votes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Votes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question",
+          "votes",
+          "strategy",
+          "decision",
+          "agreement",
+          "confident",
+          "tenantId"
+        ],
+        "title": "VoteReply",
+        "type": "object"
+      },
+      "VoteRequest": {
+        "properties": {
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          }
+        },
+        "title": "VoteRequest",
+        "type": "object"
+      },
+      "VotingStrategy": {
+        "enum": [
+          "majority",
+          "synthesis"
+        ],
+        "title": "VotingStrategy",
+        "type": "string"
       }
     }
   },
@@ -494,6 +767,54 @@
         "summary": "Run Analyst Agent",
         "tags": [
           "agent-analyst"
+        ]
+      }
+    },
+    "/agent/chain": {
+      "post": {
+        "operationId": "run_prompt_chain_agent_chain_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ChainRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChainRunReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Prompt Chain",
+        "tags": [
+          "agent-chain"
         ]
       }
     },
@@ -586,6 +907,54 @@
         ]
       }
     },
+    "/agent/reflexive": {
+      "post": {
+        "operationId": "run_reflexion_agent_reflexive_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReflexionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflexionReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Reflexion",
+        "tags": [
+          "agent-reflexion"
+        ]
+      }
+    },
     "/agent/run": {
       "post": {
         "operationId": "run_agent_agent_run_post",
@@ -624,6 +993,54 @@
         "summary": "Run Agent",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/agent/vote": {
+      "post": {
+        "operationId": "run_voting_agent_vote_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/VoteRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoteReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Voting",
+        "tags": [
+          "agent-voting"
         ]
       }
     },

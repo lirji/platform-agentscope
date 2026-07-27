@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "ReflexionAttempt": {
+      "properties": {
+        "aggregate": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Aggregate",
+          "type": "number"
+        },
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "clarity": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Clarity",
+          "type": "number"
+        },
+        "completeness": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Completeness",
+          "type": "number"
+        },
+        "correctness": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Correctness",
+          "type": "number"
+        },
+        "mainIssue": {
+          "title": "Mainissue",
+          "type": "string"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "n",
+        "answer",
+        "aggregate",
+        "correctness",
+        "completeness",
+        "clarity",
+        "mainIssue"
+      ],
+      "title": "ReflexionAttempt",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "acceptedByThreshold": {
+      "title": "Acceptedbythreshold",
+      "type": "boolean"
+    },
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/ReflexionAttempt"
+      },
+      "title": "Attempts",
+      "type": "array"
+    },
+    "finalAnswer": {
+      "title": "Finalanswer",
+      "type": "string"
+    },
+    "question": {
+      "title": "Question",
+      "type": "string"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "question",
+    "finalAnswer",
+    "attempts",
+    "acceptedByThreshold",
+    "tenantId"
+  ],
+  "title": "ReflexionReply",
+  "type": "object"
+}

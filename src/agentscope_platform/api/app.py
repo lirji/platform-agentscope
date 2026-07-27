@@ -7,7 +7,6 @@ from fastapi.responses import JSONResponse
 from agentscope_platform.api.routes import candidate_router, router
 from agentscope_platform.application.dag import (
     AgentDagApplicationService,
-    CritiqueWeights,
     DagReviewPolicy,
     DagValidationError,
 )
@@ -17,8 +16,18 @@ from agentscope_platform.application.ports import (
     DagPlanner,
     DagQualityError,
     DagQualityReviewer,
+    TextGenerationError,
+    TextGenerator,
 )
+from agentscope_platform.application.quality import CritiqueWeights
 from agentscope_platform.application.service import AgentApplicationService
+from agentscope_platform.application.sibling import (
+    PromptChainService,
+    ReflexionPolicy,
+    ReflexionService,
+    SiblingValidationError,
+    VotingService,
+)
 from agentscope_platform.core.config import Settings, get_settings
 from agentscope_platform.infrastructure.agentscope.planner import (
     AgentScopeDagPlanner,
@@ -29,6 +38,9 @@ from agentscope_platform.infrastructure.agentscope.reviewer import (
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
     AgentScopeRunner,
+)
+from agentscope_platform.infrastructure.agentscope.text_generator import (
+    AgentScopeTextGenerator,
 )
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
 from agentscope_platform.infrastructure.observability.logging_observer import (
@@ -48,6 +60,9 @@ class Container:
     agent_service: AgentApplicationService
     dag_service: AgentDagApplicationService
     planning_service: AgentDagPlanningService
+    chain_service: PromptChainService
+    voting_service: VotingService
+    reflexion_service: ReflexionService
 
 
 def create_app(
@@ -55,6 +70,7 @@ def create_app(
     runner: AgentRunner | None = None,
     planner: DagPlanner | None = None,
     reviewer: DagQualityReviewer | None = None,
+    text_generator: TextGenerator | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings)
@@ -64,11 +80,7 @@ def create_app(
         platform_client,
         LoggingRunObserver(),
     )
-    app_reviewer = reviewer or (
-        AgentScopeDagQualityReviewer(app_settings)
-        if app_settings.agent_dag_replan_enabled
-        else None
-    )
+    app_reviewer = reviewer or AgentScopeDagQualityReviewer(app_settings)
     dag_service = AgentDagApplicationService(
         app_runner,
         max_tasks=app_settings.agent_dag_max_tasks,
@@ -86,12 +98,38 @@ def create_app(
         ),
     )
     app_planner = planner or AgentScopeDagPlanner(app_settings)
+    app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     container = Container(
         settings=app_settings,
         jwt_verifier=InternalJwtVerifier(app_settings),
         agent_service=AgentApplicationService(app_runner),
         dag_service=dag_service,
         planning_service=AgentDagPlanningService(app_planner, dag_service),
+        chain_service=PromptChainService(
+            app_text_generator,
+            app_settings.agent_chaining_steps,
+        ),
+        voting_service=VotingService(
+            app_text_generator,
+            default_n=app_settings.agent_voting_n,
+            max_candidates=app_settings.agent_voting_max_candidates,
+            strategy=app_settings.agent_voting_strategy,
+            min_agreement=app_settings.agent_voting_min_agreement,
+            max_parallel_workers=app_settings.agent_sibling_max_parallel_workers,
+        ),
+        reflexion_service=ReflexionService(
+            app_text_generator,
+            app_reviewer,
+            ReflexionPolicy(
+                threshold=app_settings.agent_reflexion_threshold,
+                max_improvements=app_settings.agent_reflexion_max_attempts,
+                weights=CritiqueWeights(
+                    correctness=app_settings.agent_reflexion_weight_correctness,
+                    completeness=app_settings.agent_reflexion_weight_completeness,
+                    clarity=app_settings.agent_reflexion_weight_clarity,
+                ),
+            ),
+        ),
     )
 
     app = FastAPI(
@@ -144,6 +182,28 @@ def create_app(
             status_code=502,
             content={
                 "error": "DAG quality review failed",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(SiblingValidationError)
+    async def invalid_sibling_request(
+        request: Request,
+        exc: SiblingValidationError,
+    ) -> JSONResponse:
+        del request
+        return JSONResponse(status_code=400, content={"error": str(exc)})
+
+    @app.exception_handler(TextGenerationError)
+    async def sibling_generation_failed(
+        request: Request,
+        exc: TextGenerationError,
+    ) -> JSONResponse:
+        del exc
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "agent generation failed",
                 "traceId": request.state.trace_id,
             },
         )

@@ -1,0 +1,4 @@
+{"id":"chain-translate-summarize","endpoint":"/agent/chain","request":{"input":"退款申请通常需要三个工作日审核。"},"expectedStepNames":["translate","summarize"],"readOnly":true}
+{"id":"vote-majority-default","endpoint":"/agent/vote","request":{"question":"退款到账时间通常是多久？","n":3},"expectedStrategy":"majority","readOnly":true}
+{"id":"vote-majority-single","endpoint":"/agent/vote","request":{"question":"订单状态有哪些？","n":1},"expectedStrategy":"majority","readOnly":true}
+{"id":"reflexion-quality-loop","endpoint":"/agent/reflexive","request":{"question":"简要说明退款审核流程。"},"readOnly":true}

@@ -7,12 +7,25 @@ from agentscope_platform.api.dependencies import RunContextDependency
 from agentscope_platform.application.dag import AgentDagApplicationService
 from agentscope_platform.application.planning import AgentDagPlanningService
 from agentscope_platform.application.service import AgentApplicationService
+from agentscope_platform.application.sibling import (
+    PromptChainService,
+    ReflexionService,
+    VotingService,
+)
 from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest
 from agentscope_platform.domain.dag import (
     AgentDagRunReply,
     AgentDagRunRequest,
     AgentPlanRunRequest,
     DagPlanKind,
+)
+from agentscope_platform.domain.sibling import (
+    ChainRunReply,
+    ChainRunRequest,
+    ReflexionReply,
+    ReflexionRequest,
+    VoteReply,
+    VoteRequest,
 )
 
 router = APIRouter()
@@ -47,7 +60,7 @@ async def readiness(request: Request) -> JSONResponse:
 async def info() -> dict[str, str]:
     return {
         "name": "agentscope-platform",
-        "phase": "2-dag-orchestration",
+        "phase": "2-multi-agent-orchestration",
         "framework": "AgentScope 2.0",
     }
 
@@ -129,6 +142,48 @@ async def run_analyst_agent(
         request,
         DagPlanKind.ANALYST,
     )
+
+
+@router.post(
+    "/agent/chain",
+    response_model=ChainRunReply,
+    tags=["agent-chain"],
+)
+async def run_prompt_chain(
+    context: RunContextDependency,
+    request: Request,
+    payload: ChainRunRequest | None = None,
+) -> ChainRunReply:
+    service = cast(PromptChainService, request.app.state.container.chain_service)
+    return await service.run(payload or ChainRunRequest(), context)
+
+
+@router.post(
+    "/agent/vote",
+    response_model=VoteReply,
+    tags=["agent-voting"],
+)
+async def run_voting(
+    context: RunContextDependency,
+    request: Request,
+    payload: VoteRequest | None = None,
+) -> VoteReply:
+    service = cast(VotingService, request.app.state.container.voting_service)
+    return await service.run(payload or VoteRequest(), context)
+
+
+@router.post(
+    "/agent/reflexive",
+    response_model=ReflexionReply,
+    tags=["agent-reflexion"],
+)
+async def run_reflexion(
+    context: RunContextDependency,
+    request: Request,
+    payload: ReflexionRequest | None = None,
+) -> ReflexionReply:
+    service = cast(ReflexionService, request.app.state.container.reflexion_service)
+    return await service.run(payload or ReflexionRequest(), context)
 
 
 async def _run_agent(

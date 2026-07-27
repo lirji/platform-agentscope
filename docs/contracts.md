@@ -117,7 +117,18 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 
 同步端点仅为兼容接受 `webhookUrl`，不会发送 webhook。对应异步入口仍未迁移。
 
-## 9. 契约资产
+## 9. Sibling orchestrators
+
+- `/agent/chain` 接受 `{"input":"..."}`，返回步骤、`finalOutput`、`completed` 和
+  `tenantId`。步骤配置仅来自服务端；请求中的额外字段保持旧宽松 DTO 行为但不能改变步骤。
+- `/agent/vote` 接受 `question` 和可选 `n`，返回 `votes`、`strategy`、`decision`、
+  `agreement`、`confident` 和 `tenantId`。synthesis 的 `agreement` 为 JSON `null`。
+- `/agent/reflexive` 接受 `question`，返回 `finalAnswer`、逐轮评分、阈值结果和 `tenantId`。
+
+空文本和非法候选数返回 `400 {"error":"..."}`；纯文本生成失败返回脱敏 502。Reflexion
+Critic 失败沿用质量评审脱敏 502。流式 Reflexion 尚未迁移。
+
+## 10. 契约资产
 
 当前已提交：
 
@@ -128,6 +139,9 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 - `contracts/legacy/agent-dag-run-request.schema.json`
 - `contracts/legacy/agent-dag-run-reply.schema.json`
 - `contracts/legacy/agent-plan-run-request.schema.json`
+- `contracts/legacy/chain-run-{request,reply}.schema.json`
+- `contracts/legacy/vote-{request,reply}.schema.json`
+- `contracts/legacy/reflexion-{request,reply}.schema.json`
 - `contracts/openapi.json`
 
 运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。

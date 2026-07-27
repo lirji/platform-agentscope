@@ -49,3 +49,19 @@ class DagQualityReviewer(Protocol):
         context: RunContext,
     ) -> DagPlan:
         """Return a revised language-neutral DAG plan."""
+
+
+class TextGenerationError(RuntimeError):
+    """A sanitized sibling-orchestrator model failure."""
+
+
+class TextGenerator(Protocol):
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        context: RunContext,
+        *,
+        deterministic: bool = False,
+    ) -> str:
+        """Generate plain text without exposing framework-specific types."""

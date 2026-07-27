@@ -8,6 +8,7 @@ from agentscope_platform.api.app import create_app
 from agentscope_platform.application.ports import (
     DagPlanningError,
     DagQualityError,
+    TextGenerationError,
 )
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentExecution, RunContext
@@ -125,6 +126,39 @@ class FailedReviewer(AcceptingReviewer):
         raise DagQualityError("provider secret must not leak")
 
 
+class FakeTextGenerator:
+    def __init__(self, outputs: list[str] | None = None) -> None:
+        self.outputs = list(outputs or [])
+        self.contexts: list[RunContext] = []
+        self.deterministic: list[bool] = []
+
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        context: RunContext,
+        *,
+        deterministic: bool = False,
+    ) -> str:
+        del system_prompt, user_prompt
+        self.contexts.append(context)
+        self.deterministic.append(deterministic)
+        return self.outputs.pop(0)
+
+
+class FailedTextGenerator(FakeTextGenerator):
+    async def generate(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        context: RunContext,
+        *,
+        deterministic: bool = False,
+    ) -> str:
+        del system_prompt, user_prompt, context, deterministic
+        raise TextGenerationError("provider secret must not leak")
+
+
 def settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "internal_auth_required": True,
@@ -183,6 +217,19 @@ def test_agent_dag_run_requires_internal_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_sibling_routes_require_internal_token() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    for path, payload in (
+        ("/agent/chain", {"input": "hello"}),
+        ("/agent/vote", {"question": "hello"}),
+        ("/agent/reflexive", {"question": "hello"}),
+    ):
+        response = client.post(path, json=payload)
+        assert response.status_code == 401
+        assert response.json()["detail"] == "valid internal authentication is required"
 
 
 def test_planned_dag_and_analyst_routes_require_internal_token() -> None:
@@ -599,3 +646,139 @@ def test_local_auth_can_be_explicitly_disabled() -> None:
 
     assert response.status_code == 200
     assert response.json()["tenantId"] == "anonymous"
+
+
+def test_prompt_chain_preserves_legacy_contract_and_tenant_context() -> None:
+    generator = FakeTextGenerator(["translated output", "这是一段最终总结内容"])
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+            generator,
+        )
+    )
+
+    response = client.post(
+        "/agent/chain",
+        json={"input": "原始内容", "steps": [{"instruction": "caller override"}]},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["input"] == "原始内容"
+    assert body["finalOutput"] == "这是一段最终总结内容"
+    assert body["completed"] is True
+    assert [step["name"] for step in body["steps"]] == ["translate", "summarize"]
+    assert body["tenantId"] == "acme"
+    assert all(context.identity.tenant_id == "acme" for context in generator.contexts)
+
+
+def test_voting_preserves_legacy_contract_and_candidate_override() -> None:
+    generator = FakeTextGenerator(["Yes", " yes ", "No"])
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+            generator,
+        )
+    )
+
+    response = client.post(
+        "/agent/vote",
+        json={"question": "Proceed?", "n": 3},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "question": "Proceed?",
+        "votes": ["Yes", " yes ", "No"],
+        "strategy": "majority",
+        "decision": "Yes",
+        "agreement": 2 / 3,
+        "confident": True,
+        "tenantId": "acme",
+    }
+
+
+def test_reflexion_preserves_legacy_contract() -> None:
+    generator = FakeTextGenerator(["answer"])
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+            generator,
+        )
+    )
+
+    response = client.post(
+        "/agent/reflexive",
+        json={"question": "Explain"},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["question"] == "Explain"
+    assert body["finalAnswer"] == "answer"
+    assert body["acceptedByThreshold"] is True
+    assert body["tenantId"] == "acme"
+    assert len(body["attempts"]) == 1
+
+
+def test_sibling_validation_uses_legacy_error_shape_before_generation() -> None:
+    generator = FakeTextGenerator(["unused"])
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+            generator,
+        )
+    )
+
+    response = client.post(
+        "/agent/vote",
+        json={"question": "q", "n": 0},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"error": "n must be between 1 and 10"}
+    assert generator.contexts == []
+
+
+def test_sibling_generation_failure_is_sanitized() -> None:
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            FakePlanner(),
+            AcceptingReviewer(),
+            FailedTextGenerator(),
+        )
+    )
+
+    response = client.post(
+        "/agent/chain",
+        json={"input": "hello"},
+        headers={
+            "X-Internal-Token": internal_token(),
+            "X-Trace-Id": "sibling-trace",
+        },
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": "agent generation failed",
+        "traceId": "sibling-trace",
+    }
+    assert "provider secret" not in response.text

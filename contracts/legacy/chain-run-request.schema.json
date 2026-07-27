@@ -1,0 +1,18 @@
+{
+  "properties": {
+    "input": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input"
+    }
+  },
+  "title": "ChainRunRequest",
+  "type": "object"
+}

@@ -1,8 +1,34 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import (
+    Field,
+    SecretStr,
+    TypeAdapter,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from agentscope_platform.domain.sibling import (
+    ChainStepDefinition,
+    VotingStrategy,
+)
+
+DEFAULT_CHAIN_STEPS_JSON = """
+[
+  {
+    "name": "translate",
+    "instruction": "把输入内容翻译成英文，只输出译文，不要额外解释",
+    "gateMinLength": 10
+  },
+  {
+    "name": "summarize",
+    "instruction": "用一句中文概括上一步英文内容的要点",
+    "gateMinLength": 8
+  }
+]
+""".strip()
 
 
 class Settings(BaseSettings):
@@ -42,6 +68,17 @@ class Settings(BaseSettings):
     agent_planner_max_tokens: int = Field(default=1_200, ge=128, le=8_192)
     agent_planner_timeout_seconds: float = Field(default=30, gt=0, le=300)
     agent_planner_max_retries: int = Field(default=0, ge=0, le=3)
+    agent_chaining_steps_json: str = DEFAULT_CHAIN_STEPS_JSON
+    agent_voting_n: int = Field(default=3, ge=1, le=50)
+    agent_voting_max_candidates: int = Field(default=10, ge=1, le=50)
+    agent_voting_strategy: VotingStrategy = VotingStrategy.MAJORITY
+    agent_voting_min_agreement: float = Field(default=0.5, ge=0, le=1)
+    agent_sibling_max_parallel_workers: int = Field(default=10, ge=1, le=50)
+    agent_reflexion_threshold: float = Field(default=0.75, ge=0, le=1)
+    agent_reflexion_max_attempts: int = Field(default=2, ge=0, le=10)
+    agent_reflexion_weight_correctness: float = Field(default=0.4, ge=0)
+    agent_reflexion_weight_completeness: float = Field(default=0.4, ge=0)
+    agent_reflexion_weight_clarity: float = Field(default=0.2, ge=0)
 
     internal_auth_required: bool = True
     internal_jwt_header: str = "X-Internal-Token"
@@ -68,6 +105,17 @@ class Settings(BaseSettings):
         if normalized not in {"HS256", "RS256"}:
             raise ValueError("INTERNAL_JWT_ALGORITHM must be HS256 or RS256")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_orchestrator_limits(self) -> "Settings":
+        if self.agent_voting_n > self.agent_voting_max_candidates:
+            raise ValueError("AGENT_VOTING_N must not exceed AGENT_VOTING_MAX_CANDIDATES")
+        return self
+
+    @property
+    def agent_chaining_steps(self) -> tuple[ChainStepDefinition, ...]:
+        adapter = TypeAdapter(list[ChainStepDefinition])
+        return tuple(adapter.validate_json(self.agent_chaining_steps_json))
 
     @property
     def agent_enabled(self) -> bool:

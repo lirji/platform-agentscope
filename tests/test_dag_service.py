@@ -5,10 +5,10 @@ import pytest
 
 from agentscope_platform.application.dag import (
     AgentDagApplicationService,
-    CritiqueWeights,
     DagReviewPolicy,
     DagValidationError,
 )
+from agentscope_platform.application.quality import CritiqueWeights
 from agentscope_platform.domain.agent import AgentExecution, RunContext, TenantIdentity
 from agentscope_platform.domain.dag import (
     AgentDagCritique,

@@ -13,6 +13,14 @@ from agentscope_platform.domain.dag import (
     AgentDagTask,
     AgentPlanRunRequest,
 )
+from agentscope_platform.domain.sibling import (
+    ChainRunReply,
+    ChainRunRequest,
+    ReflexionReply,
+    ReflexionRequest,
+    VoteReply,
+    VoteRequest,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
@@ -42,6 +50,22 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         / "legacy"
         / "agent-plan-run-request.schema.json": AgentPlanRunRequest.model_json_schema(
             by_alias=True
+        ),
+        CONTRACTS / "legacy" / "chain-run-request.schema.json": (
+            ChainRunRequest.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "chain-run-reply.schema.json": (
+            ChainRunReply.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "vote-request.schema.json": VoteRequest.model_json_schema(
+            by_alias=True
+        ),
+        CONTRACTS / "legacy" / "vote-reply.schema.json": VoteReply.model_json_schema(by_alias=True),
+        CONTRACTS / "legacy" / "reflexion-request.schema.json": (
+            ReflexionRequest.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "reflexion-reply.schema.json": (
+            ReflexionReply.model_json_schema(by_alias=True)
         ),
         CONTRACTS / "openapi.json": app.openapi(),
     }
