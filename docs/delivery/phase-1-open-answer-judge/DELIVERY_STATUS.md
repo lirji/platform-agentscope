@@ -52,6 +52,8 @@ Add a default-off, sanitized model judge gate for open-ended RAG and analytics S
 
 - Local `llama3.1` is not a release-quality baseline: retained cases did not complete and candidate
   scores failed.
+- Local `qwen3:14b` qualification also failed: open-answer generations repeatedly hit the local
+  120-second inference timeout and the calibration was terminated without a report.
 - A remote/stronger-model rerun needs explicit data-retention and network approval.
 
 ## Next Action

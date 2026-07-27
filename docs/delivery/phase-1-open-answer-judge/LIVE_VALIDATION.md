@@ -51,3 +51,20 @@ treated as a pass.
 The rejected result is useful evidence: the feature prevents a low-quality or non-comparable model
 profile from being promoted. A release-quality rerun needs an approved test model that can complete
 both retained and candidate cases; remote use also requires data-retention approval.
+
+## Additional Local Model Qualification
+
+After the implementation commit, the already-installed local `qwen3:14b` was tested as a possible
+way to remove the model-quality blocker without networking. A time-tool probe completed, but the
+open-answer calibration was not viable:
+
+- Qwen's default thinking output exhausted a 32-token JSON Judge response without producing
+  content, so the local profile kept `llama3.1` as the Judge and used Qwen only for Agent calls.
+- Open-answer Agent generations repeatedly reached Ollama's 120-second request timeout.
+- The calibration produced no report after more than the configured target timeout and was
+  explicitly terminated; outstanding local requests were cancelled and all temporary services
+  were stopped.
+
+This second local profile is also disqualified. It does not change the implementation verdict or
+the committed gate result; it narrows the remaining action to an explicitly approved,
+release-capable test model and data path.

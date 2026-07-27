@@ -40,6 +40,8 @@
 ## Blocked External Checks
 
 - A comparable three-run legacy/candidate Judge baseline requires a stronger approved test model.
+- A follow-up local `qwen3:14b` calibration was attempted and disqualified by repeated 120-second
+  inference timeouts; no partial report was accepted as evidence.
 - Remote Judge validation requires explicit network/data-retention approval.
 
 ## Verdict

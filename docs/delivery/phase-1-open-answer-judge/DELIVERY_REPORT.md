@@ -77,6 +77,8 @@ in-memory Judge through `scripts/shadow-smoke.py`; all underlying commands passe
 ## Remaining Risks Or External Actions
 
 - Select an approved stronger test Judge/model and rerun both targets three times.
+- The installed local `qwen3:14b` has already been tried and disqualified by repeated inference
+  timeouts; do not repeat that profile unchanged.
 - Review remote provider request-retention policy before sending business answers.
 - Keep edge routing on legacy until the quality gate and the separate test-tenant rollback exercise
   pass.
