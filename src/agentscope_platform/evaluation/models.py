@@ -48,6 +48,33 @@ class ShadowCase(BaseModel):
         default=None,
         alias="answerAssertions",
     )
+    judge_criteria: str | None = Field(
+        default=None,
+        alias="judgeCriteria",
+        max_length=4000,
+    )
+    judge_min_score: float | None = Field(
+        default=None,
+        alias="judgeMinScore",
+        ge=0,
+        le=1,
+    )
+
+    @field_validator("judge_criteria")
+    @classmethod
+    def normalize_judge_criteria(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("judge criteria must not be blank")
+        return normalized
+
+    @model_validator(mode="after")
+    def reject_judge_threshold_without_criteria(self) -> "ShadowCase":
+        if self.judge_criteria is None and self.judge_min_score is not None:
+            raise ValueError("judge minimum score requires judge criteria")
+        return self
 
 
 class RunSample(BaseModel):
@@ -69,6 +96,9 @@ class RunSample(BaseModel):
     answer_evaluated: bool = False
     answer_passed: bool = True
     answer_score: float = 1
+    judge_evaluated: bool = False
+    judge_passed: bool | None = None
+    judge_score: float | None = None
     error: str | None = None
 
 
@@ -85,6 +115,9 @@ class TargetSummary(BaseModel):
     stop_reasons: dict[str, int]
     answer_evaluated_runs: int = 0
     answer_pass_rate: float = 1
+    judge_evaluated_runs: int = 0
+    judge_pass_rate: float = 1
+    average_judge_score: float | None = None
 
 
 class ShadowThresholds(BaseModel):
@@ -96,6 +129,9 @@ class ShadowThresholds(BaseModel):
     tool_accuracy_tolerance: float = Field(default=0.05, ge=0, le=1)
     min_answer_pass_rate: float = Field(default=0.8, ge=0, le=1)
     answer_pass_rate_tolerance: float = Field(default=0.05, ge=0, le=1)
+    min_judge_pass_rate: float = Field(default=0.8, ge=0, le=1)
+    judge_pass_rate_tolerance: float = Field(default=0.05, ge=0, le=1)
+    judge_score_tolerance: float = Field(default=0.05, ge=0, le=1)
     p95_latency_ratio: float = Field(default=1.5, ge=0)
     p95_latency_slack_ms: int = Field(default=250, ge=0)
 
@@ -109,7 +145,7 @@ class GateResult(BaseModel):
 
 
 class ShadowReport(BaseModel):
-    schema_version: str = "2"
+    schema_version: str = "3"
     suite: str
     generated_at: datetime
     runs_per_case: int

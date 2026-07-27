@@ -4,6 +4,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
+from agentscope_platform.evaluation.judge import JudgeError, LiteLLMAnswerJudge
 from agentscope_platform.evaluation.models import ShadowThresholds
 from agentscope_platform.evaluation.shadow import (
     ShadowEvaluationError,
@@ -36,6 +37,18 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--tool-accuracy-tolerance", type=float, default=0.05)
     value.add_argument("--min-answer-pass-rate", type=float, default=0.8)
     value.add_argument("--answer-pass-rate-tolerance", type=float, default=0.05)
+    value.add_argument("--judge-enabled", action="store_true")
+    value.add_argument("--judge-base-url", default="http://localhost:4000/v1")
+    value.add_argument("--judge-model", default="chat-default")
+    value.add_argument("--judge-timeout-seconds", type=float, default=60)
+    value.add_argument("--min-judge-pass-rate", type=float, default=0.8)
+    value.add_argument("--judge-pass-rate-tolerance", type=float, default=0.05)
+    value.add_argument("--judge-score-tolerance", type=float, default=0.05)
+    value.add_argument(
+        "--allow-remote-judge",
+        action="store_true",
+        help="Explicitly allow a non-local judge endpoint. Never point this at production.",
+    )
     value.add_argument("--p95-latency-ratio", type=float, default=1.5)
     value.add_argument("--p95-latency-slack-ms", type=int, default=250)
     value.add_argument(
@@ -61,32 +74,70 @@ async def async_main(argv: Sequence[str] | None = None) -> int:
             tool_accuracy_tolerance=args.tool_accuracy_tolerance,
             min_answer_pass_rate=args.min_answer_pass_rate,
             answer_pass_rate_tolerance=args.answer_pass_rate_tolerance,
+            min_judge_pass_rate=args.min_judge_pass_rate,
+            judge_pass_rate_tolerance=args.judge_pass_rate_tolerance,
+            judge_score_tolerance=args.judge_score_tolerance,
             p95_latency_ratio=args.p95_latency_ratio,
             p95_latency_slack_ms=args.p95_latency_slack_ms,
         )
         cases = load_cases(args.suite)
-        report = await evaluate_shadow(
-            cases,
-            Target(
-                name="legacy",
-                base_url=args.legacy_url,
-                auth_header=args.legacy_auth_header,
-                auth_token=legacy_token,
-            ),
-            Target(
-                name="candidate",
-                base_url=args.candidate_url,
-                auth_header=args.candidate_auth_header,
-                auth_token=candidate_token,
-            ),
-            runs=args.runs,
-            timeout_seconds=args.timeout_seconds,
-            thresholds=thresholds,
-            allow_remote_targets=args.allow_remote_targets,
-            suite_name=args.suite.stem,
+        judge = (
+            LiteLLMAnswerJudge(
+                base_url=args.judge_base_url,
+                api_key=os.environ.get("SHADOW_JUDGE_API_KEY", ""),
+                model=args.judge_model,
+                timeout_seconds=args.judge_timeout_seconds,
+                allow_remote=args.allow_remote_judge,
+            )
+            if args.judge_enabled
+            else None
         )
+        if judge is None:
+            report = await evaluate_shadow(
+                cases,
+                Target(
+                    name="legacy",
+                    base_url=args.legacy_url,
+                    auth_header=args.legacy_auth_header,
+                    auth_token=legacy_token,
+                ),
+                Target(
+                    name="candidate",
+                    base_url=args.candidate_url,
+                    auth_header=args.candidate_auth_header,
+                    auth_token=candidate_token,
+                ),
+                runs=args.runs,
+                timeout_seconds=args.timeout_seconds,
+                thresholds=thresholds,
+                allow_remote_targets=args.allow_remote_targets,
+                suite_name=args.suite.stem,
+            )
+        else:
+            async with judge:
+                report = await evaluate_shadow(
+                    cases,
+                    Target(
+                        name="legacy",
+                        base_url=args.legacy_url,
+                        auth_header=args.legacy_auth_header,
+                        auth_token=legacy_token,
+                    ),
+                    Target(
+                        name="candidate",
+                        base_url=args.candidate_url,
+                        auth_header=args.candidate_auth_header,
+                        auth_token=candidate_token,
+                    ),
+                    runs=args.runs,
+                    timeout_seconds=args.timeout_seconds,
+                    thresholds=thresholds,
+                    allow_remote_targets=args.allow_remote_targets,
+                    suite_name=args.suite.stem,
+                    judge=judge,
+                )
         write_report(report, args.output)
-    except (ShadowEvaluationError, ValueError) as exc:
+    except (JudgeError, ShadowEvaluationError, ValueError) as exc:
         print(f"shadow evaluation error: {exc}")
         return 2
 

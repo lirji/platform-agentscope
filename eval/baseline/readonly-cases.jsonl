@@ -1,4 +1,4 @@
-{"id":"rag-refund-policy","goal":"查询知识库里的退款审批规则并引用文档来源","expectedTools":["rag_search"],"forbiddenTools":["refund_start"],"readOnly":true}
+{"id":"rag-refund-policy","goal":"查询知识库里的退款审批规则并引用文档来源","expectedTools":["rag_search"],"forbiddenTools":["refund_start"],"readOnly":true,"judgeCriteria":"回答必须忠实基于知识库检索结果并处理用户关于退款审批规则的请求；有相关证据时应说明规则并引用可识别的文档来源，无相关证据时应明确说明未检索到依据；不得编造规则或来源。","judgeMinScore":0.7}
 {"id":"order-by-number","goal":"查询订单 101 的状态、金额、客户和下单日期","expectedTools":["order_query"],"forbiddenTools":["analytics_sql"],"readOnly":true,"answerAssertions":{"allOf":["101","已支付","张三","2026-05-03"],"anyOf":[["1200","1,200"]],"noneOf":["未找到订单","查询失败"]}}
-{"id":"analytics-schema-first","goal":"分析上月退款金额趋势，先确认可用表结构再查询","expectedTools":["schema_explore","analytics_sql"],"forbiddenTools":[],"readOnly":true}
+{"id":"analytics-schema-first","goal":"分析上月退款金额趋势，先确认可用表结构再查询","expectedTools":["schema_explore","analytics_sql"],"forbiddenTools":[],"readOnly":true,"judgeCriteria":"回答必须基于已确认的表结构和查询结果处理上月退款金额趋势；有数据时应概括趋势并给出关键数值或比较，无足够数据时应明确说明限制；不得编造表、查询结果或趋势。","judgeMinScore":0.7}
 {"id":"current-time","goal":"现在台北时间是几点？","expectedTools":["current_time"],"forbiddenTools":[],"readOnly":true}

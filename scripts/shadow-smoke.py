@@ -5,6 +5,7 @@ from pathlib import Path
 
 import httpx
 
+from agentscope_platform.evaluation.judge import JudgeRequest, JudgeResult
 from agentscope_platform.evaluation.shadow import (
     Target,
     evaluate_shadow,
@@ -12,6 +13,13 @@ from agentscope_platform.evaluation.shadow import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class OfflineJudge:
+    async def score(self, request: JudgeRequest) -> JudgeResult:
+        if not request.criteria or not request.answer:
+            raise AssertionError("judge received an empty contract")
+        return JudgeResult(score=1)
 
 
 def handler(request: httpx.Request) -> httpx.Response:
@@ -59,6 +67,7 @@ async def run() -> None:
         Target("candidate", "http://candidate.localhost"),
         transport=httpx.MockTransport(handler),
         suite_name="readonly-offline-smoke",
+        judge=OfflineJudge(),
     )
     if not report.gate.passed:
         raise SystemExit("\n".join(report.gate.regressions))

@@ -12,6 +12,7 @@
 - 通过率、工具准确率和 P95 延迟是否相对旧服务回归；
 - candidate 是否达到绝对最低门槛。
 - 可选的答案业务事实证据是否满足。
+- 显式启用时，开放式 RAG/Analytics 回答的 Judge 分数是否达标且不相对旧服务回归。
 
 该工具不会改变 edge 路由，也不会把完整回答、observation、请求 token 或响应正文写入报告。
 
@@ -23,6 +24,11 @@
 - Token 只从进程环境读取，不提供命令行 token 参数，避免进入 shell history/process list。
 - 不自动重试，防止非确定性调用被静默放大。
 - 当前 suite 只允许 `readOnly=true`。
+- Judge 默认关闭；远程 Judge 必须单独添加 `--allow-remote-judge`，不能借用目标地址的
+  远程授权。
+- Judge API Key 只从 `SHADOW_JUDGE_API_KEY` 读取。报告不保存回答或 Judge prompt，但评分
+  必须把完整回答临时发送给 Judge；远程提供商或网关可能按其策略记录请求，启用前必须完成
+  数据分级和留存审查。
 
 ## 本地/测试环境执行
 
@@ -65,6 +71,52 @@ uv run agentscope-shadow-eval \
 片段或断言文本。默认 candidate 答案通过率不得低于 80%，且不得比 legacy 低超过 5 个
 百分点，可用 `--min-answer-pass-rate` 和 `--answer-pass-rate-tolerance` 调整。
 
+## 开放式答案 Judge
+
+用例可以声明开放式标准和单案例最低分（默认 0.7，与 retained Java eval-service
+一致）：
+
+```json
+{
+  "judgeCriteria": "回答必须基于查询结果说明趋势；数据不足时明确说明限制；不得编造。",
+  "judgeMinScore": 0.7
+}
+```
+
+默认运行会跳过这些标准，保持原双跑行为。只在本地或明确命名的测试环境显式启用：
+
+```bash
+export SHADOW_JUDGE_API_KEY='replace-with-short-lived-test-key'
+
+uv run agentscope-shadow-eval \
+  --legacy-url http://localhost:28085 \
+  --candidate-url http://localhost:18085 \
+  --judge-enabled \
+  --judge-base-url http://localhost:4000/v1 \
+  --judge-model chat-default \
+  --runs 3 \
+  --output reports/readonly-shadow-judged.json
+```
+
+Judge 使用 `temperature=0`、JSON object 响应和独立 trace，每个答案只请求一次，不自动
+重试。回答被标记为不可信数据，prompt 明确禁止执行回答中的指令。低于单案例阈值时记录
+`JUDGE_SCORE_BELOW_THRESHOLD`；网络、HTTP 或响应契约错误统一记录 `JUDGE_ERROR` 并按
+零分 fail-closed。报告仅保留：
+
+- 每次运行的 `judgeEvaluated`、`judgePassed`、`judgeScore`；
+- 每个目标的 Judge 样本数、通过率和平均分；
+- 稳定错误码和门禁回归原因。
+
+不保留标准、prompt、回答或理由。Judge 耗时不计入 Agent 目标 P95，Judge 独立 trace 也
+不进入 `agentscope-shadow-cost` 的 Agent 成本归因；需要单独评估 Judge 的延迟和费用。
+默认 candidate Judge 通过率至少 80%，不得比 legacy 低超过 5 个百分点，平均分也不得
+低超过 0.05。对应参数为 `--min-judge-pass-rate`、
+`--judge-pass-rate-tolerance` 和 `--judge-score-tolerance`。
+
+当一端没有完成标准用例、另一端已经评分时，门禁会以缺失可比评分拒绝，不能把“未评分”
+当作满分。远程 Judge 还需要 `--allow-remote-judge`；不要指向生产 Judge 或在未经批准时
+发送含敏感业务数据的回答。
+
 如果两端使用不同 token：
 
 ```bash
@@ -91,6 +143,9 @@ export SHADOW_CANDIDATE_TOKEN='replace-with-candidate-test-token'
 | 相对旧服务通过率容差 | 0.05 |
 | 相对旧服务完成率容差 | 0.05 |
 | 相对旧服务工具准确率容差 | 0.05 |
+| candidate Judge 最低通过率（启用时） | 0.80 |
+| 相对旧服务 Judge 通过率容差 | 0.05 |
+| 相对旧服务 Judge 平均分容差 | 0.05 |
 | candidate P95 上限 | `legacy P95 × 1.5 + 250ms` |
 | candidate 禁止工具 | 0 次 |
 | 两端契约错误 | 0 次 |
@@ -108,6 +163,7 @@ export SHADOW_CANDIDATE_TOKEN='replace-with-candidate-test-token'
 
 报告不包含目标 URL、token、goal、最终答案、actionInput 或 observation。
 单个目标响应超过 2 MB 会以 `RESPONSE_TOO_LARGE` 失败，不进入契约解析。
+Shadow v3 新增可空的 Judge 分数字段；未启用 Judge 时 `judgeEvaluated=false` 且分数为空。
 
 ## 成本归因
 

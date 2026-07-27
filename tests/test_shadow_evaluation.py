@@ -5,6 +5,7 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
+from agentscope_platform.evaluation.judge import JudgeError, JudgeRequest, JudgeResult
 from agentscope_platform.evaluation.models import (
     RunSample,
     ShadowCase,
@@ -341,3 +342,124 @@ def test_answer_assertions_reject_empty_terms_and_groups() -> None:
         case(answerAssertions={"allOf": [" "]})
     with pytest.raises(ValidationError):
         case(answerAssertions={"anyOf": [[]]})
+
+
+class FakeJudge:
+    def __init__(self, scores: list[float]) -> None:
+        self.scores = scores
+        self.requests: list[JudgeRequest] = []
+
+    async def score(self, request: JudgeRequest) -> JudgeResult:
+        self.requests.append(request)
+        return JudgeResult(self.scores.pop(0))
+
+
+class FailingJudge:
+    async def score(self, request: JudgeRequest) -> JudgeResult:
+        del request
+        raise JudgeError("provider-secret")
+
+
+async def test_optional_judge_is_default_off_and_only_scores_configured_cases() -> None:
+    judged = case(judgeCriteria="Answer faithfully", judgeMinScore=0.7)
+    unjudged = case(id="time", judgeCriteria=None)
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json=reply("goal", ["rag_search"]))
+    )
+
+    report = await evaluate_shadow(
+        (judged,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=transport,
+    )
+    assert all(not sample.judge_evaluated for sample in report.samples)
+    assert report.gate.legacy.average_judge_score is None
+    assert report.gate.candidate.average_judge_score is None
+
+    judge = FakeJudge([0.9, 0.8])
+    report = await evaluate_shadow(
+        (judged, unjudged),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=transport,
+        judge=judge,
+    )
+    assert len(judge.requests) == 2
+    assert [sample.judge_evaluated for sample in report.samples] == [
+        True,
+        True,
+        False,
+        False,
+    ]
+
+
+async def test_judge_low_score_fails_gate_without_persisting_sensitive_content(
+    tmp_path: Path,
+) -> None:
+    judged = case(
+        judgeCriteria="Must explain the refund policy and cite a source",
+        judgeMinScore=0.7,
+    )
+    judge = FakeJudge([0.9, 0.6])
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json=reply(
+                "goal-secret",
+                ["rag_search"],
+            ),
+        )
+    )
+
+    report = await evaluate_shadow(
+        (judged,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=transport,
+        judge=judge,
+    )
+
+    assert report.schema_version == "3"
+    assert report.samples[0].judge_passed is True
+    assert report.samples[0].judge_score == 0.9
+    assert report.samples[1].judge_passed is False
+    assert report.samples[1].error == "JUDGE_SCORE_BELOW_THRESHOLD"
+    assert report.gate.legacy.average_judge_score == 0.9
+    assert report.gate.candidate.average_judge_score == 0.6
+    assert any("judge_pass_rate" in item for item in report.gate.regressions)
+    assert any("judge_score" in item for item in report.gate.regressions)
+
+    output = tmp_path / "judge-report.json"
+    write_report(report, output)
+    serialized = output.read_text(encoding="utf-8")
+    assert "sensitive business answer" not in serialized
+    assert "Must explain the refund policy" not in serialized
+    assert "goal-secret" not in serialized
+
+
+async def test_judge_failure_is_a_sanitized_fail_closed_result() -> None:
+    report = await evaluate_shadow(
+        (case(judgeCriteria="criteria"),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=reply("goal", ["rag_search"]))
+        ),
+        judge=FailingJudge(),
+    )
+
+    assert all(sample.judge_evaluated for sample in report.samples)
+    assert all(sample.judge_passed is False for sample in report.samples)
+    assert all(sample.judge_score == 0 for sample in report.samples)
+    assert all(sample.error == "JUDGE_ERROR" for sample in report.samples)
+    assert "provider-secret" not in report.model_dump_json()
+
+
+def test_judge_case_validation_rejects_blank_or_orphan_threshold() -> None:
+    with pytest.raises(ValidationError):
+        case(judgeCriteria=" ")
+    with pytest.raises(ValidationError):
+        case(judgeMinScore=0.8)
+    with pytest.raises(ValidationError):
+        case(judgeCriteria="criteria", judgeMinScore=1.1)

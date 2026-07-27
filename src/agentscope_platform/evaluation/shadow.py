@@ -11,6 +11,11 @@ import httpx
 from pydantic import ValidationError
 
 from agentscope_platform.domain.agent import AgentRunReply
+from agentscope_platform.evaluation.judge import (
+    AnswerJudge,
+    JudgeError,
+    JudgeRequest,
+)
 from agentscope_platform.evaluation.models import (
     GateResult,
     RunSample,
@@ -89,6 +94,7 @@ async def evaluate_shadow(
     allow_remote_targets: bool = False,
     transport: httpx.AsyncBaseTransport | None = None,
     suite_name: str = "readonly-cases",
+    judge: AnswerJudge | None = None,
 ) -> ShadowReport:
     if runs < 1:
         raise ShadowEvaluationError("runs must be at least 1")
@@ -124,6 +130,7 @@ async def evaluate_shadow(
                             target,
                             run_number,
                             uuid4().hex,
+                            judge,
                         ),
                     )
 
@@ -149,6 +156,7 @@ async def _execute(
     target: Target,
     run_number: int,
     trace_id: str,
+    judge: AnswerJudge | None,
 ) -> RunSample:
     headers = {
         "Content-Type": "application/json",
@@ -222,7 +230,35 @@ async def _execute(
         reply.final_answer,
         case,
     )
-    passed = completed and not missing and not forbidden and tool_order_valid and answer_passed
+    judge_evaluated = judge is not None and case.judge_criteria is not None and completed
+    judge_passed: bool | None = None
+    judge_score: float | None = None
+    judge_error = False
+    if judge is not None and case.judge_criteria is not None and completed:
+        try:
+            judge_result = await judge.score(
+                JudgeRequest(
+                    criteria=case.judge_criteria or "",
+                    answer=reply.final_answer,
+                ),
+            )
+            judge_score = judge_result.score
+            judge_passed = judge_score >= (
+                case.judge_min_score if case.judge_min_score is not None else 0.7
+            )
+        except JudgeError:
+            judge_score = 0
+            judge_passed = False
+            judge_error = True
+    judge_satisfied = judge_passed is not False
+    passed = (
+        completed
+        and not missing
+        and not forbidden
+        and tool_order_valid
+        and answer_passed
+        and judge_satisfied
+    )
     error = None
     if forbidden:
         error = "FORBIDDEN_TOOL"
@@ -234,6 +270,10 @@ async def _execute(
         error = "NOT_COMPLETED"
     elif not answer_passed:
         error = "ANSWER_ASSERTION"
+    elif judge_error:
+        error = "JUDGE_ERROR"
+    elif judge_passed is False:
+        error = "JUDGE_SCORE_BELOW_THRESHOLD"
     return RunSample(
         case_id=case.id,
         target=target.name,
@@ -253,6 +293,9 @@ async def _execute(
         answer_evaluated=answer_evaluated,
         answer_passed=answer_passed,
         answer_score=answer_score,
+        judge_evaluated=judge_evaluated,
+        judge_passed=judge_passed,
+        judge_score=judge_score,
         error=error,
     )
 
@@ -297,6 +340,7 @@ def summarize(name: str, samples: list[RunSample]) -> TargetSummary:
         stop_reasons[reason] = stop_reasons.get(reason, 0) + 1
     total = len(selected)
     answer_samples = [sample for sample in selected if sample.answer_evaluated]
+    judge_samples = [sample for sample in selected if sample.judge_evaluated]
     return TargetSummary(
         name=name,
         total_runs=total,
@@ -313,6 +357,17 @@ def summarize(name: str, samples: list[RunSample]) -> TargetSummary:
             sum(sample.answer_passed for sample in answer_samples) / len(answer_samples)
             if answer_samples
             else 1
+        ),
+        judge_evaluated_runs=len(judge_samples),
+        judge_pass_rate=(
+            sum(sample.judge_passed is True for sample in judge_samples) / len(judge_samples)
+            if judge_samples
+            else 1
+        ),
+        average_judge_score=(
+            sum(sample.judge_score or 0 for sample in judge_samples) / len(judge_samples)
+            if judge_samples
+            else None
         ),
     )
 
@@ -376,6 +431,30 @@ def evaluate_gate(
             candidate.answer_pass_rate,
             thresholds.answer_pass_rate_tolerance,
         )
+    if legacy.judge_evaluated_runs or candidate.judge_evaluated_runs:
+        _absolute_rate_gate(
+            regressions,
+            "minimum_judge_pass_rate",
+            candidate.judge_pass_rate,
+            thresholds.min_judge_pass_rate,
+        )
+        _relative_rate_gate(
+            regressions,
+            "judge_pass_rate",
+            legacy.judge_pass_rate,
+            candidate.judge_pass_rate,
+            thresholds.judge_pass_rate_tolerance,
+        )
+        if legacy.average_judge_score is None or candidate.average_judge_score is None:
+            regressions.append("judge_score regression: one target has no evaluated score")
+        else:
+            _relative_rate_gate(
+                regressions,
+                "judge_score",
+                legacy.average_judge_score,
+                candidate.average_judge_score,
+                thresholds.judge_score_tolerance,
+            )
     if candidate.forbidden_violations:
         regressions.append(
             f"forbidden_tool regression: candidate executed "

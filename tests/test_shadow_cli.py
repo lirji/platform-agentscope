@@ -162,3 +162,95 @@ async def test_cli_returns_configuration_error_for_remote_target(tmp_path: Path)
     )
 
     assert exit_code == 2
+
+
+async def test_cli_requires_environment_key_when_judge_is_enabled(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SHADOW_JUDGE_API_KEY", raising=False)
+    exit_code = await cli.async_main(
+        [
+            "--legacy-url",
+            "http://legacy.localhost",
+            "--candidate-url",
+            "http://candidate.localhost",
+            "--suite",
+            str(suite(tmp_path)),
+            "--judge-enabled",
+        ]
+    )
+
+    assert exit_code == 2
+
+
+async def test_cli_requires_separate_remote_judge_opt_in(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SHADOW_JUDGE_API_KEY", "test-secret")
+    exit_code = await cli.async_main(
+        [
+            "--legacy-url",
+            "http://legacy.localhost",
+            "--candidate-url",
+            "http://candidate.localhost",
+            "--suite",
+            str(suite(tmp_path)),
+            "--judge-enabled",
+            "--judge-base-url",
+            "https://judge.test/v1",
+        ]
+    )
+
+    assert exit_code == 2
+
+
+async def test_cli_passes_opted_in_judge_without_exposing_environment_key(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+    expected_report = report(True)
+
+    class StubJudge:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            del args
+
+    judge = StubJudge()
+
+    def fake_judge(**kwargs: object) -> StubJudge:
+        captured["constructor"] = kwargs
+        return judge
+
+    async def fake_evaluate(*args: object, **kwargs: object) -> ShadowReport:
+        del args
+        captured["evaluate"] = kwargs
+        return expected_report
+
+    monkeypatch.setattr(cli, "LiteLLMAnswerJudge", fake_judge)
+    monkeypatch.setattr(cli, "evaluate_shadow", fake_evaluate)
+    monkeypatch.setenv("SHADOW_JUDGE_API_KEY", "environment-only-secret")
+    output = tmp_path / "judge-report.json"
+
+    exit_code = await cli.async_main(
+        [
+            "--legacy-url",
+            "http://legacy.localhost",
+            "--candidate-url",
+            "http://candidate.localhost",
+            "--suite",
+            str(suite(tmp_path)),
+            "--output",
+            str(output),
+            "--judge-enabled",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["evaluate"]["judge"] is judge  # type: ignore[index]
+    assert captured["constructor"]["api_key"] == "environment-only-secret"  # type: ignore[index]
+    assert "environment-only-secret" not in output.read_text(encoding="utf-8")
