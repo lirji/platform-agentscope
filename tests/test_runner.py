@@ -23,7 +23,10 @@ from agentscope_platform.application.observer import RunObservation
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
 from agentscope_platform.domain.agent import RunContext, TenantIdentity
-from agentscope_platform.infrastructure.agentscope.runner import AgentScopeRunner
+from agentscope_platform.infrastructure.agentscope.runner import (
+    AgentScopeRunner,
+    _agentscope_max_iters,
+)
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
 
 
@@ -111,6 +114,12 @@ def completed_events() -> list[object]:
         ),
         AssistantMsg(name="platform-agent", content="final"),
     ]
+
+
+def test_agentscope_iteration_budget_preserves_legacy_action_steps() -> None:
+    assert _agentscope_max_iters(1) == 1
+    assert _agentscope_max_iters(4) == 7
+    assert _agentscope_max_iters(8) == 15
 
 
 async def test_runner_returns_steps_and_non_secret_observation() -> None:

@@ -209,7 +209,12 @@ class AgentScopeRunner(AgentRunner):
             system_prompt=SYSTEM_PROMPT,
             model=model,
             toolkit=toolkit,
-            react_config=ReActConfig(max_iters=self._settings.agent_max_steps),
+            # The legacy budget counts one decision/action as a step. AgentScope
+            # counts reasoning and acting as separate iterations. ``2n - 1``
+            # preserves: at most n actions, or n-1 actions plus a final answer.
+            react_config=ReActConfig(
+                max_iters=_agentscope_max_iters(self._settings.agent_max_steps)
+            ),
         )
 
     async def _current_time(self, timezone: str = "UTC") -> ToolChunk:
@@ -223,3 +228,7 @@ class AgentScopeRunner(AgentRunner):
             )
         value = datetime.now(zone if timezone != "UTC" else UTC).isoformat()
         return ToolChunk(content=[TextBlock(text=value)])
+
+
+def _agentscope_max_iters(legacy_action_steps: int) -> int:
+    return legacy_action_steps * 2 - 1

@@ -6,7 +6,9 @@
 - Version: working tree after `2738697`.
 - Services and dependencies: Python 3.12, HTTPX mock and real `ThreadingHTTPServer` targets.
 - Test data: `eval/baseline/readonly-cases.jsonl`.
-- Known limitations: no live LiteLLM, retained Java services, edge route, or test credentials.
+- Live extension: localhost LiteLLM, retained Java services, legacy Agent on `8085`, and candidate
+  on `18085`, using one short-lived internal test identity.
+- Known limitations: no edge route exercise, approved monetary budget, or multi-run sample.
 
 ## Cases
 
@@ -21,22 +23,25 @@
 | QA-07 | AC-07 | Local, remote, credential URL, query URL | Safe URLs accepted; unsafe denied | Parameterized tests | pass |
 | QA-08 | AC-08 | Real localhost servers through CLI | Report and exit 0; fail/config codes exact | CLI integration tests | pass |
 | QA-09 | AC-09 | Run offline smoke | 8 samples and passing gate | Command exit 0 | pass |
+| QA-10 | Compatibility | Live four-case run before repair | Equivalent step budget | Candidate analytics `MAX_STEPS` after four tools | fail |
+| QA-11 | Compatibility retest | Map 8 legacy steps to 15 AgentScope iterations and rerun | Candidate completes all cases | 4/4 complete, tool accuracy 1.0 | pass |
 
 ## Defects And Retests
 
 - Relative-only false pass: fixed with absolute floors; gate matrix retested.
 - Reversed expected tools: fixed with ordered-subsequence validation; negative case retested.
 - Oversized/network detail exposure: fixed with stable errors and size cap; security test passed.
+- AgentScope iteration semantic mismatch: fixed with `2n-1` mapping; focused and live retest passed.
 
 ## Automated Regression
 
-- 53 tests passed.
-- Total coverage 90.21%; evaluation runner coverage 92%.
+- 54 tests passed.
+- Total coverage 90.22%; evaluation runner coverage 92%.
 - Ruff, formatting, Mypy, contract drift, package build, shell syntax, and Compose validation passed.
 
 ## Blocked External Checks
 
-- Real old/new model quality and tool-selection comparison.
+- Three-or-more-run old/new quality and tool-selection comparison.
 - P95 under realistic provider/service latency.
 - LiteLLM monetary cost comparison.
 - Edge shadow routing and rollback exercise.

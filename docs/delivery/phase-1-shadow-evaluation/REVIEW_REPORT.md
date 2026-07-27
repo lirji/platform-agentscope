@@ -14,6 +14,7 @@
 | Medium | Expected tool order was not enforced | `analytics_sql` before `schema_explore` passed because both names were present | `shadow.py:188` tool extraction | Added ordered-subsequence validation and `EXPECTED_TOOL_ORDER` |
 | Medium | Unbounded/untrusted response handling | A test target could return a huge or sensitive error body | `shadow.py:145` HTTP response path | Added 2 MB limit and stable errors without response/exception text |
 | Medium | Ambiguous target labels | Swapped/custom labels could break or misattribute aggregation | `shadow.py:80` evaluator entry | Require exact `legacy` and `candidate` roles |
+| High | Legacy step budget was mapped to the wrong framework unit | With `AGENT_MAX_STEPS=8`, AgentScope counted reasoning and acting separately and stopped after four tools, while Java allows up to eight decisions/actions | `infrastructure/agentscope/runner.py:211` ReAct configuration; live analytics case | Map legacy `n` action steps to `2n-1` AgentScope iterations and add regression tests |
 
 ## Rejected Suspicions
 
@@ -28,16 +29,18 @@
 
 - Ruff lint and format: pass.
 - Mypy strict: pass.
-- 53 tests: pass.
-- Coverage: 90.21%.
+- 54 tests: pass.
+- Coverage: 90.22%.
 - Offline paired-target smoke: pass.
 - Package and Compose validation: pass.
+- Live four-case Shadow retest: pass after the iteration-budget repair.
 
 ## Residual Risks
 
 - Model answer correctness still needs Java eval-service semantic/judge evidence in the test stack.
 - Monetary cost must be joined from LiteLLM/platform metering because `/agent/run` does not expose it.
 - Explicit `--allow-remote-targets` is an operator trust boundary; the runbook prohibits production.
+- The live retest sample size is one run per case; non-deterministic metrics require repeated runs.
 
 ## Verdict
 

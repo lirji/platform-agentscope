@@ -5,6 +5,9 @@
 A safe, reproducible old/new Agent Shadow evaluation CLI is complete. It changes no runtime API or
 traffic route and is ready to run in an explicitly named test environment.
 
+A post-delivery localhost live run found and repaired an iteration-budget compatibility defect. The
+single-run four-case retest passed; repeated statistical and cost gates remain pending.
+
 ## Requirement Coverage
 
 | AC | Implementation evidence | Verification evidence | Status |
@@ -22,6 +25,8 @@ traffic route and is ready to run in an explicitly named test environment.
 ## Changed Files
 
 - `src/agentscope_platform/evaluation/`: Shadow models, execution, metrics, gate, CLI.
+- `src/agentscope_platform/infrastructure/agentscope/runner.py`: legacy step-to-framework iteration
+  translation.
 - `scripts/shadow-smoke.py`: offline CI smoke.
 - `tests/test_shadow_evaluation.py`, `tests/test_shadow_cli.py`: 18 focused tests.
 - `.github/workflows/ci.yml`, `pyproject.toml`, `.gitignore`: pipeline, entrypoint, report hygiene.
@@ -29,15 +34,18 @@ traffic route and is ready to run in an explicitly named test environment.
 
 ## Build And Test Results
 
-- 53 tests passed with 90.21% total coverage.
+- 54 tests passed with 90.22% total coverage.
 - Ruff, formatting, Mypy strict, contract drift, package build, shell syntax, Compose, and diff checks
   passed.
 - Offline Shadow smoke passed with eight paired samples.
+- Live retest: candidate completion/pass/tool accuracy `1.0/1.0/1.0`, no forbidden tools, P95
+  `39.531s`; legacy `0.75/0.50/1.0`, one forbidden-tool case, P95 `37.155s`.
 
 ## Code Review And QA Verdicts
 
 - Code review: pass; no unresolved high/medium finding.
 - QA: conditional-pass because live model/platform testing is external.
+- Live protocol/tool-chain QA: single-run pass after repair; repeated-run QA remains conditional.
 
 ## Documentation Changes
 
@@ -53,6 +61,8 @@ no secret and contacts no remote service.
 
 - Strengthened the initial relative-only gate with absolute floors and contract hard failures.
 - Enforced expected tool order and added a response-size cap after adversarial review.
+- Added `2n-1` AgentScope iteration translation after a real run proved framework and legacy budget
+  units differ.
 
 ## Rollout, Monitoring, And Rollback
 
@@ -62,5 +72,5 @@ because this delivery does not modify routing.
 
 ## Remaining Risks Or External Actions
 
-Test-environment dual-run, approved thresholds, cost comparison, edge shadow routing, and rollback
-evidence are still required before production cutover.
+At least three repeated test-environment runs, approved thresholds, cost comparison, edge shadow
+routing, and rollback evidence are still required before production cutover.
