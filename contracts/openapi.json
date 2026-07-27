@@ -1,6 +1,255 @@
 {
   "components": {
     "schemas": {
+      "AgentDagAttempt": {
+        "properties": {
+          "aggregate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aggregate"
+          },
+          "critique": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AgentDagCritique"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "synthesis": {
+            "$ref": "#/components/schemas/AgentRunReply"
+          },
+          "taskResults": {
+            "items": {
+              "$ref": "#/components/schemas/AgentDagTaskResult"
+            },
+            "title": "Taskresults",
+            "type": "array"
+          }
+        },
+        "required": [
+          "n",
+          "synthesis"
+        ],
+        "title": "AgentDagAttempt",
+        "type": "object"
+      },
+      "AgentDagCritique": {
+        "properties": {
+          "clarity": {
+            "title": "Clarity",
+            "type": "number"
+          },
+          "completeness": {
+            "title": "Completeness",
+            "type": "number"
+          },
+          "correctness": {
+            "title": "Correctness",
+            "type": "number"
+          },
+          "mainIssue": {
+            "title": "Mainissue",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correctness",
+          "completeness",
+          "clarity",
+          "mainIssue"
+        ],
+        "title": "AgentDagCritique",
+        "type": "object"
+      },
+      "AgentDagRunReply": {
+        "properties": {
+          "acceptedByThreshold": {
+            "default": true,
+            "title": "Acceptedbythreshold",
+            "type": "boolean"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/AgentDagAttempt"
+            },
+            "title": "Attempts",
+            "type": "array"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "synthesis": {
+            "$ref": "#/components/schemas/AgentRunReply"
+          },
+          "taskResults": {
+            "items": {
+              "$ref": "#/components/schemas/AgentDagTaskResult"
+            },
+            "title": "Taskresults",
+            "type": "array"
+          },
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal",
+          "synthesis",
+          "tenantId"
+        ],
+        "title": "AgentDagRunReply",
+        "type": "object"
+      },
+      "AgentDagRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AgentDagTask"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks"
+          },
+          "webhookUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhookurl"
+          }
+        },
+        "title": "AgentDagRunRequest",
+        "type": "object"
+      },
+      "AgentDagTask": {
+        "additionalProperties": false,
+        "properties": {
+          "dependsOn": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependson"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          }
+        },
+        "title": "AgentDagTask",
+        "type": "object"
+      },
+      "AgentDagTaskResult": {
+        "properties": {
+          "dependsOn": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Dependson",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AgentRunReply"
+          },
+          "taskId": {
+            "title": "Taskid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "description",
+          "result"
+        ],
+        "title": "AgentDagTaskResult",
+        "type": "object"
+      },
       "AgentRunReply": {
         "properties": {
           "depth": {
@@ -163,6 +412,47 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/agent/dag/run": {
+      "post": {
+        "operationId": "run_agent_dag_agent_dag_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentDagRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDagRunReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Agent Dag",
+        "tags": [
+          "agent-dag"
+        ]
+      }
+    },
     "/agent/run": {
       "post": {
         "operationId": "run_agent_agent_run_post",

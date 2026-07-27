@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     agent_rag_min_score: float = Field(default=0, ge=0)
     agent_rag_category: str | None = None
     agent_v2_enabled: bool = False
+    agent_dag_max_tasks: int = Field(default=6, ge=1, le=100)
+    agent_dag_max_parallel_workers: int = Field(default=8, ge=1, le=32)
 
     internal_auth_required: bool = True
     internal_jwt_header: str = "X-Internal-Token"

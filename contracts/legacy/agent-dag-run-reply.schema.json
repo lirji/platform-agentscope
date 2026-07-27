@@ -1,0 +1,240 @@
+{
+  "$defs": {
+    "AgentDagAttempt": {
+      "properties": {
+        "aggregate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregate"
+        },
+        "critique": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentDagCritique"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "levels": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Levels",
+          "type": "array"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "synthesis": {
+          "$ref": "#/$defs/AgentRunReply"
+        },
+        "taskResults": {
+          "items": {
+            "$ref": "#/$defs/AgentDagTaskResult"
+          },
+          "title": "Taskresults",
+          "type": "array"
+        }
+      },
+      "required": [
+        "n",
+        "synthesis"
+      ],
+      "title": "AgentDagAttempt",
+      "type": "object"
+    },
+    "AgentDagCritique": {
+      "properties": {
+        "clarity": {
+          "title": "Clarity",
+          "type": "number"
+        },
+        "completeness": {
+          "title": "Completeness",
+          "type": "number"
+        },
+        "correctness": {
+          "title": "Correctness",
+          "type": "number"
+        },
+        "mainIssue": {
+          "title": "Mainissue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "correctness",
+        "completeness",
+        "clarity",
+        "mainIssue"
+      ],
+      "title": "AgentDagCritique",
+      "type": "object"
+    },
+    "AgentDagTaskResult": {
+      "properties": {
+        "dependsOn": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dependson",
+          "type": "array"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/AgentRunReply"
+        },
+        "taskId": {
+          "title": "Taskid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "taskId",
+        "description",
+        "result"
+      ],
+      "title": "AgentDagTaskResult",
+      "type": "object"
+    },
+    "AgentRunReply": {
+      "properties": {
+        "depth": {
+          "default": 0,
+          "title": "Depth",
+          "type": "integer"
+        },
+        "finalAnswer": {
+          "title": "Finalanswer",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/AgentStep"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "stopReason": {
+          "title": "Stopreason",
+          "type": "string"
+        },
+        "tenantId": {
+          "title": "Tenantid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "goal",
+        "finalAnswer",
+        "stopReason",
+        "tenantId"
+      ],
+      "title": "AgentRunReply",
+      "type": "object"
+    },
+    "AgentStep": {
+      "properties": {
+        "action": {
+          "default": "",
+          "title": "Action",
+          "type": "string"
+        },
+        "actionInput": {
+          "default": "",
+          "title": "Actioninput",
+          "type": "string"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "observation": {
+          "default": "",
+          "title": "Observation",
+          "type": "string"
+        },
+        "thought": {
+          "default": "",
+          "title": "Thought",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "title": "AgentStep",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "acceptedByThreshold": {
+      "default": true,
+      "title": "Acceptedbythreshold",
+      "type": "boolean"
+    },
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/AgentDagAttempt"
+      },
+      "title": "Attempts",
+      "type": "array"
+    },
+    "goal": {
+      "title": "Goal",
+      "type": "string"
+    },
+    "levels": {
+      "items": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "synthesis": {
+      "$ref": "#/$defs/AgentRunReply"
+    },
+    "taskResults": {
+      "items": {
+        "$ref": "#/$defs/AgentDagTaskResult"
+      },
+      "title": "Taskresults",
+      "type": "array"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "goal",
+    "synthesis",
+    "tenantId"
+  ],
+  "title": "AgentDagRunReply",
+  "type": "object"
+}

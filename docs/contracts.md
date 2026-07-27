@@ -79,13 +79,39 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 - 取消后不得被迟到 worker 覆盖为成功。
 - webhook 至少一次投递语义及幂等消费说明。
 
-## 7. 契约资产
+## 7. `/agent/dag/run`
+
+请求继续使用旧字段名：
+
+```json
+{
+  "goal": "分析订单和退款趋势",
+  "tasks": [
+    {"id": "schema", "description": "确认表结构", "dependsOn": []},
+    {"id": "trend", "description": "查询趋势", "dependsOn": ["schema"]}
+  ],
+  "webhookUrl": null
+}
+```
+
+响应保留 `levels`、`taskResults`、`synthesis`、`tenantId`、`attempts` 和
+`acceptedByThreshold`。当前首个切片未启用 critic/replan，因此 `attempts=[]` 且
+`acceptedByThreshold=true`。任务上限默认 6；空任务、重复 ID 和循环图返回
+`400 {"error": "..."}`。为兼容旧实现，未知依赖会从拓扑计算中忽略，但仍在
+`dependsOn` 回显。
+
+`/agent/dag/plan-run`、异步端点和进度事件仍由旧服务处理，尚不属于新服务契约。
+
+## 8. 契约资产
 
 当前已提交：
 
 - `contracts/legacy/agent-run-request.schema.json`
 - `contracts/legacy/agent-step.schema.json`
 - `contracts/legacy/agent-run-reply.schema.json`
+- `contracts/legacy/agent-dag-task.schema.json`
+- `contracts/legacy/agent-dag-run-request.schema.json`
+- `contracts/legacy/agent-dag-run-reply.schema.json`
 - `contracts/openapi.json`
 
 运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。

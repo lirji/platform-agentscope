@@ -14,6 +14,7 @@
 
 - `/agent/run` 请求/响应与旧 DTO 对齐。
 - `/agent/v2/run` 默认关闭，开启时复用相同契约、安全和租户语义。
+- `/agent/dag/run` 的 camelCase DTO、拓扑层级、任务顺序与旧错误形状。
 - 错误码、content-type、空列表、字段名。
 - SSE 事件名、顺序和重连。
 - interop-service 作为 consumer 的兼容性。
@@ -85,6 +86,10 @@ Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它�
 [Shadow 双跑指南](shadow-evaluation.md)。
 候选服务侧启用和回滚方法见[候选路由指南](candidate-route.md)；它不替代 edge 的实际
 按租户切流演练。
+
+Phase 2 的只读 DAG 双跑样例位于 `eval/baseline/dag-cases.jsonl`。使用
+`agentscope-dag-shadow-eval` 同时验证旧、新 `/agent/dag/run` 的响应契约、拓扑层级、
+任务顺序、租户一致性和 synthesis 完成状态；报告不会保存任务结果或综合答案。
 
 Shadow v2 每次调用都有唯一 W3C trace。`agentscope-shadow-cost` 要求每个运行都有至少
 一条 trace 账本记录并拒绝重复 `requestId`，从而把 Agent 多步及下游 embedding 合并到

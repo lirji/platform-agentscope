@@ -4,8 +4,10 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 from agentscope_platform.api.dependencies import RunContextDependency
+from agentscope_platform.application.dag import AgentDagApplicationService
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest
+from agentscope_platform.domain.dag import AgentDagRunReply, AgentDagRunRequest
 
 router = APIRouter()
 candidate_router = APIRouter(prefix="/agent/v2")
@@ -39,7 +41,7 @@ async def readiness(request: Request) -> JSONResponse:
 async def info() -> dict[str, str]:
     return {
         "name": "agentscope-platform",
-        "phase": "1-readonly-react",
+        "phase": "2-dag-orchestration",
         "framework": "AgentScope 2.0",
     }
 
@@ -68,6 +70,23 @@ async def run_candidate_agent(
     request: Request,
 ) -> AgentRunReply:
     return await _run_agent(payload, context, request)
+
+
+@router.post(
+    "/agent/dag/run",
+    response_model=AgentDagRunReply,
+    tags=["agent-dag"],
+)
+async def run_agent_dag(
+    payload: AgentDagRunRequest,
+    context: RunContextDependency,
+    request: Request,
+) -> AgentDagRunReply:
+    service = cast(
+        AgentDagApplicationService,
+        request.app.state.container.dag_service,
+    )
+    return await service.run(payload, context)
 
 
 async def _run_agent(

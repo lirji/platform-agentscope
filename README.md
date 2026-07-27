@@ -4,11 +4,10 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 1 只读 ReAct 与候选路由准备**。已具备分层边界、FastAPI 服务、内部 JWT
-验签、LiteLLM/AgentScope Runner、兼容 `/agent/run` 契约、只读工具、执行轨迹、运行
-治理日志和可选 OpenTelemetry。候选 `/agent/v2/run` 路由默认关闭，可用于后续灰度与
-回滚演练。本地真实三轮工具、订单事实证据及 trace 归因成本门禁已通过；开放式答案的
-模型评分和 edge 切流证据尚未完成，因此不宣称与旧 `agent-service` 生产等价。
+当前状态：**Phase 2 DAG 编排首个垂直切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
+`/agent/dag/run` 契约、拓扑分层、同层有界并行 worker、直接上游结果传播和 synthesis。
+候选 `/agent/v2/run` 路由仍默认关闭；DAG plan-run、critic/replan、异步任务和 edge
+切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -71,6 +70,9 @@ curl http://localhost:8085/readiness
 `/agent/v2/run` 默认不注册。只有显式设置 `AGENT_V2_ENABLED=true` 并重启后才可访问，
 操作与回滚顺序见[候选路由指南](docs/candidate-route.md)。
 
+同步 DAG 入口为 `/agent/dag/run`，与 `/agent/run` 一样强制校验内部 JWT。请求格式、
+兼容行为与限制见 [DAG 编排指南](docs/dag-orchestration.md)。
+
 ## Docker 启动
 
 ```bash
@@ -101,6 +103,9 @@ docker compose -f compose.yml config
 [Shadow 双跑指南](docs/shadow-evaluation.md)。`agentscope-shadow-cost` 可将报告 trace
 与脱敏 LiteLLM/OTel 账本关联，执行 token/估算成本门禁。
 
+DAG 结构兼容双跑使用 `agentscope-dag-shadow-eval`，只在报告中保存 case、目标标签、
+状态码、延迟和稳定错误码，不保存任务结果或综合答案。
+
 ## 文档入口
 
 - [目标架构](docs/architecture.md)
@@ -110,5 +115,6 @@ docker compose -f compose.yml config
 - [测试与发布门禁](docs/testing-and-gates.md)
 - [Shadow 双跑指南](docs/shadow-evaluation.md)
 - [候选路由与回滚](docs/candidate-route.md)
+- [DAG 编排指南](docs/dag-orchestration.md)
 - [开发指南](docs/development.md)
 - [ADR-0001：采用绞杀者迁移](docs/adr/0001-strangler-agent-orchestrator.md)

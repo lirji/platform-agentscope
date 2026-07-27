@@ -5,6 +5,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscope_platform.api.routes import candidate_router, router
+from agentscope_platform.application.dag import (
+    AgentDagApplicationService,
+    DagValidationError,
+)
 from agentscope_platform.application.ports import AgentRunner
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.core.config import Settings, get_settings
@@ -28,6 +32,7 @@ class Container:
     settings: Settings
     jwt_verifier: InternalJwtVerifier
     agent_service: AgentApplicationService
+    dag_service: AgentDagApplicationService
 
 
 def create_app(
@@ -46,6 +51,11 @@ def create_app(
         settings=app_settings,
         jwt_verifier=InternalJwtVerifier(app_settings),
         agent_service=AgentApplicationService(app_runner),
+        dag_service=AgentDagApplicationService(
+            app_runner,
+            max_tasks=app_settings.agent_dag_max_tasks,
+            max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
+        ),
     )
 
     app = FastAPI(
@@ -77,6 +87,16 @@ def create_app(
                 "error": "agent model is not configured",
                 "traceId": request.state.trace_id,
             },
+        )
+
+    @app.exception_handler(DagValidationError)
+    async def invalid_dag(
+        request: Request,
+        exc: DagValidationError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(exc)},
         )
 
     app.include_router(router)

@@ -209,3 +209,7 @@ uv run python scripts/shadow-smoke.py
 
 该命令使用内存 HTTP stub，证明门禁和案例接线可运行，不证明模型质量。真实双跑只应在明确
 命名的测试环境执行。通过后还需要记录成本数据和一次路由回滚演练，才能批准 edge 灰度。
+
+Phase 2 的 DAG 使用独立的 `agentscope-dag-shadow-eval`。它比较响应契约、拓扑层级、
+任务顺序、租户一致性和 synthesis 完成状态，不把 worker/synthesis 文本写入报告。案例和
+运行方法见 [DAG 编排指南](dag-orchestration.md)。

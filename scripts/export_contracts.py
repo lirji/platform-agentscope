@@ -7,6 +7,11 @@ from typing import Any
 from agentscope_platform.api.app import create_app
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest, AgentStep
+from agentscope_platform.domain.dag import (
+    AgentDagRunReply,
+    AgentDagRunRequest,
+    AgentDagTask,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
@@ -23,6 +28,15 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         CONTRACTS / "legacy" / "agent-run-reply.schema.json": AgentRunReply.model_json_schema(
             by_alias=True
         ),
+        CONTRACTS / "legacy" / "agent-dag-task.schema.json": AgentDagTask.model_json_schema(
+            by_alias=True
+        ),
+        CONTRACTS
+        / "legacy"
+        / "agent-dag-run-request.schema.json": AgentDagRunRequest.model_json_schema(by_alias=True),
+        CONTRACTS
+        / "legacy"
+        / "agent-dag-run-reply.schema.json": AgentDagRunReply.model_json_schema(by_alias=True),
         CONTRACTS / "openapi.json": app.openapi(),
     }
 

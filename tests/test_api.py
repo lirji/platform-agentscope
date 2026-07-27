@@ -7,6 +7,9 @@ from pydantic import SecretStr
 from agentscope_platform.api.app import create_app
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.infrastructure.agentscope.runner import (
+    AgentNotConfiguredError,
+)
 
 TEST_SECRET = "test-only-internal-secret-with-at-least-32-bytes"
 
@@ -18,6 +21,12 @@ class FakeRunner:
     async def run(self, goal: str, context: RunContext) -> AgentExecution:
         self.context = context
         return AgentExecution(final_answer=f"completed: {goal}")
+
+
+class UnconfiguredRunner:
+    async def run(self, goal: str, context: RunContext) -> AgentExecution:
+        del goal, context
+        raise AgentNotConfiguredError("not configured")
 
 
 def settings(**overrides: object) -> Settings:
@@ -62,6 +71,130 @@ def test_agent_run_requires_internal_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_agent_dag_run_requires_internal_token() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "test",
+            "tasks": [{"id": "t1", "description": "work"}],
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_agent_dag_run_preserves_legacy_contract_and_context() -> None:
+    runner = FakeRunner()
+    client = TestClient(create_app(settings(), runner))
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": " investigate ",
+            "tasks": [
+                {"id": "first", "description": " collect "},
+                {
+                    "id": "second",
+                    "description": "summarize",
+                    "dependsOn": ["first"],
+                },
+            ],
+            "webhookUrl": None,
+        },
+        headers={
+            "X-Internal-Token": internal_token(),
+            "X-Trace-Id": "dag-trace",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["goal"] == "investigate"
+    assert body["levels"] == [["first"], ["second"]]
+    assert [result["taskId"] for result in body["taskResults"]] == [
+        "first",
+        "second",
+    ]
+    assert body["taskResults"][1]["dependsOn"] == ["first"]
+    assert body["tenantId"] == "acme"
+    assert body["attempts"] == []
+    assert body["acceptedByThreshold"] is True
+    assert body["synthesis"]["stopReason"] == "DONE"
+    assert response.headers["X-Trace-Id"] == "dag-trace"
+    assert runner.context is not None
+    assert runner.context.identity.tenant_id == "acme"
+    assert runner.context.identity.user_id == "alice"
+    assert runner.context.identity.department == "acme_rd"
+    assert runner.context.trace_id == "dag-trace"
+
+
+def test_agent_dag_run_returns_legacy_validation_error_shape() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "cycle",
+            "tasks": [
+                {"id": "a", "description": "a", "dependsOn": ["b"]},
+                {"id": "b", "description": "b", "dependsOn": ["a"]},
+            ],
+        },
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"error": "task graph contains a cycle"}
+
+
+def test_agent_dag_run_maps_unconfigured_runner_to_service_unavailable() -> None:
+    client = TestClient(create_app(settings(), UnconfiguredRunner()))
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "test",
+            "tasks": [
+                {"id": "a", "description": "one"},
+                {"id": "b", "description": "two"},
+            ],
+        },
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"] == "agent model is not configured"
+
+
+def test_agent_dag_run_rejects_forged_token() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    response = client.post(
+        "/agent/dag/run",
+        json={
+            "goal": "test",
+            "tasks": [{"id": "t1", "description": "work"}],
+        },
+        headers={
+            "X-Internal-Token": jwt.encode(
+                {
+                    "sub": "acme",
+                    "uid": "mallory",
+                    "scopes": ["agent"],
+                    "exp": datetime.now(UTC) + timedelta(minutes=5),
+                },
+                "another-test-secret-with-at-least-32-bytes",
+                algorithm="HS256",
+            ),
+        },
+    )
+
+    assert response.status_code == 401
 
 
 def test_agent_run_preserves_legacy_contract_and_tenant() -> None:
