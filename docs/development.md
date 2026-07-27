@@ -29,7 +29,7 @@ Python 固定为 3.12，AgentScope 固定为 2.0.5。升级 AgentScope 必须先
 - `timeout`
 - `retry_policy`
 
-Phase 0 只注册只读工具。写工具框架在 Phase 4 统一实现，禁止各工具自行绕过。
+Phase 1 只注册只读工具。写工具框架在 Phase 4 统一实现，禁止各工具自行绕过。
 
 ## 新增 API
 

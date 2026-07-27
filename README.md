@@ -29,6 +29,7 @@ src/agentscope_platform/
 ├── api/                    # FastAPI 路由、依赖和异常映射
 ├── application/            # 用例服务与端口
 ├── domain/                 # 框架无关的 DTO、租户和运行语义
+├── evaluation/             # 旧/新 Agent Shadow 对比与迁移门禁
 ├── infrastructure/
 │   ├── agentscope/         # AgentScope 2.0 适配器
 │   ├── http/               # 旧 Java 平台工具客户端
@@ -86,9 +87,14 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 uv run pytest --cov=agentscope_platform --cov-report=term-missing --cov-fail-under=80
+uv run python scripts/shadow-smoke.py
 uv build
 docker compose -f compose.yml config
 ```
+
+真实旧/新服务双跑使用 `agentscope-shadow-eval`。它默认只允许 localhost，凭据只能通过
+环境变量注入，报告不保存回答、工具 observation 或 token。具体命令和门禁口径见
+[Shadow 双跑指南](docs/shadow-evaluation.md)。
 
 ## 文档入口
 
@@ -97,5 +103,6 @@ docker compose -f compose.yml config
 - [重构路线图](docs/migration-plan.md)
 - [兼容契约](docs/contracts.md)
 - [测试与发布门禁](docs/testing-and-gates.md)
+- [Shadow 双跑指南](docs/shadow-evaluation.md)
 - [开发指南](docs/development.md)
 - [ADR-0001：采用绞杀者迁移](docs/adr/0001-strangler-agent-orchestrator.md)

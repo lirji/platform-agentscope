@@ -72,9 +72,11 @@ uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 uv run pytest --cov=agentscope_platform --cov-report=term-missing --cov-fail-under=80
+uv run python scripts/shadow-smoke.py
 uv build
 docker compose -f compose.yml config
 ```
 
 Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它只验证案例结构、预期
-工具和禁止副作用，不替代真实模型环境的新旧双跑。
+工具和禁止副作用。CI 使用 HTTPX 离线 stub 验证双跑门禁本身；这不替代真实模型环境的
+新旧双跑。测试环境执行方法见 [Shadow 双跑指南](shadow-evaluation.md)。

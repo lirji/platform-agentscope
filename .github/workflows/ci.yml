@@ -47,6 +47,9 @@ jobs:
           --cov-report=term-missing
           --cov-fail-under=80
 
+      - name: Offline shadow gate smoke
+        run: uv run python scripts/shadow-smoke.py
+
       - name: Build package
         run: uv build
 

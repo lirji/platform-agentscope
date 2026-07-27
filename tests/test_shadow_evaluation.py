@@ -1,0 +1,280 @@
+import json
+from pathlib import Path
+
+import httpx
+import pytest
+from pydantic import ValidationError
+
+from agentscope_platform.evaluation.models import (
+    RunSample,
+    ShadowCase,
+    ShadowThresholds,
+)
+from agentscope_platform.evaluation.shadow import (
+    ShadowEvaluationError,
+    Target,
+    evaluate_gate,
+    evaluate_shadow,
+    load_cases,
+    summarize,
+    validate_target_url,
+    write_report,
+)
+
+
+def case(**overrides: object) -> ShadowCase:
+    values: dict[str, object] = {
+        "id": "rag",
+        "goal": "find refund policy",
+        "expectedTools": ["rag_search"],
+        "forbiddenTools": ["refund_start"],
+        "readOnly": True,
+    }
+    values.update(overrides)
+    return ShadowCase.model_validate(values)
+
+
+def reply(goal: str, tools: list[str], stop_reason: str = "DONE") -> dict[str, object]:
+    return {
+        "goal": goal,
+        "steps": [
+            {
+                "n": index,
+                "thought": "",
+                "action": tool,
+                "actionInput": "input",
+                "observation": "redacted from report",
+            }
+            for index, tool in enumerate(tools, start=1)
+        ],
+        "finalAnswer": "sensitive business answer",
+        "stopReason": stop_reason,
+        "depth": 0,
+        "tenantId": "acme",
+    }
+
+
+async def test_evaluates_same_cases_and_sanitizes_report(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        body = json.loads(request.content)
+        tools = ["rag_search"]
+        if request.url.host == "candidate.localhost":
+            tools = ["rag_search", "refund_start"]
+        return httpx.Response(200, json=reply(body["goal"], tools))
+
+    report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost", auth_token="legacy-secret"),
+        Target("candidate", "http://candidate.localhost", auth_token="candidate-secret"),
+        runs=2,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert len(requests) == 4
+    assert {request.url.host for request in requests} == {
+        "legacy.localhost",
+        "candidate.localhost",
+    }
+    assert report.gate.legacy.pass_rate == 1
+    assert report.gate.candidate.forbidden_violations == 2
+    assert not report.gate.passed
+    assert any("forbidden_tool regression" in item for item in report.gate.regressions)
+
+    output = tmp_path / "report.json"
+    write_report(report, output)
+    serialized = output.read_text(encoding="utf-8")
+    assert "legacy-secret" not in serialized
+    assert "candidate-secret" not in serialized
+    assert "sensitive business answer" not in serialized
+    assert "redacted from report" not in serialized
+
+
+async def test_http_and_contract_errors_are_safe_failures() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "legacy.localhost":
+            return httpx.Response(503, text="provider secret")
+        return httpx.Response(200, text="not-json")
+
+    report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert [sample.error for sample in report.samples] == [
+        "HTTP_503",
+        "INVALID_CONTRACT",
+    ]
+    assert all(not sample.contract_valid for sample in report.samples)
+    assert "provider secret" not in report.model_dump_json()
+
+
+async def test_network_and_oversized_responses_fail_without_body_leakage() -> None:
+    def network_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "legacy.localhost":
+            return httpx.Response(200, json=reply("goal", ["rag_search"]))
+        raise httpx.ConnectError("secret network detail", request=request)
+
+    network_report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(network_handler),
+    )
+    assert network_report.samples[1].error == "NETWORK_ERROR"
+    assert "secret network detail" not in network_report.model_dump_json()
+
+    oversized_report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, content=b"x" * 2_000_001)
+        ),
+    )
+    assert all(sample.error == "RESPONSE_TOO_LARGE" for sample in oversized_report.samples)
+
+
+def test_gate_enforces_relative_metrics_forbidden_tools_and_p95() -> None:
+    legacy_samples = [
+        RunSample(
+            case_id=str(index),
+            target="legacy",
+            run=1,
+            status_code=200,
+            latency_ms=100,
+            contract_valid=True,
+            completed=True,
+            passed=True,
+            stop_reason="DONE",
+            tool_score=1,
+        )
+        for index in range(4)
+    ]
+    candidate_samples = [
+        RunSample(
+            case_id=str(index),
+            target="candidate",
+            run=1,
+            status_code=200,
+            latency_ms=1000,
+            contract_valid=True,
+            completed=index < 3,
+            passed=index < 2,
+            stop_reason="DONE" if index < 3 else "ERROR",
+            tool_score=0.5,
+            forbidden_tools=("refund_start",) if index == 0 else (),
+        )
+        for index in range(4)
+    ]
+
+    gate = evaluate_gate(
+        summarize("legacy", legacy_samples),
+        summarize("candidate", candidate_samples),
+        ShadowThresholds(
+            pass_rate_tolerance=0.1,
+            completion_rate_tolerance=0.1,
+            tool_accuracy_tolerance=0.1,
+            p95_latency_ratio=1,
+            p95_latency_slack_ms=0,
+        ),
+    )
+
+    assert not gate.passed
+    assert {item.split()[0] for item in gate.regressions} == {
+        "minimum_pass_rate",
+        "minimum_completion_rate",
+        "minimum_tool_accuracy",
+        "pass_rate",
+        "completion_rate",
+        "tool_accuracy",
+        "forbidden_tool",
+        "p95_latency",
+    }
+
+
+async def test_expected_tools_must_preserve_declared_order() -> None:
+    ordered_case = case(
+        id="analytics",
+        expectedTools=["schema_explore", "analytics_sql"],
+        forbiddenTools=[],
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json=reply(
+                "analytics",
+                ["analytics_sql", "schema_explore"],
+            ),
+        )
+    )
+
+    report = await evaluate_shadow(
+        (ordered_case,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=transport,
+    )
+
+    assert all(sample.error == "EXPECTED_TOOL_ORDER" for sample in report.samples)
+    assert all(not sample.tool_order_valid for sample in report.samples)
+    assert not report.gate.passed
+
+
+@pytest.mark.parametrize(
+    ("url", "allow_remote", "expected"),
+    [
+        ("http://localhost:8085/", False, "http://localhost:8085"),
+        ("http://candidate.localhost:8085/base/", False, "http://candidate.localhost:8085/base"),
+        ("https://test.example/agent", True, "https://test.example/agent"),
+    ],
+)
+def test_target_url_validation(url: str, allow_remote: bool, expected: str) -> None:
+    assert validate_target_url(url, allow_remote) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://test.example",
+        "ftp://localhost/service",
+        "http://user:secret@localhost",
+        "http://localhost?token=secret",
+    ],
+)
+def test_target_url_rejects_unsafe_values(url: str) -> None:
+    with pytest.raises(ShadowEvaluationError):
+        validate_target_url(url)
+
+
+async def test_target_roles_are_not_ambiguous() -> None:
+    with pytest.raises(ShadowEvaluationError, match="target names"):
+        await evaluate_shadow(
+            (case(),),
+            Target("candidate", "http://legacy.localhost"),
+            Target("legacy", "http://candidate.localhost"),
+        )
+
+
+def test_suite_loader_rejects_duplicate_or_write_cases(tmp_path: Path) -> None:
+    path = tmp_path / "cases.jsonl"
+    value = case().model_dump_json(by_alias=True)
+    path.write_text(f"{value}\n{value}\n", encoding="utf-8")
+    with pytest.raises(ShadowEvaluationError, match="duplicate"):
+        load_cases(path)
+
+    path.write_text(
+        case(id="write", readOnly=False).model_dump_json(by_alias=True),
+        encoding="utf-8",
+    )
+    with pytest.raises(ShadowEvaluationError, match="not read-only"):
+        load_cases(path)
+
+
+def test_case_contract_rejects_missing_expected_tools() -> None:
+    with pytest.raises(ValidationError):
+        case(expectedTools=[])
