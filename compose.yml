@@ -1,0 +1,33 @@
+services:
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_HOST: 0.0.0.0
+      APP_PORT: 8085
+      GATEWAY_BASE_URL: ${DOCKER_GATEWAY_BASE_URL:-http://host.docker.internal:4000/v1}
+      KNOWLEDGE_BASE_URL: ${DOCKER_KNOWLEDGE_BASE_URL:-http://host.docker.internal:8084}
+      ANALYTICS_BASE_URL: ${DOCKER_ANALYTICS_BASE_URL:-http://host.docker.internal:8083}
+      WORKFLOW_BASE_URL: ${DOCKER_WORKFLOW_BASE_URL:-http://host.docker.internal:8082}
+      ORDER_BASE_URL: ${DOCKER_ORDER_BASE_URL:-http://host.docker.internal:8093}
+    ports:
+      - "${APP_PORT:-8085}:8085"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped

@@ -1,0 +1,60 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    app_env: str = "local"
+    app_host: str = "0.0.0.0"
+    app_port: int = 8085
+    app_log_level: str = "INFO"
+
+    gateway_base_url: str = "http://localhost:4000/v1"
+    gateway_api_key: SecretStr = SecretStr("")
+    gateway_model: str = "chat-default"
+    gateway_temperature: float = Field(default=0.2, ge=0, le=2)
+    agent_max_steps: int = Field(default=8, ge=1, le=100)
+
+    internal_auth_required: bool = True
+    internal_jwt_header: str = "X-Internal-Token"
+    internal_jwt_algorithm: str = "HS256"
+    internal_jwt_secret: SecretStr = SecretStr("")
+    internal_jwt_public_key: SecretStr = SecretStr("")
+    internal_jwt_public_key_file: Path | None = None
+
+    knowledge_base_url: str = "http://localhost:8084"
+    analytics_base_url: str = "http://localhost:8083"
+    workflow_base_url: str = "http://localhost:8082"
+    order_base_url: str = "http://localhost:8093"
+    http_connect_timeout_seconds: float = Field(default=1, gt=0)
+    http_read_timeout_seconds: float = Field(default=10, gt=0)
+
+    otel_enabled: bool = False
+    otel_service_name: str = "agentscope-orchestrator"
+    otel_exporter_otlp_endpoint: str = "http://localhost:4318"
+
+    @field_validator("internal_jwt_algorithm")
+    @classmethod
+    def validate_jwt_algorithm(cls, value: str) -> str:
+        normalized = value.upper()
+        if normalized not in {"HS256", "RS256"}:
+            raise ValueError("INTERNAL_JWT_ALGORITHM must be HS256 or RS256")
+        return normalized
+
+    @property
+    def agent_enabled(self) -> bool:
+        return bool(self.gateway_api_key.get_secret_value())
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
