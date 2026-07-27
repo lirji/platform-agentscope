@@ -50,6 +50,17 @@ def dag_reply(request: dict[str, object], levels: list[list[str]]) -> dict[str, 
     }
 
 
+def planned_reply(
+    goal: str,
+    tasks: list[dict[str, object]],
+    levels: list[list[str]],
+) -> dict[str, object]:
+    return dag_reply(
+        {"goal": goal, "tasks": tasks},
+        levels,
+    )
+
+
 async def test_dag_shadow_accepts_matching_legacy_and_candidate() -> None:
     cases = load_dag_cases(ROOT / "eval" / "baseline" / "dag-cases.jsonl")
     levels_by_goal = {case.request.goal: case.expected_levels for case in cases}
@@ -96,6 +107,87 @@ async def test_dag_shadow_fails_closed_on_candidate_level_regression() -> None:
     assert report.passed is False
     assert report.samples[-1].target == "candidate"
     assert report.samples[-1].error == "LEVELS_MISMATCH"
+
+
+async def test_dag_shadow_accepts_dynamic_general_and_analyst_plans() -> None:
+    cases = load_dag_cases(ROOT / "eval" / "baseline" / "planner-cases.jsonl")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        if request.url.path == "/agent/analyst/run":
+            tasks = [
+                {
+                    "id": "t1",
+                    "description": "用 schema_explore 确认退款表结构",
+                    "dependsOn": [],
+                },
+                {
+                    "id": "t2",
+                    "description": "基于 t1 用 analytics_sql 查询趋势",
+                    "dependsOn": ["t1"],
+                },
+            ]
+            levels = [["t1"], ["t2"]]
+        else:
+            tasks = [
+                {
+                    "id": "t1",
+                    "description": "调查并发变化",
+                    "dependsOn": [],
+                },
+                {
+                    "id": "t2",
+                    "description": "调查模式匹配变化",
+                    "dependsOn": [],
+                },
+            ]
+            levels = [["t1", "t2"]]
+        return httpx.Response(
+            200,
+            json=planned_reply(payload["goal"], tasks, levels),
+        )
+
+    report = await evaluate_dag_shadow(
+        cases,
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(handler),
+        suite_name="planner-cases",
+    )
+
+    assert report.passed is True
+    assert len(report.samples) == 4
+
+
+async def test_dag_shadow_fails_closed_when_analyst_plan_misses_tool_rule() -> None:
+    case = load_dag_cases(ROOT / "eval" / "baseline" / "planner-cases.jsonl")[1]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json=planned_reply(
+                payload["goal"],
+                [
+                    {
+                        "id": "t1",
+                        "description": "仅做普通分析",
+                        "dependsOn": [],
+                    }
+                ],
+                [["t1"]],
+            ),
+        )
+
+    report = await evaluate_dag_shadow(
+        (case,),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert report.passed is False
+    assert all(sample.error == "PLANNER_REQUIREMENT_MISSING" for sample in report.samples)
 
 
 async def test_dag_cli_writes_only_sanitized_report(

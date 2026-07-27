@@ -61,12 +61,13 @@ api ───────▶ application ───────▶ domain
 3. 生成或复用 `X-Trace-Id`。
 4. 构造不可变 `RunContext`。
 5. AgentScope Runner 为本次请求创建独立 Agent。
-6. 普通请求直接执行；DAG 请求先做拓扑分层，每层 worker 有界并发，层间传递直接依赖结果。
-7. 工具经 HTTP/MCP 调用 Java 服务，并传播 token 与 trace。
-8. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变
+6. plan-run/analyst 请求先通过独立 Planner 端口生成语言中立 DAG；空或无效计划回退单任务。
+7. 普通请求直接执行；DAG 请求先做拓扑分层，每层 worker 有界并发，层间传递直接依赖结果。
+8. 工具经 HTTP/MCP 调用 Java 服务，并传播 token 与 trace。
+9. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变
    `RunContext`，但创建独立 Agent。
-9. AgentScope 返回结果，应用层映射成稳定 DTO。
-10. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
+10. AgentScope 返回结果，应用层映射成稳定 DTO。
+11. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
 
 每次请求创建独立 Agent 是 Phase 0 的安全选择，优先保证租户和会话隔离。引入持久会话后，
 必须使用 `(tenant_id, user_id, session_id)` 复合键，并验证不同租户不能恢复彼此状态。
@@ -92,8 +93,8 @@ api ───────▶ application ───────▶ domain
 ## 7. 后续演进
 
 - Phase 1：只读 ReAct 工具与完整轨迹。
-- Phase 2：DAG run 已迁首个切片；继续迁移 plan-run、critic/replan、
-  Analyst/Reflexion/Voting/Chaining。
+- Phase 2：DAG run、plan-run 与 Analyst 同步入口已迁；继续迁移 critic/replan、
+  Reflexion/Voting/Chaining。
 - Phase 3：统一异步任务、SSE、取消和 webhook。
 - Phase 4：受治理的副作用工具、Browser、MCP、Sandbox。
 - Phase 5：灰度切换并移除旧 Java 编排代码。

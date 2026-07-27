@@ -13,12 +13,24 @@
 每个 worker 和 synthesis 都使用入口验证后生成的同一不可变 `RunContext`。模型不能提供
 或覆盖 tenant、user、scope、department、内部 token 和 trace。
 
+同步规划入口：
+
+- `/agent/dag/plan-run`：通用 Planner，按用户语言和问题维度生成 1～6 个任务。
+- `/agent/analyst/run`：只读数据分析 Planner，优先 `schema_explore` 确认结构，再让
+  `analytics_sql` 取数。
+
+Planner 使用独立模型调用和 JSON 契约，不开放工具。空计划或结构/调用失败会回退为单任务；
+模型未配置和客户端取消不会被回退掩盖。
+
 ## 配置
 
 | 环境变量 | 默认值 | 说明 |
 |---|---:|---|
 | `AGENT_DAG_MAX_TASKS` | 6 | 单次请求允许的最大任务数 |
 | `AGENT_DAG_MAX_PARALLEL_WORKERS` | 8 | 当前进程所有 DAG 请求共享的 worker 并发上限 |
+| `AGENT_PLANNER_MAX_TOKENS` | 1200 | Planner JSON 输出 token 上限 |
+| `AGENT_PLANNER_TIMEOUT_SECONDS` | 30 | 单次 Planner 模型调用超时 |
+| `AGENT_PLANNER_MAX_RETRIES` | 0 | Planner 模型自动重试次数 |
 
 worker 的 AgentScope max steps、timeout、token budget 和 loop 策略继续使用现有 Agent
 运行配置。worker 返回 `ERROR`、`TIMEOUT` 等结果时不会伪装成成功；结果会进入 synthesis，
@@ -45,6 +57,16 @@ uv run agentscope-dag-shadow-eval \
   --output reports/dag-shadow.json
 ```
 
+规划入口使用独立 suite：
+
+```bash
+uv run agentscope-dag-shadow-eval \
+  --legacy-url http://localhost:28085 \
+  --candidate-url http://localhost:18085 \
+  --suite eval/baseline/planner-cases.jsonl \
+  --output reports/planner-shadow.json
+```
+
 默认仅允许 localhost。远程测试环境必须显式使用 `--allow-remote-targets`，且不得指向生产
 环境。凭据只从环境变量读取。报告仅包含 case ID、目标标签、状态码、延迟、通过状态和稳定
 错误码，不保存 goal、worker 输出、synthesis 答案或 token。
@@ -56,8 +78,7 @@ uv run agentscope-dag-shadow-eval \
 
 ## 尚未迁移
 
-- `/agent/dag/plan-run`
 - critic/replan 与 attempts 评分记录
 - `/agent/dag/run/async`、`/agent/dag/plan-run/async`
 - DAG `dag-*` 进度事件、SSE、取消和 webhook
-- Analyst Planner、Voting、Reflexion、Prompt Chaining
+- Analyst 异步入口、Voting、Reflexion、Prompt Chaining

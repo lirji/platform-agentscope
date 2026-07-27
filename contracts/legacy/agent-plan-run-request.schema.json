@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "goal": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Goal"
+    },
+    "webhookUrl": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Webhookurl"
+    }
+  },
+  "title": "AgentPlanRunRequest",
+  "type": "object"
+}

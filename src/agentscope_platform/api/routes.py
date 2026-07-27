@@ -5,9 +5,15 @@ from fastapi.responses import JSONResponse
 
 from agentscope_platform.api.dependencies import RunContextDependency
 from agentscope_platform.application.dag import AgentDagApplicationService
+from agentscope_platform.application.planning import AgentDagPlanningService
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest
-from agentscope_platform.domain.dag import AgentDagRunReply, AgentDagRunRequest
+from agentscope_platform.domain.dag import (
+    AgentDagRunReply,
+    AgentDagRunRequest,
+    AgentPlanRunRequest,
+    DagPlanKind,
+)
 
 router = APIRouter()
 candidate_router = APIRouter(prefix="/agent/v2")
@@ -89,6 +95,42 @@ async def run_agent_dag(
     return await service.run(payload, context)
 
 
+@router.post(
+    "/agent/dag/plan-run",
+    response_model=AgentDagRunReply,
+    tags=["agent-dag"],
+)
+async def plan_and_run_agent_dag(
+    context: RunContextDependency,
+    request: Request,
+    payload: AgentPlanRunRequest | None = None,
+) -> AgentDagRunReply:
+    return await _plan_and_run(
+        payload,
+        context,
+        request,
+        DagPlanKind.GENERAL,
+    )
+
+
+@router.post(
+    "/agent/analyst/run",
+    response_model=AgentDagRunReply,
+    tags=["agent-analyst"],
+)
+async def run_analyst_agent(
+    context: RunContextDependency,
+    request: Request,
+    payload: AgentPlanRunRequest | None = None,
+) -> AgentDagRunReply:
+    return await _plan_and_run(
+        payload,
+        context,
+        request,
+        DagPlanKind.ANALYST,
+    )
+
+
 async def _run_agent(
     payload: AgentRunRequest,
     context: RunContextDependency,
@@ -99,3 +141,20 @@ async def _run_agent(
         request.app.state.container.agent_service,
     )
     return await service.run(payload, context)
+
+
+async def _plan_and_run(
+    payload: AgentPlanRunRequest | None,
+    context: RunContextDependency,
+    request: Request,
+    kind: DagPlanKind,
+) -> AgentDagRunReply:
+    service = cast(
+        AgentDagPlanningService,
+        request.app.state.container.planning_service,
+    )
+    return await service.plan_and_run(
+        payload or AgentPlanRunRequest(),
+        context,
+        kind,
+    )

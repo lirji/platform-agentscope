@@ -48,3 +48,23 @@ def test_dag_dual_run_fixture_is_safe_and_well_formed() -> None:
         task_ids = {task["id"] for task in case["request"]["tasks"]}
         flattened_levels = {task_id for level in case["expectedLevels"] for task_id in level}
         assert flattened_levels == task_ids
+
+
+def test_planner_dual_run_fixture_is_safe_and_well_formed() -> None:
+    path = ROOT / "eval" / "baseline" / "planner-cases.jsonl"
+    cases = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+    assert len(cases) >= 2
+    assert {case["endpoint"] for case in cases} == {
+        "/agent/dag/plan-run",
+        "/agent/analyst/run",
+    }
+    assert all(case["readOnly"] is True for case in cases)
+    assert all(case["request"]["goal"].strip() for case in cases)
+    analyst = next(case for case in cases if case["endpoint"] == "/agent/analyst/run")
+    assert analyst["requiredDescriptionTerms"] == [
+        "schema_explore",
+        "analytics_sql",
+    ]

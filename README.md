@@ -4,10 +4,10 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 2 DAG 编排首个垂直切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
-`/agent/dag/run` 契约、拓扑分层、同层有界并行 worker、直接上游结果传播和 synthesis。
-候选 `/agent/v2/run` 路由仍默认关闭；DAG plan-run、critic/replan、异步任务和 edge
-切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
+当前状态：**Phase 2 DAG 与 Planner 同步切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
+`/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
+同层有界并行 worker、直接上游结果传播、通用/分析专用规划和 synthesis。critic/replan、
+异步任务和 edge 切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
 
 ## 技术基线
 
@@ -72,6 +72,9 @@ curl http://localhost:8085/readiness
 
 同步 DAG 入口为 `/agent/dag/run`，与 `/agent/run` 一样强制校验内部 JWT。请求格式、
 兼容行为与限制见 [DAG 编排指南](docs/dag-orchestration.md)。
+
+`/agent/dag/plan-run` 会先生成通用 DAG；`/agent/analyst/run` 使用“先探表后取数”的
+只读数据分析 Planner。两者都复用相同 DAG 引擎。
 
 ## Docker 启动
 

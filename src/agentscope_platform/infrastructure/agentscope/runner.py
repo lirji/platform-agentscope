@@ -5,12 +5,9 @@ from time import monotonic
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agentscope.agent import Agent, ReActConfig
-from agentscope.credential import OpenAICredential
 from agentscope.event import ModelCallEndEvent, ToolCallEndEvent
 from agentscope.message import Msg, TextBlock, ToolResultState, UserMsg
-from agentscope.model import OpenAIChatModel
 from agentscope.tool import ToolChunk, Toolkit
-from pydantic import SecretStr
 
 from agentscope_platform.application.observer import (
     NoopRunObserver,
@@ -24,6 +21,9 @@ from agentscope_platform.core.context import (
     reset_run_context,
 )
 from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.infrastructure.agentscope.model_factory import (
+    build_openai_chat_model,
+)
 from agentscope_platform.infrastructure.agentscope.readonly_tools import ReadonlyToolset
 from agentscope_platform.infrastructure.agentscope.tools import ReadOnlyFunctionTool
 from agentscope_platform.infrastructure.agentscope.trajectory import TrajectoryCollector
@@ -179,18 +179,13 @@ class AgentScopeRunner(AgentRunner):
             log.warning("agent run observer failed: %s", type(exc).__name__)
 
     def _build_agent(self) -> Agent:
-        credential = OpenAICredential(
-            api_key=SecretStr(self._settings.gateway_api_key.get_secret_value()),
-            base_url=self._settings.gateway_base_url,
-        )
-        model = OpenAIChatModel(
-            credential=credential,
-            model=self._settings.gateway_model,
-            parameters=OpenAIChatModel.Parameters(
-                temperature=self._settings.gateway_temperature,
-                parallel_tool_calls=True,
-            ),
+        model = build_openai_chat_model(
+            self._settings,
+            temperature=self._settings.gateway_temperature,
             stream=False,
+            max_tokens=None,
+            max_retries=3,
+            parallel_tool_calls=True,
         )
         retained_tools = ReadonlyToolset(self._settings, self._platform_client).tools()
         toolkit = Toolkit(

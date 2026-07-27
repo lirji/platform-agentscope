@@ -5,8 +5,10 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from agentscope_platform.api.app import create_app
+from agentscope_platform.application.ports import DagPlanningError
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.domain.dag import DagPlan, DagPlanKind
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
 )
@@ -27,6 +29,55 @@ class UnconfiguredRunner:
     async def run(self, goal: str, context: RunContext) -> AgentExecution:
         del goal, context
         raise AgentNotConfiguredError("not configured")
+
+
+class FakePlanner:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, RunContext, DagPlanKind]] = []
+
+    async def plan(
+        self,
+        goal: str,
+        context: RunContext,
+        kind: DagPlanKind,
+    ) -> DagPlan:
+        self.calls.append((goal, context, kind))
+        description = (
+            "用 schema_explore 确认表结构" if kind is DagPlanKind.ANALYST else "collect evidence"
+        )
+        return DagPlan.model_validate(
+            {
+                "tasks": [
+                    {
+                        "id": "t1",
+                        "description": description,
+                        "dependsOn": [],
+                    }
+                ]
+            }
+        )
+
+
+class UnconfiguredPlanner(FakePlanner):
+    async def plan(
+        self,
+        goal: str,
+        context: RunContext,
+        kind: DagPlanKind,
+    ) -> DagPlan:
+        del goal, context, kind
+        raise AgentNotConfiguredError("not configured")
+
+
+class FailedPlanner(FakePlanner):
+    async def plan(
+        self,
+        goal: str,
+        context: RunContext,
+        kind: DagPlanKind,
+    ) -> DagPlan:
+        del goal, context, kind
+        raise DagPlanningError("safe fallback")
 
 
 def settings(**overrides: object) -> Settings:
@@ -86,6 +137,92 @@ def test_agent_dag_run_requires_internal_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_planned_dag_and_analyst_routes_require_internal_token() -> None:
+    client = TestClient(create_app(settings(), FakeRunner(), FakePlanner()))
+
+    planned = client.post("/agent/dag/plan-run", json={"goal": "test"})
+    analyst = client.post("/agent/analyst/run", json={"goal": "test"})
+
+    assert planned.status_code == 401
+    assert analyst.status_code == 401
+
+
+def test_planned_dag_and_analyst_routes_use_distinct_planners() -> None:
+    runner = FakeRunner()
+    planner = FakePlanner()
+    client = TestClient(create_app(settings(), runner, planner))
+    headers = {
+        "X-Internal-Token": internal_token(),
+        "X-Trace-Id": "planner-trace",
+    }
+
+    planned = client.post(
+        "/agent/dag/plan-run",
+        json={"goal": " general ", "ignoredLegacyField": "accepted"},
+        headers=headers,
+    )
+    analyst = client.post(
+        "/agent/analyst/run",
+        json={"goal": " 分析退款 ", "webhookUrl": None},
+        headers=headers,
+    )
+
+    assert planned.status_code == 200
+    assert planned.json()["taskResults"][0]["description"] == "collect evidence"
+    assert analyst.status_code == 200
+    assert analyst.json()["taskResults"][0]["description"] == "用 schema_explore 确认表结构"
+    assert [call[2] for call in planner.calls] == [
+        DagPlanKind.GENERAL,
+        DagPlanKind.ANALYST,
+    ]
+    assert all(call[1].trace_id == "planner-trace" for call in planner.calls)
+    assert all(call[1].identity.tenant_id == "acme" for call in planner.calls)
+
+
+def test_planned_routes_return_legacy_blank_goal_error() -> None:
+    client = TestClient(create_app(settings(), FakeRunner(), FakePlanner()))
+    headers = {"X-Internal-Token": internal_token()}
+
+    blank = client.post(
+        "/agent/dag/plan-run",
+        json={"goal": " "},
+        headers=headers,
+    )
+    missing_body = client.post("/agent/analyst/run", headers=headers)
+
+    assert blank.status_code == 400
+    assert blank.json() == {"error": "goal is required"}
+    assert missing_body.status_code == 400
+    assert missing_body.json() == {"error": "goal is required"}
+
+
+def test_planned_route_preserves_unconfigured_model_error() -> None:
+    client = TestClient(create_app(settings(), FakeRunner(), UnconfiguredPlanner()))
+
+    response = client.post(
+        "/agent/dag/plan-run",
+        json={"goal": "test"},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"] == "agent model is not configured"
+
+
+def test_planned_route_falls_back_after_recoverable_planner_error() -> None:
+    client = TestClient(create_app(settings(), FakeRunner(), FailedPlanner()))
+
+    response = client.post(
+        "/agent/dag/plan-run",
+        json={"goal": "fallback goal"},
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["levels"] == [["t1"]]
+    assert response.json()["taskResults"][0]["description"] == "fallback goal"
 
 
 def test_agent_dag_run_preserves_legacy_contract_and_context() -> None:

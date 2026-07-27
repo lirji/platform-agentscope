@@ -212,4 +212,6 @@ uv run python scripts/shadow-smoke.py
 
 Phase 2 的 DAG 使用独立的 `agentscope-dag-shadow-eval`。它比较响应契约、拓扑层级、
 任务顺序、租户一致性和 synthesis 完成状态，不把 worker/synthesis 文本写入报告。案例和
-运行方法见 [DAG 编排指南](dag-orchestration.md)。
+运行方法见 [DAG 编排指南](dag-orchestration.md)。同一 CLI 使用
+`eval/baseline/planner-cases.jsonl` 时验证通用 Planner 和 Analyst Planner；动态计划不做
+逐字比较，只校验有效拓扑及声明的 Planner 约束。

@@ -250,6 +250,34 @@
         "title": "AgentDagTaskResult",
         "type": "object"
       },
+      "AgentPlanRunRequest": {
+        "properties": {
+          "goal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goal"
+          },
+          "webhookUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhookurl"
+          }
+        },
+        "title": "AgentPlanRunRequest",
+        "type": "object"
+      },
       "AgentRunReply": {
         "properties": {
           "depth": {
@@ -412,6 +440,102 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/agent/analyst/run": {
+      "post": {
+        "operationId": "run_analyst_agent_agent_analyst_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDagRunReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Analyst Agent",
+        "tags": [
+          "agent-analyst"
+        ]
+      }
+    },
+    "/agent/dag/plan-run": {
+      "post": {
+        "operationId": "plan_and_run_agent_dag_agent_dag_plan_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDagRunReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan And Run Agent Dag",
+        "tags": [
+          "agent-dag"
+        ]
+      }
+    },
     "/agent/dag/run": {
       "post": {
         "operationId": "run_agent_dag_agent_dag_run_post",

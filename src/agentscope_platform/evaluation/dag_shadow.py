@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -19,7 +20,19 @@ class DagShadowCase(BaseModel):
 
     id: str = Field(min_length=1)
     request: AgentDagRunRequest
-    expected_levels: list[list[str]] = Field(alias="expectedLevels")
+    endpoint: Literal[
+        "/agent/dag/run",
+        "/agent/dag/plan-run",
+        "/agent/analyst/run",
+    ] = "/agent/dag/run"
+    expected_levels: list[list[str]] | None = Field(
+        default=None,
+        alias="expectedLevels",
+    )
+    required_description_terms: list[str] = Field(
+        default_factory=list,
+        alias="requiredDescriptionTerms",
+    )
     read_only: bool = Field(alias="readOnly")
 
 
@@ -69,15 +82,18 @@ def load_dag_cases(path: Path) -> tuple[DagShadowCase, ...]:
             raise ShadowEvaluationError(f"DAG suite case is not read-only: {case.id}")
         if case.id in ids:
             raise ShadowEvaluationError(f"duplicate DAG suite case id: {case.id}")
-        task_ids = [task.id for task in case.request.tasks or ()]
-        expected_ids = [task_id for level in case.expected_levels for task_id in level]
-        if (
-            not task_ids
-            or len(task_ids) != len(set(task_ids))
-            or len(expected_ids) != len(set(expected_ids))
-            or set(task_ids) != set(expected_ids)
-        ):
-            raise ShadowEvaluationError(f"invalid expected DAG levels: {case.id}")
+        if not (case.request.goal or "").strip():
+            raise ShadowEvaluationError(f"DAG suite goal is blank: {case.id}")
+        if case.endpoint == "/agent/dag/run":
+            task_ids = [task.id for task in case.request.tasks or ()]
+            expected_ids = [task_id for level in case.expected_levels or () for task_id in level]
+            if (
+                not task_ids
+                or len(task_ids) != len(set(task_ids))
+                or len(expected_ids) != len(set(expected_ids))
+                or set(task_ids) != set(expected_ids)
+            ):
+                raise ShadowEvaluationError(f"invalid expected DAG levels: {case.id}")
         ids.add(case.id)
         cases.append(case)
     if not cases:
@@ -135,7 +151,7 @@ async def _execute(
     started = monotonic()
     try:
         response = await client.post(
-            f"{target.base_url}/agent/dag/run",
+            f"{target.base_url}{case.endpoint}",
             json=case.request.model_dump(by_alias=True, exclude_none=True),
             headers=headers,
         )
@@ -169,7 +185,7 @@ async def _execute(
             response.status_code,
         )
 
-    expected_task_ids = [task_id for level in case.expected_levels for task_id in level]
+    expected_task_ids = [task_id for level in case.expected_levels or () for task_id in level]
     actual_task_ids = [result.task_id for result in reply.task_results]
     tenant_ids = {
         reply.tenant_id,
@@ -179,11 +195,13 @@ async def _execute(
     error: str | None = None
     if reply.goal != (case.request.goal or "").strip():
         error = "GOAL_MISMATCH"
-    elif reply.levels != case.expected_levels:
+    elif not _valid_topology(reply):
+        error = "INVALID_TOPOLOGY"
+    elif case.expected_levels is not None and reply.levels != case.expected_levels:
         error = "LEVELS_MISMATCH"
-    elif actual_task_ids != expected_task_ids:
+    elif expected_task_ids and actual_task_ids != expected_task_ids:
         error = "TASK_ORDER_MISMATCH"
-    elif any(
+    elif expected_task_ids and any(
         result.description != (task.description or "").strip()
         or result.depends_on != (task.depends_on or [])
         for result, task in zip(
@@ -196,6 +214,12 @@ async def _execute(
         )
     ):
         error = "TASK_CONTRACT_MISMATCH"
+    elif any(
+        term.casefold()
+        not in "\n".join(result.description for result in reply.task_results).casefold()
+        for term in case.required_description_terms
+    ):
+        error = "PLANNER_REQUIREMENT_MISSING"
     elif len(tenant_ids) != 1:
         error = "TENANT_MISMATCH"
     elif reply.synthesis.stop_reason != "DONE" or not reply.synthesis.final_answer.strip():
@@ -229,3 +253,23 @@ def _failed(
 
 def _elapsed_ms(started: float) -> int:
     return max(0, int((monotonic() - started) * 1000))
+
+
+def _valid_topology(reply: AgentDagRunReply) -> bool:
+    task_ids = [result.task_id for result in reply.task_results]
+    level_ids = [task_id for level in reply.levels for task_id in level]
+    if (
+        not task_ids
+        or len(task_ids) > 6
+        or len(task_ids) != len(set(task_ids))
+        or task_ids != level_ids
+    ):
+        return False
+    level_by_id = {
+        task_id: level_index for level_index, level in enumerate(reply.levels) for task_id in level
+    }
+    return all(
+        dependency not in level_by_id or level_by_id[dependency] < level_by_id[result.task_id]
+        for result in reply.task_results
+        for dependency in result.depends_on
+    )

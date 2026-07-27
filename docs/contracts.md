@@ -100,9 +100,23 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 `400 {"error": "..."}`。为兼容旧实现，未知依赖会从拓扑计算中忽略，但仍在
 `dependsOn` 回显。
 
-`/agent/dag/plan-run`、异步端点和进度事件仍由旧服务处理，尚不属于新服务契约。
+异步 DAG/Analyst 端点和进度事件仍由旧服务处理，尚不属于新服务契约。
 
-## 8. 契约资产
+## 8. `/agent/dag/plan-run` 与 `/agent/analyst/run`
+
+两个端点接受：
+
+```json
+{"goal": "分析上月退款趋势", "webhookUrl": null}
+```
+
+并返回相同的 `AgentDagRunReply`。`plan-run` 使用通用拆解规则；`analyst/run` 只规划当前
+已迁的 `schema_explore` 和 `analytics_sql`，强调先探表后取数。空计划、无效结构化输出
+或可恢复的 Planner 调用失败回退到单任务 `t1`；缺少模型配置仍返回 503。
+
+同步端点仅为兼容接受 `webhookUrl`，不会发送 webhook。对应异步入口仍未迁移。
+
+## 9. 契约资产
 
 当前已提交：
 
@@ -112,6 +126,7 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 - `contracts/legacy/agent-dag-task.schema.json`
 - `contracts/legacy/agent-dag-run-request.schema.json`
 - `contracts/legacy/agent-dag-run-reply.schema.json`
+- `contracts/legacy/agent-plan-run-request.schema.json`
 - `contracts/openapi.json`
 
 运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。

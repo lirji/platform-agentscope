@@ -1,0 +1,2 @@
+{"id":"general-plan-multi-aspect","endpoint":"/agent/dag/plan-run","request":{"goal":"分别调查 Java 21 的并发与模式匹配变化，再综合它们对后端开发的影响"},"requiredDescriptionTerms":[],"readOnly":true}
+{"id":"analyst-schema-before-query","endpoint":"/agent/analyst/run","request":{"goal":"分析上月退款金额趋势并说明主要变化"},"requiredDescriptionTerms":["schema_explore","analytics_sql"],"readOnly":true}

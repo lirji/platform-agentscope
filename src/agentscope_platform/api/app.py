@@ -9,9 +9,13 @@ from agentscope_platform.application.dag import (
     AgentDagApplicationService,
     DagValidationError,
 )
-from agentscope_platform.application.ports import AgentRunner
+from agentscope_platform.application.planning import AgentDagPlanningService
+from agentscope_platform.application.ports import AgentRunner, DagPlanner
 from agentscope_platform.application.service import AgentApplicationService
 from agentscope_platform.core.config import Settings, get_settings
+from agentscope_platform.infrastructure.agentscope.planner import (
+    AgentScopeDagPlanner,
+)
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
     AgentScopeRunner,
@@ -33,11 +37,13 @@ class Container:
     jwt_verifier: InternalJwtVerifier
     agent_service: AgentApplicationService
     dag_service: AgentDagApplicationService
+    planning_service: AgentDagPlanningService
 
 
 def create_app(
     settings: Settings | None = None,
     runner: AgentRunner | None = None,
+    planner: DagPlanner | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings)
@@ -47,15 +53,18 @@ def create_app(
         platform_client,
         LoggingRunObserver(),
     )
+    dag_service = AgentDagApplicationService(
+        app_runner,
+        max_tasks=app_settings.agent_dag_max_tasks,
+        max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
+    )
+    app_planner = planner or AgentScopeDagPlanner(app_settings)
     container = Container(
         settings=app_settings,
         jwt_verifier=InternalJwtVerifier(app_settings),
         agent_service=AgentApplicationService(app_runner),
-        dag_service=AgentDagApplicationService(
-            app_runner,
-            max_tasks=app_settings.agent_dag_max_tasks,
-            max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
-        ),
+        dag_service=dag_service,
+        planning_service=AgentDagPlanningService(app_planner, dag_service),
     )
 
     app = FastAPI(

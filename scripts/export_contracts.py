@@ -11,6 +11,7 @@ from agentscope_platform.domain.dag import (
     AgentDagRunReply,
     AgentDagRunRequest,
     AgentDagTask,
+    AgentPlanRunRequest,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +38,11 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         CONTRACTS
         / "legacy"
         / "agent-dag-run-reply.schema.json": AgentDagRunReply.model_json_schema(by_alias=True),
+        CONTRACTS
+        / "legacy"
+        / "agent-plan-run-request.schema.json": AgentPlanRunRequest.model_json_schema(
+            by_alias=True
+        ),
         CONTRACTS / "openapi.json": app.openapi(),
     }
 

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     agent_v2_enabled: bool = False
     agent_dag_max_tasks: int = Field(default=6, ge=1, le=100)
     agent_dag_max_parallel_workers: int = Field(default=8, ge=1, le=32)
+    agent_planner_max_tokens: int = Field(default=1_200, ge=128, le=8_192)
+    agent_planner_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    agent_planner_max_retries: int = Field(default=0, ge=0, le=3)
 
     internal_auth_required: bool = True
     internal_jwt_header: str = "X-Internal-Token"
