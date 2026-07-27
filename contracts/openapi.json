@@ -907,6 +907,55 @@
         ]
       }
     },
+    "/agent/process/run": {
+      "post": {
+        "description": "Queries workflow status, pending tasks, or policy only. This candidate never starts, approves, claims, or modifies a workflow.",
+        "operationId": "run_readonly_process_agent_process_run_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDagRunReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run the read-only Process candidate",
+        "tags": [
+          "agent-process"
+        ]
+      }
+    },
     "/agent/reflexive": {
       "post": {
         "operationId": "run_reflexion_agent_reflexive_post",

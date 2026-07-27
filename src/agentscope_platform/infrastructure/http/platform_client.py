@@ -12,6 +12,9 @@ from agentscope_platform.infrastructure.http.models import (
     AnalyticsTablesReply,
     KnowledgeQueryReply,
     OrderView,
+    WorkflowInstanceReply,
+    WorkflowTasksReply,
+    WorkflowTaskView,
 )
 
 
@@ -112,6 +115,36 @@ class PlatformClient:
             context,
             AnalyticsSqlReply,
         )
+
+    async def get_workflow_instance(
+        self,
+        instance_id: str,
+        context: RunContext,
+    ) -> WorkflowInstanceReply | None:
+        encoded = quote(instance_id, safe="")
+        try:
+            return await self._get(
+                "workflow-service",
+                f"{self._settings.workflow_base_url.rstrip('/')}/workflow/instances/{encoded}",
+                context,
+                WorkflowInstanceReply,
+            )
+        except PlatformServiceError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+
+    async def list_workflow_tasks(
+        self,
+        context: RunContext,
+    ) -> list[WorkflowTaskView]:
+        reply = await self._get(
+            "workflow-service",
+            f"{self._settings.workflow_base_url.rstrip('/')}/workflow/tasks",
+            context,
+            WorkflowTasksReply,
+        )
+        return reply.root
 
     async def _post[ResponseT: BaseModel](
         self,

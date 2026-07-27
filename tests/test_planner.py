@@ -13,6 +13,7 @@ from agentscope_platform.domain.agent import RunContext, TenantIdentity
 from agentscope_platform.domain.dag import DagPlanKind
 from agentscope_platform.infrastructure.agentscope.planner import (
     ANALYST_PLANNER_PROMPT,
+    PROCESS_PLANNER_PROMPT,
     AgentScopeDagPlanner,
 )
 from agentscope_platform.infrastructure.agentscope.runner import (
@@ -89,6 +90,19 @@ async def test_analyst_planner_uses_readonly_tool_specific_prompt() -> None:
     assert "schema_explore" in prompt
     assert "analytics_sql" in prompt
     assert "不得规划 code_exec" in prompt
+
+
+async def test_process_planner_exposes_only_readonly_workflow_tools() -> None:
+    model = FakeModel()
+    planner = AgentScopeDagPlanner(settings(), model)
+
+    await planner.plan("查询流程状态", context(), DagPlanKind.PROCESS)
+
+    prompt = model.calls[0][0][0].get_text_content()
+    assert prompt == PROCESS_PLANNER_PROMPT
+    assert "workflow_status" in prompt
+    assert "workflow_tasks" in prompt
+    assert "不得规划 refund_start" in prompt
 
 
 @pytest.mark.parametrize(

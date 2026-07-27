@@ -59,7 +59,7 @@
 
 状态：`/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run`、critic/replan
 同步质量闭环，以及 Prompt Chaining、Voting、Reflexion 同步 sibling orchestrators 已完成。
-Process 只读切片和流式/异步能力待迁移。
+Process 状态/待办只读切片也已完成；流程发起写能力和流式/异步能力待治理后迁移。
 
 范围：
 
@@ -96,7 +96,6 @@ Process 只读切片和流式/异步能力待迁移。
 
 范围：
 
-- `workflow_status/tasks`
 - `refund_start`
 - MCP
 - Browser
@@ -139,7 +138,7 @@ Process 只读切片和流式/异步能力待迁移。
 - [x] 实现 DAG plan-run 与 Analyst Planner。
 - [x] 实现 critic/replan、加权阈值和有限重规划。
 - [x] 实现同步 Prompt Chaining、Voting、Reflexion sibling orchestrators。
-- [ ] 实现 Process 只读查询切片。
+- [x] 实现 Process 状态/待办只读查询切片，写能力保持在旧服务。
 - [ ] 对接 async-task。
 - [ ] 建立副作用 Tool Policy。
 - [x] 完成候选服务侧 `/agent/v2/run` 开关与本地启停回滚演练。

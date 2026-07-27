@@ -61,7 +61,8 @@ api ───────▶ application ───────▶ domain
 3. 生成或复用 `X-Trace-Id`。
 4. 构造不可变 `RunContext`。
 5. AgentScope Runner 为本次请求创建独立 Agent。
-6. plan-run/analyst 请求先通过独立 Planner 端口生成语言中立 DAG；空或无效计划回退单任务。
+6. plan-run/analyst/process 请求先通过独立 Planner 端口生成语言中立 DAG；空或无效计划
+   回退单任务。Process 额外拒绝任何流程写操作计划。
 7. 普通请求直接执行；DAG 请求先做拓扑分层，每层 worker 有界并发，层间传递直接依赖结果。
 8. 工具经 HTTP/MCP 调用 Java 服务，并传播 token 与 trace。
 9. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变

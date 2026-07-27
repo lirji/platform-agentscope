@@ -161,3 +161,68 @@ async def test_analytics_guard_block_is_not_reported_as_tool_error() -> None:
 
     assert result.state == ToolResultState.RUNNING
     assert "安全护栏拦截" in text(result)
+
+
+async def test_workflow_status_and_tasks_are_read_only_and_tenant_bound() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/workflow/instances/i-1":
+            return httpx.Response(
+                200,
+                json={
+                    "instanceId": "i-1",
+                    "status": "WAITING_APPROVAL",
+                    "reply": None,
+                },
+            )
+        if request.url.path == "/workflow/tasks":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "taskId": "t-1",
+                        "priority": "HIGH",
+                        "summary": "refund",
+                        "assignee": "alice",
+                    }
+                ],
+            )
+        raise AssertionError(request.url)
+
+    settings = Settings()
+    tools = ReadonlyToolset(
+        settings,
+        PlatformClient(settings, httpx.MockTransport(handler)),
+    )
+    token = bind_run_context(context())
+    try:
+        instance = await tools.workflow_status("i-1")
+        tasks = await tools.workflow_tasks()
+    finally:
+        reset_run_context(token)
+
+    assert "仍在等待人工审批" in text(instance)
+    assert "taskId=t-1 priority=HIGH summary=refund assignee=alice" in text(tasks)
+    assert all(request.method == "GET" for request in seen)
+    assert all(request.headers["X-Internal-Token"] == "token" for request in seen)
+
+
+async def test_workflow_tasks_translates_approve_scope_failure() -> None:
+    settings = Settings()
+    tools = ReadonlyToolset(
+        settings,
+        PlatformClient(
+            settings,
+            httpx.MockTransport(lambda request: httpx.Response(403)),
+        ),
+    )
+    token = bind_run_context(context())
+    try:
+        result = await tools.workflow_tasks()
+    finally:
+        reset_run_context(token)
+
+    assert result.state == ToolResultState.ERROR
+    assert "approve scope" in text(result)

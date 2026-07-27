@@ -15,6 +15,23 @@ from agentscope_platform.domain.dag import (
 )
 
 log = logging.getLogger(__name__)
+PROCESS_WRITE_MARKERS = (
+    "refund_start",
+    "workflow_complete",
+    "发起退款",
+    "启动退款",
+    "批准退款",
+    "驳回退款",
+    "认领任务",
+    "完成审批",
+)
+PROCESS_READ_MARKERS = (
+    "workflow_status",
+    "workflow_tasks",
+    "rag_search",
+    "只读",
+    "不支持",
+)
 
 
 class AgentDagPlanningService:
@@ -46,6 +63,29 @@ class AgentDagPlanningService:
                 )
                 for task in plan.tasks
             ]
+            if kind is DagPlanKind.PROCESS and (
+                len(tasks) > 4
+                or any(
+                    marker in (task.description or "").casefold()
+                    for task in tasks
+                    for marker in PROCESS_WRITE_MARKERS
+                )
+                or any(
+                    not any(
+                        marker in (task.description or "").casefold()
+                        for marker in PROCESS_READ_MARKERS
+                    )
+                    for task in tasks
+                )
+            ):
+                log.warning(
+                    "Process Planner proposed a write operation; using safe fallback",
+                    extra={
+                        "trace_id": context.trace_id,
+                        "tenant_id": context.identity.tenant_id,
+                    },
+                )
+                tasks = []
         except DagPlanningError:
             log.warning(
                 "DAG planning failed; using single-task fallback",
@@ -58,7 +98,14 @@ class AgentDagPlanningService:
             tasks = []
 
         if not tasks:
-            tasks = [AgentDagTask(id="t1", description=goal, dependsOn=[])]
+            description = goal
+            if kind is DagPlanKind.PROCESS:
+                description = (
+                    "严格只读处理以下流程诉求。仅可使用 workflow_status、workflow_tasks "
+                    "或 rag_search；不得发起、审批或修改流程。若诉求需要写操作，明确说明"
+                    f"当前候选服务不支持并不得声称成功。\n用户诉求：{goal}"
+                )
+            tasks = [AgentDagTask(id="t1", description=description, dependsOn=[])]
         return await self._dag_service.run(
             AgentDagRunRequest(
                 goal=goal,

@@ -128,7 +128,16 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 空文本和非法候选数返回 `400 {"error":"..."}`；纯文本生成失败返回脱敏 502。Reflexion
 Critic 失败沿用质量评审脱敏 502。流式 Reflexion 尚未迁移。
 
-## 10. 契约资产
+## 10. `/agent/process/run` 只读候选
+
+请求与旧同步入口相同，响应继续使用 `AgentDagRunReply`。候选服务仅迁移
+`workflow_status`、`workflow_tasks` 和 `rag_search` 查询；不会执行 `refund_start` 或
+任何审批/认领/删除操作。要求写操作的目标会返回只读能力边界说明。
+
+该收窄契约不与旧 Process 写能力等价，edge 仍不得切换“发起退款”流量。
+`/agent/process/run/async` 尚未迁移。
+
+## 11. 契约资产
 
 当前已提交：
 

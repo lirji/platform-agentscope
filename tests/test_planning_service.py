@@ -135,6 +135,44 @@ async def test_invalid_goal_is_rejected_before_planner_call() -> None:
     assert planner.calls == []
 
 
+@pytest.mark.parametrize(
+    "plan",
+    [
+        DagPlan(),
+        DagPlan.model_validate(
+            {
+                "tasks": [
+                    {
+                        "id": "t1",
+                        "description": "用 refund_start 发起退款",
+                        "dependsOn": [],
+                    }
+                ]
+            }
+        ),
+    ],
+)
+async def test_process_fallback_never_executes_planned_write_operations(
+    plan: DagPlan,
+) -> None:
+    runner = FakeRunner()
+    service = AgentDagPlanningService(
+        FakePlanner(plan),
+        AgentDagApplicationService(runner),
+    )
+
+    reply = await service.plan_and_run(
+        AgentPlanRunRequest(goal="帮我发起退款"),
+        context(),
+        DagPlanKind.PROCESS,
+    )
+
+    description = reply.task_results[0].description
+    assert "严格只读" in description
+    assert "不得发起、审批或修改流程" in description
+    assert "refund_start" not in description
+
+
 async def test_invalid_planned_graph_uses_existing_dag_validation() -> None:
     planner = FakePlanner(
         DagPlan.model_validate(

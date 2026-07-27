@@ -60,6 +60,7 @@ class Container:
     agent_service: AgentApplicationService
     dag_service: AgentDagApplicationService
     planning_service: AgentDagPlanningService
+    process_planning_service: AgentDagPlanningService
     chain_service: PromptChainService
     voting_service: VotingService
     reflexion_service: ReflexionService
@@ -97,6 +98,12 @@ def create_app(
             ),
         ),
     )
+    process_dag_service = AgentDagApplicationService(
+        app_runner,
+        max_tasks=min(app_settings.agent_dag_max_tasks, 4),
+        max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
+        review_policy=DagReviewPolicy(enabled=False),
+    )
     app_planner = planner or AgentScopeDagPlanner(app_settings)
     app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     container = Container(
@@ -105,6 +112,10 @@ def create_app(
         agent_service=AgentApplicationService(app_runner),
         dag_service=dag_service,
         planning_service=AgentDagPlanningService(app_planner, dag_service),
+        process_planning_service=AgentDagPlanningService(
+            app_planner,
+            process_dag_service,
+        ),
         chain_service=PromptChainService(
             app_text_generator,
             app_settings.agent_chaining_steps,

@@ -50,9 +50,11 @@ class FakePlanner:
         kind: DagPlanKind,
     ) -> DagPlan:
         self.calls.append((goal, context, kind))
-        description = (
-            "用 schema_explore 确认表结构" if kind is DagPlanKind.ANALYST else "collect evidence"
-        )
+        description = {
+            DagPlanKind.GENERAL: "collect evidence",
+            DagPlanKind.ANALYST: "用 schema_explore 确认表结构",
+            DagPlanKind.PROCESS: "用 workflow_status 查询流程",
+        }[kind]
         return DagPlan.model_validate(
             {
                 "tasks": [
@@ -237,9 +239,11 @@ def test_planned_dag_and_analyst_routes_require_internal_token() -> None:
 
     planned = client.post("/agent/dag/plan-run", json={"goal": "test"})
     analyst = client.post("/agent/analyst/run", json={"goal": "test"})
+    process = client.post("/agent/process/run", json={"goal": "test"})
 
     assert planned.status_code == 401
     assert analyst.status_code == 401
+    assert process.status_code == 401
 
 
 def test_planned_dag_and_analyst_routes_use_distinct_planners() -> None:
@@ -261,14 +265,22 @@ def test_planned_dag_and_analyst_routes_use_distinct_planners() -> None:
         json={"goal": " 分析退款 ", "webhookUrl": None},
         headers=headers,
     )
+    process = client.post(
+        "/agent/process/run",
+        json={"goal": " 查询流程 "},
+        headers=headers,
+    )
 
     assert planned.status_code == 200
     assert planned.json()["taskResults"][0]["description"] == "collect evidence"
     assert analyst.status_code == 200
     assert analyst.json()["taskResults"][0]["description"] == "用 schema_explore 确认表结构"
+    assert process.status_code == 200
+    assert process.json()["taskResults"][0]["description"] == "用 workflow_status 查询流程"
     assert [call[2] for call in planner.calls] == [
         DagPlanKind.GENERAL,
         DagPlanKind.ANALYST,
+        DagPlanKind.PROCESS,
     ]
     assert all(call[1].trace_id == "planner-trace" for call in planner.calls)
     assert all(call[1].identity.tenant_id == "acme" for call in planner.calls)

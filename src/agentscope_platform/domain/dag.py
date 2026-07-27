@@ -16,6 +16,7 @@ class AgentDagTask(BaseModel):
 class DagPlanKind(StrEnum):
     GENERAL = "general"
     ANALYST = "analyst"
+    PROCESS = "process"
 
 
 class DagPlanTask(BaseModel):

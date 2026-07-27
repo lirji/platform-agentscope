@@ -186,6 +186,32 @@ async def run_reflexion(
     return await service.run(payload or ReflexionRequest(), context)
 
 
+@router.post(
+    "/agent/process/run",
+    response_model=AgentDagRunReply,
+    tags=["agent-process"],
+    summary="Run the read-only Process candidate",
+    description=(
+        "Queries workflow status, pending tasks, or policy only. This candidate never "
+        "starts, approves, claims, or modifies a workflow."
+    ),
+)
+async def run_readonly_process(
+    context: RunContextDependency,
+    request: Request,
+    payload: AgentPlanRunRequest | None = None,
+) -> AgentDagRunReply:
+    service = cast(
+        AgentDagPlanningService,
+        request.app.state.container.process_planning_service,
+    )
+    return await service.plan_and_run(
+        payload or AgentPlanRunRequest(),
+        context,
+        DagPlanKind.PROCESS,
+    )
+
+
 async def _run_agent(
     payload: AgentRunRequest,
     context: RunContextDependency,

@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 
 class KnowledgeHit(BaseModel):
@@ -57,3 +57,26 @@ class AnalyticsTableSchemaReply(BaseModel):
 
     table: str
     schema_text: str | None = Field(default=None, alias="schema")
+
+
+class WorkflowInstanceReply(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    instance_id: str = Field(alias="instanceId")
+    status: str
+    reply: str | None = None
+
+
+class WorkflowTaskView(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    task_id: str = Field(alias="taskId")
+    name: str | None = None
+    instance_id: str | None = Field(default=None, alias="instanceId")
+    priority: str | None = None
+    summary: str | None = None
+    assignee: str | None = None
+
+
+class WorkflowTasksReply(RootModel[list[WorkflowTaskView]]):
+    pass

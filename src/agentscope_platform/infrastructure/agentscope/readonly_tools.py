@@ -15,6 +15,8 @@ from agentscope_platform.infrastructure.http.platform_client import (
 
 MAX_RAG_SNIPPET_CHARS = 600
 MAX_ANALYTICS_ROWS = 10
+MAX_WORKFLOW_TASKS = 20
+MAX_WORKFLOW_TEXT_CHARS = 1_000
 
 
 class ReadonlyToolset:
@@ -48,6 +50,18 @@ class ReadonlyToolset:
                 self.analytics_sql,
                 name="analytics_sql",
                 description="用自然语言查询当前租户业务数据库，只读并受 analytics 安全护栏保护。",
+                is_read_only=True,
+            ),
+            ReadOnlyFunctionTool(
+                self.workflow_status,
+                name="workflow_status",
+                description="按 instance_id 查询当前租户工作流实例状态与最终答复，只读。",
+                is_read_only=True,
+            ),
+            ReadOnlyFunctionTool(
+                self.workflow_tasks,
+                name="workflow_tasks",
+                description="列出当前租户待审批退款任务，只读且要求 approve scope。",
                 is_read_only=True,
             ),
         ]
@@ -157,6 +171,52 @@ class ReadonlyToolset:
             lines.append(f"解读: {result.answer}")
         return self._success("\n".join(lines))
 
+    async def workflow_status(self, instance_id: str) -> ToolChunk:
+        """Query one workflow instance visible to the current tenant."""
+        normalized = instance_id.strip()
+        if not normalized:
+            return self._success("instanceId 为空：请填写要查询的流程实例 ID。")
+        try:
+            result = await self._client.get_workflow_instance(
+                normalized,
+                current_run_context(),
+            )
+        except PlatformServiceError as exc:
+            return self._error(f"查询失败：{exc}")
+        if result is None:
+            return self._success(f"未找到流程实例 {normalized}")
+
+        lines = [f"instanceId: {result.instance_id}", f"status: {result.status}"]
+        if result.reply and result.reply.strip():
+            lines.append(f"reply: {_truncate(result.reply, MAX_WORKFLOW_TEXT_CHARS)}")
+        elif result.status == "WAITING_APPROVAL":
+            lines.append("仍在等待人工审批，尚无最终答复。")
+        return self._success("\n".join(lines))
+
+    async def workflow_tasks(self) -> ToolChunk:
+        """List pending workflow tasks without claiming or completing them."""
+        try:
+            tasks = await self._client.list_workflow_tasks(current_run_context())
+        except PlatformServiceError as exc:
+            if exc.status_code == 403:
+                return self._error("无审批权限：需要 approve scope 才能查看待审批任务。")
+            return self._error(f"查询失败：{exc}")
+        if not tasks:
+            return self._success("当前没有待审批的退款任务。")
+
+        lines = ["待审批任务："]
+        for task in tasks[:MAX_WORKFLOW_TASKS]:
+            item = (
+                f"- taskId={task.task_id} priority={task.priority or ''} "
+                f"summary={_truncate(task.summary or '', MAX_WORKFLOW_TEXT_CHARS)}"
+            )
+            if task.assignee and task.assignee.strip():
+                item += f" assignee={task.assignee}"
+            lines.append(item)
+        if len(tasks) > MAX_WORKFLOW_TASKS:
+            lines.append(f"...(共 {len(tasks)} 个待审批任务)")
+        return self._success("\n".join(lines))
+
     @staticmethod
     def _format_knowledge_hit(hit: KnowledgeHit) -> str:
         display_name = hit.display_name.strip() if hit.display_name else "doc"
@@ -195,3 +255,8 @@ def _java_value(value: Any) -> str:
 
 def _java_map(value: dict[str, Any]) -> str:
     return "{" + ", ".join(f"{key}={_java_value(item)}" for key, item in value.items()) + "}"
+
+
+def _truncate(value: str, limit: int) -> str:
+    normalized = value.strip()
+    return normalized if len(normalized) <= limit else normalized[:limit] + "..."

@@ -11,7 +11,7 @@
 | ReAct | `agent-service/DeepAgentService` | 迁移到 AgentScope Agent |
 | 工具注册 | `AgentAction` + Spring Bean | AgentScope Toolkit + 自有 Tool Policy |
 | DAG | `agent-service/dag` | 同步 run、plan-run、critic/replan 已迁；异步待迁 |
-| Analyst/Process | `agent-service/analyst`,`process` | Analyst 同步 Planner 已迁；Process 待迁 |
+| Analyst/Process | `agent-service/analyst`,`process` | Analyst 已迁；Process 仅迁状态/待办只读查询 |
 | Voting/Reflexion/Chain | `agent-service` 对应包 | 迁移为应用编排器 |
 | 异步任务 | `agent-service/async` + `async-task-service` | 中央任务服务保留 |
 | 对外 A2A/MCP | `interop-service` | 首期保留，代理新服务 |
@@ -57,7 +57,7 @@
 | `order_query` | HTTP | 无 | Phase 1 |
 | `schema_explore` | HTTP | 无 | Phase 1 |
 | `analytics_sql` | HTTP | 只读数据库 | Phase 1 |
-| `workflow_status/tasks` | HTTP | 无 | Phase 2 |
+| `workflow_status/tasks` | HTTP | 无 | Phase 2（已迁） |
 | `refund_start` | HTTP | 有 | Phase 4 |
 | `mcp_call` | MCP | 取决于远端 | Phase 4 |
 | `browser_*` | Sandbox | 外部交互 | Phase 4 |

@@ -7,8 +7,9 @@
 当前状态：**Phase 2 多 Agent 同步编排切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
 `/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
 同层有界并行 worker、直接上游结果传播、通用/分析专用规划、synthesis 以及
-critic/replan 质量闭环；同步 Prompt Chaining、Voting 和 Reflexion 也已迁移。Process、
-流式/异步任务和 edge 切流尚未迁移，因此不宣称与旧 `agent-service` 生产等价。
+critic/replan 质量闭环；同步 Prompt Chaining、Voting、Reflexion 以及 Process 状态/待办
+只读查询也已迁移。Process 流程发起、流式/异步任务和 edge 切流尚未迁移，因此不宣称与旧
+`agent-service` 生产等价。
 
 ## 技术基线
 
@@ -39,13 +40,15 @@ src/agentscope_platform/
 └── main.py
 ```
 
-当前只注册五个只读工具：
+当前只注册七个只读工具：
 
 - `current_time`
 - `rag_search`
 - `order_query`
 - `schema_explore`
 - `analytics_sql`
+- `workflow_status`
+- `workflow_tasks`
 
 所有业务服务调用都从已验证的运行上下文传播内部 token 和 `X-Trace-Id`，模型参数不能
 覆盖租户身份。遗留响应中的 `thought` 字段保留为空，不暴露模型隐藏推理。
@@ -80,6 +83,10 @@ curl http://localhost:8085/readiness
 同步 sibling 入口为 `/agent/chain`、`/agent/vote` 和 `/agent/reflexive`。服务端步骤、
 并发/阈值配置、安全边界与未迁范围见
 [Sibling Orchestrators 指南](docs/sibling-orchestrators.md)。
+
+`/agent/process/run` 是安全收窄的只读候选：可查询实例状态和待审批任务，但不会发起或
+审批退款。迁移决策见
+[Process 只读切片](docs/delivery/phase-2-process-readonly-slice.md)。
 
 ## Docker 启动
 

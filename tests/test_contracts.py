@@ -80,3 +80,17 @@ def test_critic_dual_run_fixture_requires_review_evidence() -> None:
     assert all(case["readOnly"] is True for case in cases)
     assert all(case["requireCritique"] is True for case in cases)
     assert all(case["expectedLevels"] for case in cases)
+
+
+def test_process_fixture_forbids_every_workflow_write_tool() -> None:
+    path = ROOT / "eval" / "baseline" / "process-readonly-cases.jsonl"
+    cases = [
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    ]
+
+    assert len(cases) >= 3
+    assert all(case["endpoint"] == "/agent/process/run" for case in cases)
+    assert all(case["readOnly"] is True for case in cases)
+    assert all(
+        {"refund_start", "workflow_complete"}.issubset(case["forbiddenTools"]) for case in cases
+    )

@@ -99,3 +99,51 @@ async def test_invalid_retained_service_response_is_safe_error() -> None:
 
     with pytest.raises(PlatformServiceError, match="invalid knowledge-service response"):
         await client.query_knowledge("query", 5, 0, None, context())
+
+
+async def test_workflow_read_contracts_preserve_context_and_encode_instance() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.raw_path == b"/workflow/instances/i%2F1":
+            return httpx.Response(
+                200,
+                json={
+                    "instanceId": "i/1",
+                    "status": "WAITING_APPROVAL",
+                    "reply": None,
+                },
+            )
+        if request.url.path == "/workflow/tasks":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "taskId": "task-1",
+                        "name": "approveRefund",
+                        "instanceId": "i/1",
+                        "priority": "HIGH",
+                        "summary": "refund 5000",
+                        "assignee": None,
+                    }
+                ],
+            )
+        raise AssertionError(request.url)
+
+    client = PlatformClient(Settings(), httpx.MockTransport(handler))
+    instance = await client.get_workflow_instance("i/1", context())
+    tasks = await client.list_workflow_tasks(context())
+
+    assert instance is not None and instance.status == "WAITING_APPROVAL"
+    assert tasks[0].task_id == "task-1"
+    assert all(request.headers["X-Internal-Token"] == "signed-internal-token" for request in seen)
+
+
+async def test_workflow_instance_404_is_normalized() -> None:
+    client = PlatformClient(
+        Settings(),
+        httpx.MockTransport(lambda request: httpx.Response(404)),
+    )
+
+    assert await client.get_workflow_instance("missing", context()) is None
