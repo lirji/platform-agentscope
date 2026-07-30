@@ -4,12 +4,14 @@
 `langchain4j-platform/agent-service`。现有 Java 平台继续提供鉴权、知识检索、数据分析、
 业务流程、订单、异步任务、互操作和评测能力。
 
-当前状态：**Phase 2 多 Agent 同步编排切片**。除 Phase 1 只读 ReAct 能力外，已提供兼容
+当前状态：**Phase 5 全量默认切换**。除 Phase 1/2 同步能力外，已提供兼容
 `/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
 同层有界并行 worker、直接上游结果传播、通用/分析专用规划、synthesis 以及
-critic/replan 质量闭环；同步 Prompt Chaining、Voting、Reflexion 以及 Process 状态/待办
-只读查询也已迁移。Process 流程发起、流式/异步任务和 edge 切流尚未迁移，因此不宣称与旧
-`agent-service` 生产等价。
+critic/replan 质量闭环；五类异步提交、任务查询/取消/可恢复 SSE、Reflexion SSE 也已接入
+中央 `async-task-service`。Process 始终只读；异步总开关与中央 orphan reaper 默认关闭，
+旧平台 edge 与 interop 的默认目标已切到 `agentscope-orchestrator`，能力发现
+`GET /agent/capabilities` 也已兼容。旧 Java 服务仅保留为显式整服务回滚目标；当前只读
+工具面不宣称覆盖 Java-only 高风险/写能力，也未执行生产部署。
 
 ## 技术基线
 
@@ -66,10 +68,12 @@ uv sync --dev
 ```bash
 curl http://localhost:8085/health
 curl http://localhost:8085/readiness
+curl -H "X-Internal-Token: ${INTERNAL_TOKEN}" http://localhost:8085/metrics
 ```
 
 `/agent/run` 默认要求来自旧平台 edge-gateway 的 `X-Internal-Token`。本地只验证路由时，
 可以在 `.env` 中临时设置 `INTERNAL_AUTH_REQUIRED=false`；该设置不得用于共享或生产环境。
+`/metrics` 同样要求有效内部 token，避免匿名暴露运行时与容量信息。
 
 `/agent/v2/run` 默认不注册。只有显式设置 `AGENT_V2_ENABLED=true` 并重启后才可访问，
 操作与回滚顺序见[候选路由指南](docs/candidate-route.md)。
@@ -87,6 +91,10 @@ curl http://localhost:8085/readiness
 `/agent/process/run` 是安全收窄的只读候选：可查询实例状态和待审批任务，但不会发起或
 审批退款。迁移决策见
 [Process 只读切片](docs/delivery/phase-2-process-readonly-slice.md)。
+
+异步入口、中央依赖、token 截止、SSE 恢复、灰度和回滚见
+[异步编排运行手册](docs/async-orchestration.md)。本地需先启动中央服务，再显式设置
+`ASYNC_TASK_ENABLED=true`；默认关闭不会改变既有同步路径。
 
 ## Docker 启动
 
@@ -132,5 +140,6 @@ DAG 结构兼容双跑使用 `agentscope-dag-shadow-eval`，只在报告中保�
 - [候选路由与回滚](docs/candidate-route.md)
 - [DAG 编排指南](docs/dag-orchestration.md)
 - [Sibling Orchestrators 指南](docs/sibling-orchestrators.md)
+- [异步编排运行手册](docs/async-orchestration.md)
 - [开发指南](docs/development.md)
 - [ADR-0001：采用绞杀者迁移](docs/adr/0001-strangler-agent-orchestrator.md)

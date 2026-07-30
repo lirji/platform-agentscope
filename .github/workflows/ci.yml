@@ -55,3 +55,6 @@ jobs:
 
       - name: Validate Compose
         run: docker compose -f compose.yml config
+
+      - name: Build runtime image
+        run: docker build --tag agentscope-platform:ci .
