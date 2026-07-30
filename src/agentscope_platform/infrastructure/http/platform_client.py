@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.infrastructure.http.models import (
+    AnalyticsSqlPlanReply,
     AnalyticsSqlReply,
     AnalyticsTableSchemaReply,
     AnalyticsTablesReply,
@@ -114,6 +115,20 @@ class PlatformClient:
             {"question": question},
             context,
             AnalyticsSqlReply,
+        )
+
+    async def execute_analytics_plan(
+        self,
+        question: str,
+        sql: str,
+        context: RunContext,
+    ) -> AnalyticsSqlPlanReply:
+        return await self._post(
+            "analytics-service",
+            f"{self._settings.analytics_base_url.rstrip('/')}/analytics/sql/plans/execute",
+            {"question": question, "sql": sql},
+            context,
+            AnalyticsSqlPlanReply,
         )
 
     async def get_workflow_instance(

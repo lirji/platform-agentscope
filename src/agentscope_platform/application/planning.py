@@ -4,7 +4,7 @@ from agentscope_platform.application.dag import (
     AgentDagApplicationService,
     DagValidationError,
 )
-from agentscope_platform.application.ports import DagPlanner, DagPlanningError
+from agentscope_platform.application.ports import DagPlanner, DagPlanningError, ProgressSink
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.dag import (
     AgentDagRunReply,
@@ -48,6 +48,7 @@ class AgentDagPlanningService:
         request: AgentPlanRunRequest,
         context: RunContext,
         kind: DagPlanKind = DagPlanKind.GENERAL,
+        progress: ProgressSink | None = None,
     ) -> AgentDagRunReply:
         goal = (request.goal or "").strip()
         if not goal:
@@ -106,6 +107,15 @@ class AgentDagPlanningService:
                     f"当前候选服务不支持并不得声称成功。\n用户诉求：{goal}"
                 )
             tasks = [AgentDagTask(id="t1", description=description, dependsOn=[])]
+        if progress is not None:
+            await progress.emit(
+                "dag-planned",
+                {
+                    "goal": goal,
+                    "kind": kind.value,
+                    "tasks": [task.model_dump(by_alias=True, mode="json") for task in tasks],
+                },
+            )
         return await self._dag_service.run(
             AgentDagRunRequest(
                 goal=goal,
@@ -113,4 +123,5 @@ class AgentDagPlanningService:
                 webhookUrl=request.webhook_url,
             ),
             context,
+            progress,
         )

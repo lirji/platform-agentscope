@@ -27,13 +27,14 @@ def encode(claims: dict[str, object]) -> str:
 
 
 def test_verifies_java_compatible_claims() -> None:
+    expires_at = datetime.now(UTC) + timedelta(minutes=1)
     token = encode(
         {
             "sub": "tenant-a",
             "uid": "user-a",
             "scopes": ["agent", "chat"],
             "dept": "tenant-a-rd",
-            "exp": datetime.now(UTC) + timedelta(minutes=1),
+            "exp": expires_at,
         },
     )
 
@@ -43,6 +44,10 @@ def test_verifies_java_compatible_claims() -> None:
     assert identity.user_id == "user-a"
     assert identity.department == "tenant-a-rd"
     assert identity.scopes == frozenset({"agent", "chat"})
+
+    verified = verifier().verify_with_expiry(token)
+    assert verified.identity == identity
+    assert abs((verified.expires_at - expires_at).total_seconds()) < 1
 
 
 def test_rejects_expired_token() -> None:

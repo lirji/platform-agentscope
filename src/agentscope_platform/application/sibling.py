@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from agentscope_platform.application.ports import (
     DagQualityReviewer,
+    ProgressSink,
     TextGenerator,
 )
 from agentscope_platform.application.quality import (
@@ -248,16 +249,21 @@ class ReflexionService:
         self,
         request: ReflexionRequest,
         context: RunContext,
+        progress: ProgressSink | None = None,
     ) -> ReflexionReply:
         question = (request.question or "").strip()
         if not question:
             raise SiblingValidationError("question is required")
 
+        if progress is not None:
+            await progress.emit("attempt-start", {"n": 1})
         answer = await self._generator.generate(
             REFLEXION_SYSTEM_PROMPT,
             question,
             context,
         )
+        if progress is not None:
+            await progress.emit("answer", {"n": 1, "answer": answer})
         attempts: list[ReflexionAttempt] = []
         accepted = False
         for attempt_number in range(1, self._policy.max_improvements + 2):
@@ -274,11 +280,18 @@ class ReflexionService:
                     mainIssue=critique.main_issue,
                 )
             )
+            if progress is not None:
+                await progress.emit(
+                    "critique",
+                    attempts[-1].model_dump(by_alias=True, mode="json"),
+                )
             if aggregate >= self._policy.threshold:
                 accepted = True
                 break
             if attempt_number > self._policy.max_improvements:
                 break
+            if progress is not None:
+                await progress.emit("attempt-start", {"n": attempt_number + 1})
             answer = await self._generator.generate(
                 IMPROVEMENT_SYSTEM_PROMPT,
                 (
@@ -288,11 +301,19 @@ class ReflexionService:
                 ),
                 context,
             )
+            if progress is not None:
+                await progress.emit(
+                    "answer",
+                    {"n": attempt_number + 1, "answer": answer},
+                )
 
-        return ReflexionReply(
+        reply = ReflexionReply(
             question=question,
             finalAnswer=answer,
             attempts=attempts,
             acceptedByThreshold=accepted,
             tenantId=context.identity.tenant_id,
         )
+        if progress is not None:
+            await progress.emit("done", reply.model_dump(by_alias=True, mode="json"))
+        return reply

@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -5,6 +7,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from agentscope_platform.api.routes import candidate_router, router
+from agentscope_platform.application.async_task import (
+    AsyncTaskManager,
+    AsyncTaskRejectedError,
+)
 from agentscope_platform.application.dag import (
     AgentDagApplicationService,
     DagReviewPolicy,
@@ -13,6 +19,7 @@ from agentscope_platform.application.dag import (
 from agentscope_platform.application.planning import AgentDagPlanningService
 from agentscope_platform.application.ports import (
     AgentRunner,
+    AsyncTaskGateway,
     DagPlanner,
     DagQualityError,
     DagQualityReviewer,
@@ -28,6 +35,7 @@ from agentscope_platform.application.sibling import (
     SiblingValidationError,
     VotingService,
 )
+from agentscope_platform.application.workflow_ai import WorkflowAiDraftService
 from agentscope_platform.core.config import Settings, get_settings
 from agentscope_platform.infrastructure.agentscope.planner import (
     AgentScopeDagPlanner,
@@ -42,9 +50,19 @@ from agentscope_platform.infrastructure.agentscope.runner import (
 from agentscope_platform.infrastructure.agentscope.text_generator import (
     AgentScopeTextGenerator,
 )
+from agentscope_platform.infrastructure.http.async_task_client import (
+    AsyncTaskGatewayError,
+    HttpAsyncTaskClient,
+)
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
+from agentscope_platform.infrastructure.observability.async_task_metrics import (
+    AsyncTaskMetrics,
+)
 from agentscope_platform.infrastructure.observability.logging_observer import (
     LoggingRunObserver,
+)
+from agentscope_platform.infrastructure.observability.prometheus import (
+    configure_metrics,
 )
 from agentscope_platform.infrastructure.observability.setup import (
     configure_logging,
@@ -64,6 +82,8 @@ class Container:
     chain_service: PromptChainService
     voting_service: VotingService
     reflexion_service: ReflexionService
+    async_task_manager: AsyncTaskManager
+    workflow_ai_draft_service: WorkflowAiDraftService
 
 
 def create_app(
@@ -72,9 +92,11 @@ def create_app(
     planner: DagPlanner | None = None,
     reviewer: DagQualityReviewer | None = None,
     text_generator: TextGenerator | None = None,
+    async_task_gateway: AsyncTaskGateway | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
     configure_logging(app_settings)
+    configure_metrics(app_settings)
     platform_client = PlatformClient(app_settings)
     app_runner = runner or AgentScopeRunner(
         app_settings,
@@ -106,6 +128,8 @@ def create_app(
     )
     app_planner = planner or AgentScopeDagPlanner(app_settings)
     app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
+    task_gateway = async_task_gateway or HttpAsyncTaskClient(app_settings)
+    task_manager = AsyncTaskManager(task_gateway, app_settings, AsyncTaskMetrics())
     container = Container(
         settings=app_settings,
         jwt_verifier=InternalJwtVerifier(app_settings),
@@ -141,7 +165,17 @@ def create_app(
                 ),
             ),
         ),
+        async_task_manager=task_manager,
+        workflow_ai_draft_service=WorkflowAiDraftService(app_text_generator),
     )
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        del app
+        try:
+            yield
+        finally:
+            await task_manager.shutdown()
 
     app = FastAPI(
         title="AgentScope Platform",
@@ -149,6 +183,7 @@ def create_app(
             "Incremental AgentScope 2.0 replacement for langchain4j-platform agent-service."
         ),
         version="0.1.0",
+        lifespan=lifespan,
     )
     app.state.container = container
     configure_tracing(app, app_settings)
@@ -215,6 +250,33 @@ def create_app(
             status_code=502,
             content={
                 "error": "agent generation failed",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(AsyncTaskRejectedError)
+    async def async_task_rejected(
+        request: Request,
+        exc: AsyncTaskRejectedError,
+    ) -> JSONResponse:
+        del exc
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "async task submission is unavailable",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(AsyncTaskGatewayError)
+    async def async_task_gateway_failed(
+        request: Request,
+        exc: AsyncTaskGatewayError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "error": "async task service request failed",
                 "traceId": request.state.trace_id,
             },
         )

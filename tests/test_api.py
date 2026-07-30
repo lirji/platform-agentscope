@@ -197,6 +197,38 @@ def test_health_is_open_and_returns_trace_id() -> None:
     assert response.headers["X-Trace-Id"]
 
 
+def test_workflow_ai_draft_endpoints_use_trusted_context_and_never_decide() -> None:
+    generator = FakeTextGenerator(
+        [
+            '{"title":"退款未到账","priority":"HIGH","category":"refund",'
+            '"summary":"退款长期未到账","tags":["未到账"]}',
+            "您的退款请求已受理, 我们会尽快处理。",
+        ]
+    )
+    client = TestClient(
+        create_app(settings(), FakeRunner(), text_generator=generator)
+    )
+    headers = {"X-Internal-Token": internal_token()}
+
+    ticket = client.post(
+        "/internal/workflow/ticket-draft",
+        json={"message": "退款一直没到账"},
+        headers=headers,
+    )
+    reply = client.post(
+        "/internal/workflow/reply-draft",
+        json={"chatId": "c1", "message": "退款一直没到账"},
+        headers=headers,
+    )
+
+    assert ticket.status_code == 200
+    assert ticket.json()["priority"] == "HIGH"
+    assert reply.status_code == 200
+    assert reply.json() == {"reply": "您的退款请求已受理, 我们会尽快处理。"}
+    assert [item.identity.tenant_id for item in generator.contexts] == ["acme", "acme"]
+    assert generator.deterministic == [True, True]
+
+
 def test_agent_run_requires_internal_token() -> None:
     client = TestClient(create_app(settings(), FakeRunner()))
 
@@ -204,6 +236,66 @@ def test_agent_run_requires_internal_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_agent_capabilities_require_auth_and_match_legacy_discovery_contract() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+
+    missing = client.get("/agent/capabilities")
+    accepted = client.get(
+        "/agent/capabilities",
+        headers={"X-Internal-Token": internal_token()},
+    )
+
+    assert missing.status_code == 401
+    assert accepted.status_code == 200
+    assert accepted.json() == [
+        {
+            "name": "platform.agent.run",
+            "description": "Runs the platform agent through AgentScope.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["goal"],
+                "properties": {
+                    "goal": {"type": "string"},
+                    "webhookUrl": {"type": "string"},
+                },
+            },
+        },
+        {
+            "name": "platform.agent.run_async",
+            "description": "Starts an async platform agent run through AgentScope.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["goal"],
+                "properties": {
+                    "goal": {"type": "string"},
+                    "webhookUrl": {"type": "string"},
+                },
+            },
+        },
+        {
+            "name": "platform.agent.dag.plan_run",
+            "description": "Plans and runs a DAG agent workflow through AgentScope.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["goal"],
+                "properties": {"goal": {"type": "string"}},
+            },
+        },
+        {
+            "name": "platform.agent.dag.plan_run_async",
+            "description": "Starts an async planned DAG agent workflow through AgentScope.",
+            "inputSchema": {
+                "type": "object",
+                "required": ["goal"],
+                "properties": {
+                    "goal": {"type": "string"},
+                    "webhookUrl": {"type": "string"},
+                },
+            },
+        },
+    ]
 
 
 def test_agent_dag_run_requires_internal_token() -> None:

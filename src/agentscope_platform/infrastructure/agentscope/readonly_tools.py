@@ -1,9 +1,11 @@
 import json
+import logging
 from typing import Any
 
 from agentscope.message import TextBlock, ToolResultState
 from agentscope.tool import ToolBase, ToolChunk
 
+from agentscope_platform.application.ports import AnalyticsSqlPlanner
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
 from agentscope_platform.infrastructure.agentscope.tools import ReadOnlyFunctionTool
@@ -17,12 +19,19 @@ MAX_RAG_SNIPPET_CHARS = 600
 MAX_ANALYTICS_ROWS = 10
 MAX_WORKFLOW_TASKS = 20
 MAX_WORKFLOW_TEXT_CHARS = 1_000
+log = logging.getLogger(__name__)
 
 
 class ReadonlyToolset:
-    def __init__(self, settings: Settings, client: PlatformClient) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        client: PlatformClient,
+        analytics_planner: AnalyticsSqlPlanner | None = None,
+    ) -> None:
         self._settings = settings
         self._client = client
+        self._analytics_planner = analytics_planner
 
     def tools(self) -> list[ToolBase]:
         return [
@@ -155,6 +164,8 @@ class ReadonlyToolset:
         except PlatformServiceError as exc:
             return self._error(f"查询失败：{exc}")
 
+        await self._run_analytics_shadow(normalized)
+
         if result.guard_blocked:
             return self._success("查询被安全护栏拦截，未执行。请换一个只读、限定本租户数据的问法。")
 
@@ -170,6 +181,38 @@ class ReadonlyToolset:
         if result.answer and result.answer.strip():
             lines.append(f"解读: {result.answer}")
         return self._success("\n".join(lines))
+
+    async def _run_analytics_shadow(self, question: str) -> None:
+        if (
+            not self._settings.analytics_external_planner_shadow_enabled
+            or self._analytics_planner is None
+        ):
+            return
+        context = current_run_context()
+        try:
+            tables = await self._client.list_analytics_tables(context)
+            schema_parts: list[str] = []
+            for table in tables.tables[
+                : self._settings.analytics_external_planner_max_tables
+            ]:
+                described = await self._client.describe_analytics_table(table, context)
+                if described and described.schema_text:
+                    schema_parts.append(f"[{table}]\n{described.schema_text}")
+            plan = await self._analytics_planner.plan(
+                question,
+                "\n\n".join(schema_parts),
+                context,
+            )
+            await self._client.execute_analytics_plan(question, plan.sql, context)
+        except Exception as exc:
+            log.warning(
+                "analytics external planner shadow failed: %s",
+                type(exc).__name__,
+                extra={
+                    "trace_id": context.trace_id,
+                    "tenant_id": context.identity.tenant_id,
+                },
+            )
 
     async def workflow_status(self, instance_id: str) -> ToolChunk:
         """Query one workflow instance visible to the current tenant."""

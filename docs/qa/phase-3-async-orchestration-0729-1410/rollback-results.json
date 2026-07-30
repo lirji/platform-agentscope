@@ -1,0 +1,7 @@
+{
+  "asyncHttp": 503,
+  "asyncError": "async task submission is unavailable",
+  "syncHttp": 200,
+  "syncStopReason": "DONE",
+  "readinessHttp": 200
+}

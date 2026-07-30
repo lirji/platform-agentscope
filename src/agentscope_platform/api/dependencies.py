@@ -15,7 +15,9 @@ def get_run_context(request: Request) -> RunContext:
 
     if raw_token:
         try:
-            identity = container.jwt_verifier.verify(raw_token)
+            verified = container.jwt_verifier.verify_with_expiry(raw_token)
+            identity = verified.identity
+            token_expires_at = verified.expires_at
         except InternalAuthenticationError as exc:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -31,11 +33,13 @@ def get_run_context(request: Request) -> RunContext:
             tenant_id="anonymous",
             user_id="anonymous",
         )
+        token_expires_at = None
 
     return RunContext(
         identity=identity,
         internal_token=raw_token,
         trace_id=request.state.trace_id,
+        token_expires_at=token_expires_at,
     )
 
 

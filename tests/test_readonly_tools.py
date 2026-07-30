@@ -4,6 +4,7 @@ from agentscope.message import TextBlock, ToolResultState
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import bind_run_context, reset_run_context
 from agentscope_platform.domain.agent import RunContext, TenantIdentity
+from agentscope_platform.domain.analytics import AnalyticsSqlPlan
 from agentscope_platform.infrastructure.agentscope.readonly_tools import ReadonlyToolset
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
 
@@ -21,6 +22,21 @@ def text(chunk: object) -> str:
     block = content[0]
     assert isinstance(block, TextBlock)
     return block.text
+
+
+class FakeAnalyticsPlanner:
+    def __init__(self, sql: str = "select count(*) from orders where tenant_id = :tenantId"):
+        self.sql = sql
+        self.calls: list[tuple[str, str, RunContext]] = []
+
+    async def plan(
+        self,
+        question: str,
+        schema: str,
+        run_context: RunContext,
+    ) -> AnalyticsSqlPlan:
+        self.calls.append((question, schema, run_context))
+        return AnalyticsSqlPlan(sql=self.sql)
 
 
 async def test_rag_search_formats_sources_and_truncates() -> None:
@@ -161,6 +177,98 @@ async def test_analytics_guard_block_is_not_reported_as_tool_error() -> None:
 
     assert result.state == ToolResultState.RUNNING
     assert "安全护栏拦截" in text(result)
+
+
+async def test_analytics_external_planner_runs_only_as_shadow() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/analytics/sql":
+            return httpx.Response(
+                200,
+                json={
+                    "question": "统计订单",
+                    "sql": "legacy sql",
+                    "rowCount": 1,
+                    "rows": [{"value": 7}],
+                    "answer": "legacy answer",
+                    "guardBlocked": False,
+                },
+            )
+        if request.url.path == "/analytics/schema/tables":
+            return httpx.Response(200, json={"tables": ["orders"]})
+        if request.url.path == "/analytics/schema/tables/orders":
+            return httpx.Response(
+                200,
+                json={"table": "orders", "schema": "tenant_id varchar, id bigint"},
+            )
+        if request.url.path == "/analytics/sql/plans/execute":
+            return httpx.Response(
+                200,
+                json={
+                    "question": "统计订单",
+                    "sql": "select count(*) from orders where tenant_id = :tenantId",
+                    "rowCount": 1,
+                    "rows": [{"value": 7}],
+                    "executed": True,
+                    "rejectionReason": None,
+                },
+            )
+        raise AssertionError(request.url.path)
+
+    settings = Settings(analytics_external_planner_shadow_enabled=True)
+    planner = FakeAnalyticsPlanner()
+    tools = ReadonlyToolset(
+        settings,
+        PlatformClient(settings, httpx.MockTransport(handler)),
+        analytics_planner=planner,
+    )
+    token = bind_run_context(context())
+    try:
+        result = await tools.analytics_sql("统计订单")
+    finally:
+        reset_run_context(token)
+
+    assert text(result).endswith("解读: legacy answer")
+    assert planner.calls[0][0] == "统计订单"
+    assert "tenant_id varchar" in planner.calls[0][1]
+    candidate_request = seen[-1]
+    assert candidate_request.url.path == "/analytics/sql/plans/execute"
+    assert candidate_request.headers["X-Internal-Token"] == "token"
+    assert b"acme" not in candidate_request.content
+    assert b"alice" not in candidate_request.content
+
+
+async def test_analytics_shadow_failure_does_not_break_legacy_result() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/analytics/sql":
+            return httpx.Response(
+                200,
+                json={
+                    "question": "统计",
+                    "sql": "legacy sql",
+                    "rowCount": 0,
+                    "rows": [],
+                    "answer": "legacy survives",
+                    "guardBlocked": False,
+                },
+            )
+        return httpx.Response(503)
+
+    settings = Settings(analytics_external_planner_shadow_enabled=True)
+    tools = ReadonlyToolset(
+        settings,
+        PlatformClient(settings, httpx.MockTransport(handler)),
+        analytics_planner=FakeAnalyticsPlanner(),
+    )
+    token = bind_run_context(context())
+    try:
+        result = await tools.analytics_sql("统计")
+    finally:
+        reset_run_context(token)
+
+    assert text(result).endswith("解读: legacy survives")
 
 
 async def test_workflow_status_and_tasks_are_read_only_and_tenant_bound() -> None:

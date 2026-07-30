@@ -1,0 +1,41 @@
+{
+  "environment": {
+    "firstCentralHealth": 503,
+    "cause": "shared Redis health contributor had no isolated Redis target",
+    "afterProfileCorrection": 200
+  },
+  "centralRestart": {
+    "snapshotHttp": 200,
+    "taskStatus": "SUCCEEDED",
+    "replayedEventIds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+  },
+  "pythonSigkill": {
+    "taskId": "28cd226c-5780-4ed5-9dd4-342ee1b3f518",
+    "statusBeforeReaper": "RUNNING",
+    "tokenFieldPresent": false,
+    "statusAfterReaper": "FAILED",
+    "errorAfterReaper": "ASYNC_TASK_ORPHANED",
+    "terminalEventCount": 1
+  },
+  "reaper": {
+    "twoInstances": true,
+    "raceTaskId": "qa-reaper-race-two-2ddc23940e",
+    "raceTaskStatus": "FAILED",
+    "raceTaskError": "ASYNC_TASK_ORPHANED",
+    "raceTaskTerminalEventCount": 1,
+    "unsupportedKindStatus": "PENDING",
+    "freshLeaseStatusAtCheck": "RUNNING",
+    "freshLeaseEventuallyReapedAfterExpiryAndGrace": true
+  },
+  "databaseIntegrity": {
+    "storedTokenMatches": 0,
+    "tasksWithDuplicateTerminalEvents": 0,
+    "responseLossTaskRows": 1
+  },
+  "observability": {
+    "centralActuatorPrometheusHttp": 404,
+    "pythonMetricsHttp": 404,
+    "pythonDefaultMeterProvider": "no-op",
+    "result": "FAIL"
+  }
+}

@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -74,7 +75,11 @@ async def test_reviewer_scores_and_revises_with_json_contracts() -> None:
             '{"tasks":[{"id":"t1","description":"collect evidence","dependsOn":[]}]}',
         ]
     )
-    reviewer = AgentScopeDagQualityReviewer(settings(), model)
+    reviewer = AgentScopeDagQualityReviewer(
+        settings(),
+        model,
+        clock=lambda: datetime(2026, 7, 29, 8, 51, 7, tzinfo=UTC),
+    )
     run_context = context()
 
     review = await reviewer.critique(
@@ -103,9 +108,26 @@ async def test_reviewer_scores_and_revises_with_json_contracts() -> None:
     assert review.main_issue == "missing evidence"
     assert plan.tasks[0].description == "collect evidence"
     assert all(call[1]["response_format"] == {"type": "json_object"} for call in model.calls)
+    assert "within 120 seconds" in model.calls[0][0][0].get_text_content()
     assert "UNTRUSTED ANSWER" in model.calls[0][0][1].get_text_content()
+    assert "TRUSTED EVALUATION CONTEXT" in model.calls[0][0][1].get_text_content()
+    assert "2026-07-29T08:51:07+00:00" in model.calls[0][0][1].get_text_content()
     assert "PREVIOUS PLAN" in model.calls[1][0][1].get_text_content()
     assert "must-not-enter-review-prompt" not in str(model.calls)
+
+
+async def test_reviewer_treats_naive_injected_clock_as_utc() -> None:
+    model = FakeModel(['{"correctness":1.0,"completeness":1.0,"clarity":1.0,"mainIssue":"n/a"}'])
+    reviewer = AgentScopeDagQualityReviewer(
+        settings(),
+        model,
+        clock=lambda: datetime(2026, 7, 29, 8, 51, 7),
+    )
+
+    await reviewer.critique("current time?", "08:51 UTC", context())
+
+    prompt = model.calls[0][0][1].get_text_content()
+    assert "2026-07-29T08:51:07+00:00" in prompt
 
 
 @pytest.mark.parametrize(

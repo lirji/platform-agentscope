@@ -46,6 +46,17 @@ class AnalyticsSqlReply(BaseModel):
     guard_blocked: bool = Field(default=False, alias="guardBlocked")
 
 
+class AnalyticsSqlPlanReply(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    question: str
+    sql: str
+    row_count: int = Field(default=0, alias="rowCount")
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+    executed: bool
+    rejection_reason: str | None = Field(default=None, alias="rejectionReason")
+
+
 class AnalyticsTablesReply(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

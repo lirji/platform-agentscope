@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,12 +14,21 @@ class InternalAuthenticationError(ValueError):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class VerifiedInternalIdentity:
+    identity: TenantIdentity
+    expires_at: datetime
+
+
 class InternalJwtVerifier:
     def __init__(self, settings: Settings) -> None:
         self._algorithm = settings.internal_jwt_algorithm
         self._key = self._resolve_key(settings)
 
     def verify(self, token: str) -> TenantIdentity:
+        return self.verify_with_expiry(token).identity
+
+    def verify_with_expiry(self, token: str) -> VerifiedInternalIdentity:
         if not token:
             raise InternalAuthenticationError("internal token is required")
         if not self._key:
@@ -37,6 +48,7 @@ class InternalJwtVerifier:
         user_id = claims.get("uid")
         raw_scopes = claims.get("scopes", [])
         department = claims.get("dept")
+        expires_at = claims.get("exp")
 
         if not isinstance(subject, str) or not subject:
             raise InternalAuthenticationError("internal token subject is invalid")
@@ -49,12 +61,17 @@ class InternalJwtVerifier:
             raise InternalAuthenticationError("internal token scopes are invalid")
         if department is not None and not isinstance(department, str):
             raise InternalAuthenticationError("internal token dept is invalid")
+        if not isinstance(expires_at, (int, float)):
+            raise InternalAuthenticationError("internal token exp is invalid")
 
-        return TenantIdentity(
-            tenant_id=subject,
-            user_id=user_id,
-            scopes=frozenset(raw_scopes),
-            department=department,
+        return VerifiedInternalIdentity(
+            identity=TenantIdentity(
+                tenant_id=subject,
+                user_id=user_id,
+                scopes=frozenset(raw_scopes),
+                department=department,
+            ),
+            expires_at=datetime.fromtimestamp(expires_at, tz=UTC),
         )
 
     @staticmethod

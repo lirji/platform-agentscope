@@ -89,10 +89,26 @@ class Settings(BaseSettings):
 
     knowledge_base_url: str = "http://localhost:8084"
     analytics_base_url: str = "http://localhost:8083"
+    analytics_external_planner_shadow_enabled: bool = False
+    analytics_external_planner_max_tables: int = Field(default=20, ge=1, le=100)
     workflow_base_url: str = "http://localhost:8082"
     order_base_url: str = "http://localhost:8093"
     http_connect_timeout_seconds: float = Field(default=1, gt=0)
     http_read_timeout_seconds: float = Field(default=10, gt=0)
+
+    async_task_enabled: bool = False
+    async_task_base_url: str = "http://localhost:8086"
+    async_task_worker_id: str = ""
+    async_task_lease_seconds: float = Field(default=60, gt=3, le=3600)
+    async_task_heartbeat_seconds: float = Field(default=15, gt=0)
+    async_task_max_concurrent: int = Field(default=8, ge=1, le=100)
+    async_task_max_inflight: int = Field(default=100, ge=1, le=10_000)
+    async_task_max_runtime_seconds: float = Field(default=240, gt=0, le=3600)
+    async_task_token_safety_seconds: float = Field(default=20, gt=0)
+    async_task_connect_timeout_seconds: float = Field(default=1, gt=0)
+    async_task_request_timeout_seconds: float = Field(default=5, gt=0)
+    async_task_event_max_bytes: int = Field(default=262_144, ge=1024, le=1_048_576)
+    async_task_progress_enabled: bool = True
 
     otel_enabled: bool = False
     otel_service_name: str = "agentscope-orchestrator"
@@ -110,6 +126,18 @@ class Settings(BaseSettings):
     def validate_orchestrator_limits(self) -> "Settings":
         if self.agent_voting_n > self.agent_voting_max_candidates:
             raise ValueError("AGENT_VOTING_N must not exceed AGENT_VOTING_MAX_CANDIDATES")
+        if self.async_task_heartbeat_seconds * 3 > self.async_task_lease_seconds:
+            raise ValueError(
+                "ASYNC_TASK_HEARTBEAT_SECONDS must not exceed one third of ASYNC_TASK_LEASE_SECONDS"
+            )
+        if self.async_task_max_inflight < self.async_task_max_concurrent:
+            raise ValueError(
+                "ASYNC_TASK_MAX_INFLIGHT must not be less than ASYNC_TASK_MAX_CONCURRENT"
+            )
+        if self.async_task_token_safety_seconds <= self.async_task_request_timeout_seconds:
+            raise ValueError(
+                "ASYNC_TASK_TOKEN_SAFETY_SECONDS must exceed ASYNC_TASK_REQUEST_TIMEOUT_SECONDS"
+            )
         return self
 
     @property

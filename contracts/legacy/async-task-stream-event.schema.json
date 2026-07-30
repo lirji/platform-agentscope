@@ -1,0 +1,51 @@
+{
+  "properties": {
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "data": {
+      "title": "Data"
+    },
+    "event": {
+      "title": "Event",
+      "type": "string"
+    },
+    "eventKey": {
+      "title": "Eventkey",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "taskId": {
+      "title": "Taskid",
+      "type": "string"
+    },
+    "workerId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Workerid"
+    }
+  },
+  "required": [
+    "taskId",
+    "sequence",
+    "eventKey",
+    "event",
+    "data",
+    "createdAt"
+  ],
+  "title": "CentralAsyncTaskEvent",
+  "type": "object"
+}

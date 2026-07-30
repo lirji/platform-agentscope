@@ -76,6 +76,14 @@ class SequenceReviewer:
         raise AssertionError("reflexion must not invoke DAG replanning")
 
 
+class CollectProgress:
+    def __init__(self) -> None:
+        self.events: list[tuple[str, object]] = []
+
+    async def emit(self, event: str, data: object) -> None:
+        self.events.append((event, data))
+
+
 def context(tenant: str = "acme") -> RunContext:
     return RunContext(
         identity=TenantIdentity(tenant, "alice"),
@@ -259,6 +267,22 @@ async def test_reflexion_stops_when_threshold_is_accepted() -> None:
     assert reply.accepted_by_threshold is True
     assert len(reply.attempts) == 1
     assert len(generator.calls) == 1
+
+
+async def test_reflexion_progress_matches_legacy_event_order() -> None:
+    generator = FakeGenerator(["initial"])
+    reviewer = SequenceReviewer([critique(0.9, "n/a")])
+    service = ReflexionService(generator, reviewer)
+    progress = CollectProgress()
+
+    await service.run(ReflexionRequest(question="question"), context(), progress)
+
+    assert [event for event, _ in progress.events] == [
+        "attempt-start",
+        "answer",
+        "critique",
+        "done",
+    ]
 
 
 async def test_reflexion_improves_until_budget_is_exhausted() -> None:

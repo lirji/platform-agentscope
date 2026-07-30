@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 
-from agentscope_platform.application.ports import AgentRunner, DagQualityReviewer
+from agentscope_platform.application.ports import AgentRunner, DagQualityReviewer, ProgressSink
 from agentscope_platform.application.quality import CritiqueWeights, aggregate_critique
 from agentscope_platform.application.service import to_agent_reply
 from agentscope_platform.domain.agent import AgentRunReply, RunContext
@@ -65,12 +65,13 @@ class AgentDagApplicationService:
         self,
         request: AgentDagRunRequest,
         context: RunContext,
+        progress: ProgressSink | None = None,
     ) -> AgentDagRunReply:
         goal = (request.goal or "").strip()
         if not goal:
             raise DagValidationError("goal is required")
         tasks = self._validate_and_normalize(request.tasks)
-        execution = await self._execute(goal, tasks, context)
+        execution = await self._execute(goal, tasks, context, progress, 1)
         if not self._review_policy.enabled:
             return self._to_reply(goal, execution, context, [], True)
 
@@ -80,6 +81,15 @@ class AgentDagApplicationService:
         for attempt_number in range(1, max_replans + 2):
             critique = await self._critique(goal, execution, context)
             aggregate = self._aggregate(critique)
+            await self._emit(
+                progress,
+                "dag-critique",
+                {
+                    "attempt": attempt_number,
+                    "aggregate": aggregate,
+                    "critique": critique.model_dump(by_alias=True, mode="json"),
+                },
+            )
             attempts.append(
                 AgentDagAttempt(
                     n=attempt_number,
@@ -95,6 +105,16 @@ class AgentDagApplicationService:
                 break
             if attempt_number > max_replans:
                 break
+            await self._emit(
+                progress,
+                "dag-replan",
+                {
+                    "fromAttempt": attempt_number,
+                    "threshold": self._review_policy.threshold,
+                    "aggregate": aggregate,
+                    "mainIssue": critique.main_issue,
+                },
+            )
             tasks = await self._revise(
                 goal,
                 tasks,
@@ -102,7 +122,28 @@ class AgentDagApplicationService:
                 critique,
                 context,
             )
-            execution = await self._execute(goal, tasks, context)
+            await self._emit(
+                progress,
+                "dag-replanned",
+                {
+                    "attempt": attempt_number + 1,
+                    "tasks": [
+                        {
+                            "id": task.id,
+                            "description": task.description,
+                            "dependsOn": list(task.depends_on),
+                        }
+                        for task in tasks
+                    ],
+                },
+            )
+            execution = await self._execute(
+                goal,
+                tasks,
+                context,
+                progress,
+                attempt_number + 1,
+            )
         return self._to_reply(goal, execution, context, attempts, accepted)
 
     async def _execute(
@@ -110,19 +151,64 @@ class AgentDagApplicationService:
         goal: str,
         tasks: list[_NormalizedTask],
         context: RunContext,
+        progress: ProgressSink | None = None,
+        attempt: int = 1,
     ) -> _DagExecution:
         levels = self._topological_levels(tasks)
+        await self._emit(
+            progress,
+            "dag-levels",
+            {
+                "attempt": attempt,
+                "levels": [[task.id for task in level] for level in levels],
+            },
+        )
 
         by_id: dict[str, AgentDagTaskResult] = {}
         ordered: list[AgentDagTaskResult] = []
-        for level in levels:
-            for result in await self._run_level(goal, level, by_id, context):
+        for index, level in enumerate(levels, start=1):
+            await self._emit(
+                progress,
+                "dag-level-start",
+                {"attempt": attempt, "level": index, "taskIds": [task.id for task in level]},
+            )
+            for result in await self._run_level(
+                goal,
+                level,
+                by_id,
+                context,
+                progress,
+                attempt,
+                index,
+            ):
                 by_id[result.task_id] = result
                 ordered.append(result)
+                await self._emit(
+                    progress,
+                    "dag-worker-result",
+                    {
+                        "attempt": attempt,
+                        "level": index,
+                        "taskId": result.task_id,
+                        "description": result.description,
+                        "result": result.result.model_dump(by_alias=True, mode="json"),
+                    },
+                )
+            await self._emit(
+                progress,
+                "dag-level-complete",
+                {"attempt": attempt, "level": index},
+            )
 
+        await self._emit(progress, "dag-synthesis-start", {"attempt": attempt})
         synthesis_goal = self._synthesis_goal(goal, ordered)
         synthesis_execution = await self._runner.run(synthesis_goal, context)
         synthesis = to_agent_reply(synthesis_goal, synthesis_execution, context)
+        await self._emit(
+            progress,
+            "dag-synthesis-result",
+            {"attempt": attempt, "result": synthesis.model_dump(by_alias=True, mode="json")},
+        )
         return _DagExecution(
             levels=levels,
             results=ordered,
@@ -210,9 +296,22 @@ class AgentDagApplicationService:
         level: list[_NormalizedTask],
         upstream_results: dict[str, AgentDagTaskResult],
         context: RunContext,
+        progress: ProgressSink | None = None,
+        attempt: int = 1,
+        level_index: int = 1,
     ) -> list[AgentDagTaskResult]:
         pending = [
-            asyncio.create_task(self._run_one(goal, task, upstream_results, context))
+            asyncio.create_task(
+                self._run_one(
+                    goal,
+                    task,
+                    upstream_results,
+                    context,
+                    progress,
+                    attempt,
+                    level_index,
+                )
+            )
             for task in level
         ]
         try:
@@ -229,7 +328,21 @@ class AgentDagApplicationService:
         task: _NormalizedTask,
         upstream_results: dict[str, AgentDagTaskResult],
         context: RunContext,
+        progress: ProgressSink | None = None,
+        attempt: int = 1,
+        level_index: int = 1,
     ) -> AgentDagTaskResult:
+        await self._emit(
+            progress,
+            "dag-worker-start",
+            {
+                "attempt": attempt,
+                "level": level_index,
+                "taskId": task.id,
+                "description": task.description,
+                "dependsOn": list(task.depends_on),
+            },
+        )
         worker_goal = self._worker_goal(goal, task, upstream_results)
         async with self._worker_slots:
             execution = await self._runner.run(worker_goal, context)
@@ -239,6 +352,11 @@ class AgentDagApplicationService:
             dependsOn=list(task.depends_on),
             result=to_agent_reply(worker_goal, execution, context),
         )
+
+    @staticmethod
+    async def _emit(progress: ProgressSink | None, event: str, data: object) -> None:
+        if progress is not None:
+            await progress.emit(event, data)
 
     def _validate_and_normalize(
         self,

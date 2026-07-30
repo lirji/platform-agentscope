@@ -1,0 +1,6 @@
+{"id":"async-run","path":"/agent/run/async","kind":"agent.run","request":{"goal":"总结退款政策"},"expectedEvents":["PENDING","RUNNING","SUCCEEDED"],"forbiddenTools":[]}
+{"id":"async-dag","path":"/agent/dag/run/async","kind":"agent.dag","request":{"goal":"并行分析","tasks":[{"id":"t1","description":"查询资料","dependsOn":[]}]},"expectedEvents":["PENDING","RUNNING","dag-levels","dag-worker-start","dag-worker-result","SUCCEEDED"],"forbiddenTools":[]}
+{"id":"async-plan","path":"/agent/dag/plan-run/async","kind":"agent.dag-plan","request":{"goal":"规划并回答"},"expectedEvents":["PENDING","RUNNING","dag-planned","SUCCEEDED"],"forbiddenTools":[]}
+{"id":"async-analyst","path":"/agent/analyst/run/async","kind":"agent.analyst","request":{"goal":"分析订单趋势"},"expectedEvents":["PENDING","RUNNING","dag-planned","SUCCEEDED"],"forbiddenTools":[]}
+{"id":"async-process-readonly","path":"/agent/process/run/async","kind":"agent.process","request":{"goal":"查询退款流程状态"},"expectedEvents":["PENDING","RUNNING","dag-planned","SUCCEEDED"],"forbiddenTools":["refund_start","workflow_complete","workflow_approve","workflow_claim"]}
+{"id":"async-cancel","path":"/agent/run/async","kind":"agent.run","request":{"goal":"长时间任务"},"expectedEvents":["PENDING","RUNNING","CANCELLED"],"forbiddenTools":[]}

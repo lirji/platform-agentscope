@@ -53,6 +53,15 @@ class RecordingRunner:
         return AgentExecution(final_answer="synthesized")
 
 
+class CollectProgress:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    async def emit(self, event: str, data: object) -> None:
+        del data
+        self.events.append(event)
+
+
 class FakeReviewer:
     def __init__(
         self,
@@ -156,6 +165,30 @@ async def test_diamond_dag_runs_by_level_and_propagates_direct_upstream() -> Non
     assert reply.synthesis.final_answer == "synthesized"
     assert reply.attempts == []
     assert reply.accepted_by_threshold is True
+
+
+async def test_dag_optional_progress_emits_legacy_lifecycle() -> None:
+    runner = RecordingRunner()
+    service = AgentDagApplicationService(runner)
+    progress = CollectProgress()
+    request = AgentDagRunRequest.model_validate(
+        {
+            "goal": "test",
+            "tasks": [{"id": "t1", "description": "work", "dependsOn": []}],
+        }
+    )
+
+    await service.run(request, context(), progress)
+
+    assert progress.events == [
+        "dag-levels",
+        "dag-level-start",
+        "dag-worker-start",
+        "dag-worker-result",
+        "dag-level-complete",
+        "dag-synthesis-start",
+        "dag-synthesis-result",
+    ]
 
 
 async def test_unknown_dependency_is_ignored_but_preserved_in_result() -> None:

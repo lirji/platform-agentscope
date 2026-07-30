@@ -1,0 +1,14 @@
+{
+  "status": "PASS",
+  "calls": {
+    "success": 1,
+    "retry2": 3,
+    "dead": 3
+  },
+  "legacyFieldCount": 10,
+  "deadInspection": {
+    "taskId": "qa-webhook-dead-bfd69af19a",
+    "status": "DEAD",
+    "attempts": 3
+  }
+}

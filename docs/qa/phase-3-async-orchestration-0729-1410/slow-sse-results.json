@@ -1,0 +1,20 @@
+{
+  "taskId": "qa-slow-sse-b161add792",
+  "status": "SUCCEEDED",
+  "receivedEventIds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "receivedCount": 11,
+  "monotonic": true,
+  "expectedMinimum": 11
+}

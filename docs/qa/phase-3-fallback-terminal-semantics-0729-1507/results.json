@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-07-29T15:07:00+08:00",
+  "profile": "localhost-full-stack",
+  "python": {
+    "tests": 204,
+    "coveragePercent": 88.92,
+    "ruff": "pass",
+    "format": "pass",
+    "mypy": "pass",
+    "contracts": "pass",
+    "shadowSmokeSamples": 8,
+    "build": "pass"
+  },
+  "runtime": {
+    "composeRunning": 25,
+    "composeTotal": 25,
+    "unhealthy": 0,
+    "restarting": 0,
+    "candidateModelRestoredTo": "chat-default"
+  },
+  "fallbackProbe": {
+    "taskId": "07f20c54-d422-46d7-a3e6-3c5db0936531",
+    "taskStatus": "SUCCEEDED",
+    "stopReason": "DONE",
+    "finalAnswer": "FALLBACK_OK"
+  },
+  "failureProbe": {
+    "taskId": "b76be3c2-027d-4f3c-a99c-094b94eeac70",
+    "taskStatus": "FAILED",
+    "result": null,
+    "error": "ASYNC_TASK_EXECUTION_FAILED"
+  },
+  "metrics": {
+    "candidateAnonymous": 401,
+    "candidateAuthenticated": 200,
+    "centralAnonymous": 401,
+    "centralAuthenticated": 200
+  }
+}

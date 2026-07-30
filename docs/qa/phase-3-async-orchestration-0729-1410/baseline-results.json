@@ -1,0 +1,85 @@
+{
+  "checks": {
+    "noToken": 401,
+    "invalidToken": 401,
+    "expiredToken": 401,
+    "crossTenantGet": 404,
+    "crossTenantListCount": 0,
+    "sameTenantBobSeesAlice": true,
+    "hiddenKindGet": 404,
+    "cancelledStatus": "CANCELLED",
+    "sse": {
+      "eventIds": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "resumedAfter": 1,
+      "resumedEventIds": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "monotonic": true
+    }
+  },
+  "tasks": {
+    "agent.run": {
+      "taskId": "293af155-c84a-4da3-ba36-21a73eaef30a",
+      "submittedStatus": "PENDING",
+      "terminalStatus": "SUCCEEDED",
+      "legacyFieldCount": 10,
+      "hasResult": true
+    },
+    "agent.dag": {
+      "taskId": "17ac5686-9afa-48e6-9182-eb8e7053e9f5",
+      "submittedStatus": "PENDING",
+      "terminalStatus": "SUCCEEDED",
+      "legacyFieldCount": 10,
+      "hasResult": true
+    },
+    "agent.dag-plan": {
+      "taskId": "c365e699-f6da-43aa-99f7-af03fcb2b66c",
+      "submittedStatus": "PENDING",
+      "terminalStatus": "SUCCEEDED",
+      "legacyFieldCount": 10,
+      "hasResult": true
+    },
+    "agent.analyst": {
+      "taskId": "220d5742-2193-4be5-ae39-ab36d97baeed",
+      "submittedStatus": "PENDING",
+      "terminalStatus": "SUCCEEDED",
+      "legacyFieldCount": 10,
+      "hasResult": true
+    },
+    "agent.process": {
+      "taskId": "33862bfd-1ace-4787-bb64-2951fb75a5f7",
+      "submittedStatus": "PENDING",
+      "terminalStatus": "SUCCEEDED",
+      "legacyFieldCount": 10,
+      "hasResult": true
+    }
+  },
+  "manual": {
+    "duplicateCreate": 409,
+    "duplicateEventSameSequence": true,
+    "wrongWorkerEvent": 409,
+    "wrongWorkerStatus": 409,
+    "terminalEventRejected": 409
+  }
+}

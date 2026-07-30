@@ -21,6 +21,9 @@ from agentscope_platform.core.context import (
     reset_run_context,
 )
 from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.infrastructure.agentscope.analytics_planner import (
+    AgentScopeAnalyticsSqlPlanner,
+)
 from agentscope_platform.infrastructure.agentscope.model_factory import (
     build_openai_chat_model,
 )
@@ -187,7 +190,16 @@ class AgentScopeRunner(AgentRunner):
             max_retries=3,
             parallel_tool_calls=True,
         )
-        retained_tools = ReadonlyToolset(self._settings, self._platform_client).tools()
+        analytics_planner = (
+            AgentScopeAnalyticsSqlPlanner(self._settings)
+            if self._settings.analytics_external_planner_shadow_enabled
+            else None
+        )
+        retained_tools = ReadonlyToolset(
+            self._settings,
+            self._platform_client,
+            analytics_planner=analytics_planner,
+        ).tools()
         toolkit = Toolkit(
             tools=[
                 ReadOnlyFunctionTool(

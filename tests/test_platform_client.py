@@ -57,6 +57,18 @@ async def test_retained_service_contracts_and_context_propagation() -> None:
                     "guardBlocked": False,
                 },
             )
+        if path == "/analytics/sql/plans/execute":
+            return httpx.Response(
+                200,
+                json={
+                    "question": "total",
+                    "sql": "select 1 where tenant_id = :tenantId",
+                    "rowCount": 1,
+                    "rows": [{"value": 1}],
+                    "executed": True,
+                    "rejectionReason": None,
+                },
+            )
         raise AssertionError(f"unexpected path: {path}")
 
     client = PlatformClient(Settings(), httpx.MockTransport(handler))
@@ -67,12 +79,18 @@ async def test_retained_service_contracts_and_context_propagation() -> None:
     tables = await client.list_analytics_tables(run_context)
     schema = await client.describe_analytics_table("orders", run_context)
     analytics = await client.query_analytics("total", run_context)
+    plan = await client.execute_analytics_plan(
+        "total",
+        "select 1 where tenant_id = :tenantId",
+        run_context,
+    )
 
     assert order is not None and order.order_no == "10/1"
     assert tables.tables == ["orders"]
     assert schema is not None and schema.schema_text == "id bigint"
     assert analytics.row_count == 1
-    assert len(seen) == 5
+    assert plan.executed is True
+    assert len(seen) == 6
     assert all(request.headers["X-Internal-Token"] == "signed-internal-token" for request in seen)
     assert all(request.headers["X-Trace-Id"] == "trace-123" for request in seen)
     rag_body = json.loads(seen[0].content)
@@ -82,7 +100,11 @@ async def test_retained_service_contracts_and_context_propagation() -> None:
         "minScore": 0.5,
         "category": "manual",
     }
-    assert json.loads(seen[-1].content) == {"question": "total"}
+    assert json.loads(seen[-2].content) == {"question": "total"}
+    assert json.loads(seen[-1].content) == {
+        "question": "total",
+        "sql": "select 1 where tenant_id = :tenantId",
+    }
 
 
 async def test_order_and_schema_404_are_normalized() -> None:

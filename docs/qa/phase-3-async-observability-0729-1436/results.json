@@ -1,0 +1,63 @@
+{
+  "topology": {
+    "python": "http://127.0.0.1:18085",
+    "central": "http://127.0.0.1:18086",
+    "model": "localhost deterministic stub",
+    "storage": "central in-memory"
+  },
+  "security": {
+    "pythonMetricsWithoutToken": 401,
+    "javaMetricsWithoutToken": 401
+  },
+  "metrics": {
+    "pythonStatus": 200,
+    "javaStatus": 200,
+    "pythonContentType": "text/plain; version=0.0.4; charset=utf-8",
+    "javaContentType": "text/plain;version=0.0.4;charset=utf-8",
+    "pythonRequiredSeries": [
+      "agent_async_task_submissions_total{kind=\"agent.run\"}",
+      "agent_async_task_completions_total{kind=\"agent.run\",status=\"SUCCEEDED\"}",
+      "agent_async_task_running{kind=\"agent.run\"}"
+    ],
+    "javaRequiredMarkers": [
+      "async_task_orphan_failed_total",
+      "kind=\"agent.run\""
+    ],
+    "forbiddenLabelsAbsent": [
+      "task_id=",
+      "tenant_id=",
+      "user_id=",
+      "prompt=",
+      "result=",
+      "token="
+    ],
+    "pythonSampleLineCount": 9,
+    "javaSampleLineCount": 253
+  },
+  "dualRun": {
+    "cases": 12,
+    "matched": 12,
+    "fields": [
+      "finalAnswer",
+      "stopReason"
+    ]
+  },
+  "soak": {
+    "durationSeconds": 30.033,
+    "batchSize": 8,
+    "submitted": 240,
+    "succeeded": 240,
+    "failed": 0,
+    "throughputPerSecond": 7.991,
+    "submitLatencyMs": {
+      "p50": 146.398,
+      "p95": 233.448,
+      "max": 326.674
+    },
+    "endToEndLatencyMs": {
+      "p50": 256.59,
+      "p95": 312.898,
+      "max": 384.151
+    }
+  }
+}

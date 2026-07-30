@@ -1,0 +1,13 @@
+{
+  "dualRunCases": 12,
+  "dualRunExactMatches": 12,
+  "capacitySubmissions": 40,
+  "accepted": 40,
+  "terminalSucceeded": 40,
+  "terminalFailed": 0,
+  "submitLatencyMs": {
+    "p50": 1316.81,
+    "p95": 1610.16,
+    "max": 1619.54
+  }
+}

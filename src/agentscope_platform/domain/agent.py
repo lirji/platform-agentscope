@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -16,6 +17,7 @@ class RunContext:
     identity: TenantIdentity
     internal_token: str | None
     trace_id: str
+    token_expires_at: datetime | None = None
 
 
 class AgentRunRequest(BaseModel):

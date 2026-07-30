@@ -1,6 +1,83 @@
 {
   "components": {
     "schemas": {
+      "AgentAsyncTask": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "input": {
+            "additionalProperties": true,
+            "title": "Input",
+            "type": "object"
+          },
+          "result": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AsyncTaskStatus"
+          },
+          "taskId": {
+            "title": "Taskid",
+            "type": "string"
+          },
+          "tenantId": {
+            "title": "Tenantid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "userId": {
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "tenantId",
+          "userId",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ],
+        "title": "AgentAsyncTask",
+        "type": "object"
+      },
       "AgentDagAttempt": {
         "properties": {
           "aggregate": {
@@ -387,6 +464,36 @@
         "title": "AgentStep",
         "type": "object"
       },
+      "AgentTaskCancelReply": {
+        "additionalProperties": false,
+        "properties": {
+          "cancelled": {
+            "title": "Cancelled",
+            "type": "boolean"
+          },
+          "taskId": {
+            "title": "Taskid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "cancelled"
+        ],
+        "title": "AgentTaskCancelReply",
+        "type": "object"
+      },
+      "AsyncTaskStatus": {
+        "enum": [
+          "PENDING",
+          "RUNNING",
+          "SUCCEEDED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "AsyncTaskStatus",
+        "type": "string"
+      },
       "ChainRunReply": {
         "properties": {
           "completed": {
@@ -479,6 +586,32 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "McpToolDescriptor": {
+        "additionalProperties": false,
+        "description": "Language-neutral capability descriptor consumed by platform interop.",
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "inputSchema": {
+            "additionalProperties": true,
+            "title": "Inputschema",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "inputSchema"
+        ],
+        "title": "McpToolDescriptor",
         "type": "object"
       },
       "ReflexionAttempt": {
@@ -712,6 +845,105 @@
         ],
         "title": "VotingStrategy",
         "type": "string"
+      },
+      "WorkflowReplyDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "reply": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Reply",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reply"
+        ],
+        "title": "WorkflowReplyDraft",
+        "type": "object"
+      },
+      "WorkflowReplyDraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "chatId": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Chatid",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chatId",
+          "message"
+        ],
+        "title": "WorkflowReplyDraftRequest",
+        "type": "object"
+      },
+      "WorkflowTicketDraft": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Category",
+            "type": "string"
+          },
+          "priority": {
+            "pattern": "^(LOW|MEDIUM|HIGH|CRITICAL)$",
+            "title": "Priority",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Tags",
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "priority",
+          "category",
+          "summary"
+        ],
+        "title": "WorkflowTicketDraft",
+        "type": "object"
+      },
+      "WorkflowTicketDraftRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "WorkflowTicketDraftRequest",
+        "type": "object"
       }
     }
   },
@@ -767,6 +999,79 @@
         "summary": "Run Analyst Agent",
         "tags": [
           "agent-analyst"
+        ]
+      }
+    },
+    "/agent/analyst/run/async": {
+      "post": {
+        "operationId": "run_analyst_agent_async_agent_analyst_run_async_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Analyst Agent Async",
+        "tags": [
+          "agent-analyst"
+        ]
+      }
+    },
+    "/agent/capabilities": {
+      "get": {
+        "operationId": "agent_capabilities_agent_capabilities_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/McpToolDescriptor"
+                  },
+                  "title": "Response Agent Capabilities Agent Capabilities Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Discover platform Agent capabilities",
+        "tags": [
+          "agent"
         ]
       }
     },
@@ -866,6 +1171,54 @@
         ]
       }
     },
+    "/agent/dag/plan-run/async": {
+      "post": {
+        "operationId": "plan_and_run_agent_dag_async_agent_dag_plan_run_async_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan And Run Agent Dag Async",
+        "tags": [
+          "agent-dag"
+        ]
+      }
+    },
     "/agent/dag/run": {
       "post": {
         "operationId": "run_agent_dag_agent_dag_run_post",
@@ -902,6 +1255,47 @@
           }
         },
         "summary": "Run Agent Dag",
+        "tags": [
+          "agent-dag"
+        ]
+      }
+    },
+    "/agent/dag/run/async": {
+      "post": {
+        "operationId": "run_agent_dag_async_agent_dag_run_async_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentDagRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Agent Dag Async",
         "tags": [
           "agent-dag"
         ]
@@ -956,6 +1350,54 @@
         ]
       }
     },
+    "/agent/process/run/async": {
+      "post": {
+        "operationId": "run_readonly_process_async_agent_process_run_async_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AgentPlanRunRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Readonly Process Async",
+        "tags": [
+          "agent-process"
+        ]
+      }
+    },
     "/agent/reflexive": {
       "post": {
         "operationId": "run_reflexion_agent_reflexive_post",
@@ -1004,6 +1446,47 @@
         ]
       }
     },
+    "/agent/reflexive/stream": {
+      "post": {
+        "operationId": "stream_reflexion_agent_reflexive_stream_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReflexionRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Reflexion",
+        "tags": [
+          "agent-reflexion"
+        ]
+      }
+    },
     "/agent/run": {
       "post": {
         "operationId": "run_agent_agent_run_post",
@@ -1042,6 +1525,205 @@
         "summary": "Run Agent",
         "tags": [
           "agent"
+        ]
+      }
+    },
+    "/agent/run/async": {
+      "post": {
+        "operationId": "run_agent_async_agent_run_async_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Agent Async",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/agent/tasks": {
+      "get": {
+        "operationId": "list_agent_tasks_agent_tasks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentAsyncTask"
+                  },
+                  "title": "Response List Agent Tasks Agent Tasks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Agent Tasks",
+        "tags": [
+          "agent-tasks"
+        ]
+      }
+    },
+    "/agent/tasks/{task_id}": {
+      "delete": {
+        "operationId": "cancel_agent_task_agent_tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTaskCancelReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Agent Task",
+        "tags": [
+          "agent-tasks"
+        ]
+      },
+      "get": {
+        "operationId": "get_agent_task_agent_tasks__task_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAsyncTask"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Agent Task",
+        "tags": [
+          "agent-tasks"
+        ]
+      }
+    },
+    "/agent/tasks/{task_id}/stream": {
+      "get": {
+        "operationId": "stream_agent_task_agent_tasks__task_id__stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lastEventId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Lasteventid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Agent Task",
+        "tags": [
+          "agent-tasks"
         ]
       }
     },
@@ -1138,6 +1820,102 @@
           }
         },
         "summary": "Info",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/internal/workflow/reply-draft": {
+      "post": {
+        "operationId": "draft_workflow_reply_internal_workflow_reply_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowReplyDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowReplyDraft"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Workflow Reply",
+        "tags": [
+          "workflow-ai-candidate"
+        ]
+      }
+    },
+    "/internal/workflow/ticket-draft": {
+      "post": {
+        "operationId": "draft_workflow_ticket_internal_workflow_ticket_draft_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowTicketDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowTicketDraft"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draft Workflow Ticket",
+        "tags": [
+          "workflow-ai-candidate"
+        ]
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "prometheus_metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scrape low-cardinality service metrics",
         "tags": [
           "platform"
         ]
