@@ -7,6 +7,11 @@ from typing import Any
 from agentscope_platform.api.app import create_app
 from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest, AgentStep
+from agentscope_platform.domain.async_task import (
+    AgentAsyncTask,
+    AgentTaskProgress,
+    CentralAsyncTaskEvent,
+)
 from agentscope_platform.domain.dag import (
     AgentDagRunReply,
     AgentDagRunRequest,
@@ -21,6 +26,7 @@ from agentscope_platform.domain.sibling import (
     VoteReply,
     VoteRequest,
 )
+from agentscope_platform.evaluation.models import ShadowCase, ShadowReport
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
@@ -66,6 +72,21 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         ),
         CONTRACTS / "legacy" / "reflexion-reply.schema.json": (
             ReflexionReply.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "agent-async-task.schema.json": (
+            AgentAsyncTask.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "agent-task-progress.schema.json": (
+            AgentTaskProgress.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "legacy" / "async-task-stream-event.schema.json": (
+            CentralAsyncTaskEvent.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "evaluation" / "shadow-case.schema.json": ShadowCase.model_json_schema(
+            by_alias=True
+        ),
+        CONTRACTS / "evaluation" / "shadow-report.schema.json": ShadowReport.model_json_schema(
+            by_alias=True
         ),
         CONTRACTS / "openapi.json": app.openapi(),
     }

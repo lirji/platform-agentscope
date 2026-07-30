@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/boundaries/conversation-stream-event.schema.json",
+  "title": "Stateless conversation candidate stream event",
+  "description": "Internal candidate SSE envelope. The Java state plane remains authoritative for memory, grounding, guardrails and client-facing SSE.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "sequence",
+    "type",
+    "data"
+  ],
+  "properties": {
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "enum": [
+        "token",
+        "done",
+        "error"
+      ]
+    },
+    "data": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "token"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "done"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "const": ""
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "data": {
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

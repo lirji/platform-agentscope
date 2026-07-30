@@ -70,14 +70,18 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 
 ## 6. SSE 与异步契约
 
-尚未实现。迁移时必须保持：
+已实现以下兼容入口：
 
-- 原任务 ID 和租户可见性规则。
-- `PENDING/RUNNING/SUCCEEDED/FAILED/CANCELLED`。
-- DAG 的 `dag-*` 事件名与事件顺序约束。
-- Last-Event-ID/断点恢复能力。
-- 取消后不得被迟到 worker 覆盖为成功。
-- webhook 至少一次投递语义及幂等消费说明。
+- 五类 `POST .../async`：run、dag/run、dag/plan-run、analyst/run、process/run。
+- `GET /agent/tasks`、`GET|DELETE /agent/tasks/{taskId}`。
+- `GET /agent/tasks/{taskId}/stream`，query `lastEventId` 优先于 header
+  `Last-Event-ID`。
+- `POST /agent/reflexive/stream`，依次产生 `attempt-start/answer/critique/done`。
+
+任务外部视图固定为十字段，不暴露中央 `kind/webhookUrl/lease*`；同租户的非 Agent kind
+也按 404/过滤处理。中央 task-scoped sequence 作为 SSE `id`，lifecycle data 投影为十字段，
+`dag-*` progress data 保持 `{taskId,event,data,ts}`。内部 token 仅存在于进程内上下文，
+不会进入任务 input/result/event/webhook。取消与 worker 完成由中央原子终态竞争裁决。
 
 ## 7. `/agent/dag/run`
 
@@ -101,7 +105,7 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 `400 {"error": "..."}`。为兼容旧实现，未知依赖会从拓扑计算中忽略，但仍在
 `dependsOn` 回显。Critic/Replanner 模型或结构失败返回脱敏 502，不把未评审结果标为达标。
 
-异步 DAG/Analyst 端点和进度事件仍由旧服务处理，尚不属于新服务契约。
+对应 async 端点复用相同 service；DAG 进度写入中央持久事件 journal。
 
 ## 8. `/agent/dag/plan-run` 与 `/agent/analyst/run`
 
@@ -115,7 +119,8 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 已迁的 `schema_explore` 和 `analytics_sql`，强调先探表后取数。空计划、无效结构化输出
 或可恢复的 Planner 调用失败回退到单任务 `t1`；缺少模型配置仍返回 503。
 
-同步端点仅为兼容接受 `webhookUrl`，不会发送 webhook。对应异步入口仍未迁移。
+同步端点仅为兼容接受 `webhookUrl`，不会发送 webhook；async 端点只把 URL 交给中央
+任务中心，由中央以至少一次 outbox 语义投递。
 
 ## 9. Sibling orchestrators
 
@@ -126,7 +131,7 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 - `/agent/reflexive` 接受 `question`，返回 `finalAnswer`、逐轮评分、阈值结果和 `tenantId`。
 
 空文本和非法候选数返回 `400 {"error":"..."}`；纯文本生成失败返回脱敏 502。Reflexion
-Critic 失败沿用质量评审脱敏 502。流式 Reflexion 尚未迁移。
+Critic 失败沿用质量评审脱敏 502。流式 Reflexion 不创建持久任务，断开连接会取消 producer。
 
 ## 10. `/agent/process/run` 只读候选
 
@@ -134,10 +139,18 @@ Critic 失败沿用质量评审脱敏 502。流式 Reflexion 尚未迁移。
 `workflow_status`、`workflow_tasks` 和 `rag_search` 查询；不会执行 `refund_start` 或
 任何审批/认领/删除操作。要求写操作的目标会返回只读能力边界说明。
 
-该收窄契约不与旧 Process 写能力等价，edge 仍不得切换“发起退款”流量。
-`/agent/process/run/async` 尚未迁移。
+该收窄契约不与旧 Process 写能力等价。全量默认切换后，“发起退款”等写诉求会明确停留在
+只读能力边界，不会静默回退 Java。
+`/agent/process/run/async` 已迁移但仍调用相同只读 Planner/DAG 工具集。
 
-## 11. 契约资产
+## 11. `/agent/capabilities`
+
+认证后的 `GET /agent/capabilities` 返回四个旧 interop 可直接消费的
+`McpToolDescriptor`：run、run_async、dag.plan_run、dag.plan_run_async。字段名和 input
+JSON Schema 保持旧契约，description 标明 AgentScope。该端点是 interop live discovery
+全量切换的必需契约。
+
+## 12. 契约资产
 
 当前已提交：
 
@@ -151,6 +164,9 @@ Critic 失败沿用质量评审脱敏 502。流式 Reflexion 尚未迁移。
 - `contracts/legacy/chain-run-{request,reply}.schema.json`
 - `contracts/legacy/vote-{request,reply}.schema.json`
 - `contracts/legacy/reflexion-{request,reply}.schema.json`
+- `contracts/legacy/agent-async-task.schema.json`
+- `contracts/legacy/agent-task-progress.schema.json`
+- `contracts/legacy/async-task-stream-event.schema.json`
 - `contracts/openapi.json`
 
 运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。

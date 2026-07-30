@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/boundaries/conversation-generation.schema.json",
+  "title": "Stateless conversation generation boundary",
+  "description": "Candidate generation only. Trusted identity is carried by internal headers; Java retains memory, profile, cache, RAG, guardrails and grounding.",
+  "$defs": {
+    "style": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "language",
+        "tone",
+        "citation_policy",
+        "extra"
+      ],
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "tone": {
+          "type": "string"
+        },
+        "citation_policy": {
+          "type": "string"
+        },
+        "extra": {
+          "type": "string"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "message",
+        "context",
+        "style",
+        "history"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "1"
+        },
+        "message": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string"
+        },
+        "style": {
+          "$ref": "#/$defs/style"
+        },
+        "history": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/historyMessage"
+          }
+        }
+      }
+    },
+    "historyMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "content"
+      ],
+      "properties": {
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant",
+            "tool"
+          ]
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reply"
+      ],
+      "properties": {
+        "reply": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

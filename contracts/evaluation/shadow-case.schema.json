@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "AnswerAssertions": {
+      "additionalProperties": false,
+      "properties": {
+        "allOf": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allof",
+          "type": "array"
+        },
+        "anyOf": {
+          "default": [],
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Anyof",
+          "type": "array"
+        },
+        "noneOf": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Noneof",
+          "type": "array"
+        }
+      },
+      "title": "AnswerAssertions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "answerAssertions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AnswerAssertions"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "expectedTools": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Expectedtools",
+      "type": "array"
+    },
+    "forbiddenTools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbiddentools",
+      "type": "array"
+    },
+    "goal": {
+      "minLength": 1,
+      "title": "Goal",
+      "type": "string"
+    },
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "judgeCriteria": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judgecriteria"
+    },
+    "judgeMinScore": {
+      "anyOf": [
+        {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Judgeminscore"
+    },
+    "readOnly": {
+      "title": "Readonly",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "goal",
+    "expectedTools",
+    "readOnly"
+  ],
+  "title": "ShadowCase",
+  "type": "object"
+}

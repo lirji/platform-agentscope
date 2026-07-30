@@ -18,6 +18,112 @@ def test_contract_snapshots_are_current() -> None:
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_evaluation_contracts_are_language_neutral() -> None:
+    case_schema = json.loads(
+        (ROOT / "contracts" / "evaluation" / "shadow-case.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    report_schema = json.loads(
+        (ROOT / "contracts" / "evaluation" / "shadow-report.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert {"id", "goal", "expectedTools", "readOnly"}.issubset(case_schema["required"])
+    assert {"suite", "generated_at", "runs_per_case", "gate", "samples"}.issubset(
+        report_schema["required"]
+    )
+
+
+def test_analytics_planner_contract_excludes_trusted_identity_and_db_credentials() -> None:
+    schema = json.loads(
+        (ROOT / "contracts" / "boundaries" / "analytics-sql-plan.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    request = schema["$defs"]["request"]
+    response = schema["$defs"]["response"]
+
+    assert request["required"] == ["question", "sql"]
+    assert request["additionalProperties"] is False
+    assert {"tenantId", "userId", "databaseUrl", "credentials"}.isdisjoint(
+        request["properties"]
+    )
+    assert {"executed", "rejectionReason", "rows"}.issubset(response["required"])
+
+
+def test_workflow_ai_draft_contract_cannot_carry_decisions_or_trusted_identity() -> None:
+    schema = json.loads(
+        (ROOT / "contracts" / "boundaries" / "workflow-ai-draft.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    ticket_properties = set(schema["$defs"]["ticketRequest"]["properties"])
+    reply_properties = set(schema["$defs"]["replyRequest"]["properties"])
+    forbidden = {
+        "tenantId",
+        "userId",
+        "approved",
+        "decision",
+        "taskId",
+        "instanceId",
+        "internalToken",
+    }
+
+    assert forbidden.isdisjoint(ticket_properties)
+    assert forbidden.isdisjoint(reply_properties)
+
+
+def test_conversation_generation_contract_is_stateless_and_identity_free() -> None:
+    schema = json.loads(
+        (ROOT / "contracts" / "boundaries" / "conversation-generation.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    request = schema["$defs"]["request"]
+    response = schema["$defs"]["response"]
+    forbidden = {
+        "tenantId",
+        "tenant_id",
+        "userId",
+        "user_id",
+        "chatId",
+        "chat_id",
+        "memory",
+        "profile",
+        "cache",
+        "internalToken",
+        "internal_token",
+    }
+
+    assert request["additionalProperties"] is False
+    assert request["required"] == ["schema_version", "message", "context", "style", "history"]
+    assert forbidden.isdisjoint(request["properties"])
+    assert schema["$defs"]["historyMessage"]["properties"]["role"]["enum"] == [
+        "system",
+        "user",
+        "assistant",
+        "tool",
+    ]
+    assert response["required"] == ["reply"]
+
+
+def test_conversation_candidate_stream_contract_has_terminal_events() -> None:
+    schema = json.loads(
+        (
+            ROOT
+            / "contracts"
+            / "boundaries"
+            / "conversation-stream-event.schema.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == ["sequence", "type", "data"]
+    assert schema["properties"]["type"]["enum"] == ["token", "done", "error"]
+
+
 def test_readonly_evaluation_fixture_is_safe_and_well_formed() -> None:
     path = ROOT / "eval" / "baseline" / "readonly-cases.jsonl"
     cases = [

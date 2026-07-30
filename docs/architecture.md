@@ -76,6 +76,8 @@ api ───────▶ application ───────▶ domain
 
 ## 5. 运行与部署
 
+- platform edge 与 interop 默认都指向部署名 `agentscope-orchestrator`；Java Agent 只作
+  显式整服务回滚，不做单请求自动 fallback。
 - AgentScope 模型调用继续指向 LiteLLM，不在应用中维护 provider switch。
 - 服务默认无状态，可横向扩容。
 - 长期任务、取消、SSE 和 webhook 状态最终仍以 `async-task-service` 为权威。
@@ -99,4 +101,4 @@ api ───────▶ application ───────▶ domain
   Reflexion/Voting/Chaining。
 - Phase 3：统一异步任务、SSE、取消和 webhook。
 - Phase 4：受治理的副作用工具、Browser、MCP、Sandbox。
-- Phase 5：灰度切换并移除旧 Java 编排代码。
+- Phase 5：本地默认流量已全量切换；保留旧 Java 镜像一个回滚周期，生产发布与代码删除待后续执行。

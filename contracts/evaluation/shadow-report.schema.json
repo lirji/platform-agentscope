@@ -1,0 +1,419 @@
+{
+  "$defs": {
+    "GateResult": {
+      "properties": {
+        "candidate": {
+          "$ref": "#/$defs/TargetSummary"
+        },
+        "legacy": {
+          "$ref": "#/$defs/TargetSummary"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "regressions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Regressions",
+          "type": "array"
+        },
+        "thresholds": {
+          "$ref": "#/$defs/ShadowThresholds"
+        }
+      },
+      "required": [
+        "passed",
+        "regressions",
+        "thresholds",
+        "legacy",
+        "candidate"
+      ],
+      "title": "GateResult",
+      "type": "object"
+    },
+    "RunSample": {
+      "properties": {
+        "answer_evaluated": {
+          "default": false,
+          "title": "Answer Evaluated",
+          "type": "boolean"
+        },
+        "answer_passed": {
+          "default": true,
+          "title": "Answer Passed",
+          "type": "boolean"
+        },
+        "answer_score": {
+          "default": 1,
+          "title": "Answer Score",
+          "type": "number"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "completed": {
+          "title": "Completed",
+          "type": "boolean"
+        },
+        "contract_valid": {
+          "title": "Contract Valid",
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "forbidden_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Tools",
+          "type": "array"
+        },
+        "judge_evaluated": {
+          "default": false,
+          "title": "Judge Evaluated",
+          "type": "boolean"
+        },
+        "judge_passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judge Passed"
+        },
+        "judge_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judge Score"
+        },
+        "latency_ms": {
+          "title": "Latency Ms",
+          "type": "integer"
+        },
+        "missing_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Tools",
+          "type": "array"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "run": {
+          "title": "Run",
+          "type": "integer"
+        },
+        "status_code": {
+          "title": "Status Code",
+          "type": "integer"
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Reason"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "tool_order_valid": {
+          "default": false,
+          "title": "Tool Order Valid",
+          "type": "boolean"
+        },
+        "tool_score": {
+          "default": 0,
+          "title": "Tool Score",
+          "type": "number"
+        },
+        "tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tools",
+          "type": "array"
+        },
+        "trace_id": {
+          "default": "",
+          "title": "Trace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "target",
+        "run",
+        "status_code",
+        "latency_ms",
+        "contract_valid",
+        "completed",
+        "passed"
+      ],
+      "title": "RunSample",
+      "type": "object"
+    },
+    "ShadowThresholds": {
+      "properties": {
+        "answer_pass_rate_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Answer Pass Rate Tolerance",
+          "type": "number"
+        },
+        "completion_rate_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Completion Rate Tolerance",
+          "type": "number"
+        },
+        "judge_pass_rate_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Judge Pass Rate Tolerance",
+          "type": "number"
+        },
+        "judge_score_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Judge Score Tolerance",
+          "type": "number"
+        },
+        "min_answer_pass_rate": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Answer Pass Rate",
+          "type": "number"
+        },
+        "min_completion_rate": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Completion Rate",
+          "type": "number"
+        },
+        "min_judge_pass_rate": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Judge Pass Rate",
+          "type": "number"
+        },
+        "min_pass_rate": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Pass Rate",
+          "type": "number"
+        },
+        "min_tool_accuracy": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Tool Accuracy",
+          "type": "number"
+        },
+        "p95_latency_ratio": {
+          "default": 1.5,
+          "minimum": 0,
+          "title": "P95 Latency Ratio",
+          "type": "number"
+        },
+        "p95_latency_slack_ms": {
+          "default": 250,
+          "minimum": 0,
+          "title": "P95 Latency Slack Ms",
+          "type": "integer"
+        },
+        "pass_rate_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Pass Rate Tolerance",
+          "type": "number"
+        },
+        "tool_accuracy_tolerance": {
+          "default": 0.05,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Tool Accuracy Tolerance",
+          "type": "number"
+        }
+      },
+      "title": "ShadowThresholds",
+      "type": "object"
+    },
+    "TargetSummary": {
+      "properties": {
+        "answer_evaluated_runs": {
+          "default": 0,
+          "title": "Answer Evaluated Runs",
+          "type": "integer"
+        },
+        "answer_pass_rate": {
+          "default": 1,
+          "title": "Answer Pass Rate",
+          "type": "number"
+        },
+        "average_judge_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Average Judge Score"
+        },
+        "completion_rate": {
+          "title": "Completion Rate",
+          "type": "number"
+        },
+        "contract_errors": {
+          "title": "Contract Errors",
+          "type": "integer"
+        },
+        "forbidden_violations": {
+          "title": "Forbidden Violations",
+          "type": "integer"
+        },
+        "judge_evaluated_runs": {
+          "default": 0,
+          "title": "Judge Evaluated Runs",
+          "type": "integer"
+        },
+        "judge_pass_rate": {
+          "default": 1,
+          "title": "Judge Pass Rate",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "p95_latency_ms": {
+          "title": "P95 Latency Ms",
+          "type": "integer"
+        },
+        "pass_rate": {
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed_runs": {
+          "title": "Passed Runs",
+          "type": "integer"
+        },
+        "stop_reasons": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Stop Reasons",
+          "type": "object"
+        },
+        "tool_accuracy": {
+          "title": "Tool Accuracy",
+          "type": "number"
+        },
+        "total_runs": {
+          "title": "Total Runs",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "total_runs",
+        "passed_runs",
+        "pass_rate",
+        "completion_rate",
+        "tool_accuracy",
+        "forbidden_violations",
+        "contract_errors",
+        "p95_latency_ms",
+        "stop_reasons"
+      ],
+      "title": "TargetSummary",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "gate": {
+      "$ref": "#/$defs/GateResult"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "runs_per_case": {
+      "title": "Runs Per Case",
+      "type": "integer"
+    },
+    "samples": {
+      "items": {
+        "$ref": "#/$defs/RunSample"
+      },
+      "title": "Samples",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "suite": {
+      "title": "Suite",
+      "type": "string"
+    }
+  },
+  "required": [
+    "suite",
+    "generated_at",
+    "runs_per_case",
+    "gate",
+    "samples"
+  ],
+  "title": "ShadowReport",
+  "type": "object"
+}

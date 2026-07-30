@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/boundaries/workflow-ai-draft.schema.json",
+  "title": "Workflow AI Draft Boundary",
+  "$defs": {
+    "ticketRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message"],
+      "properties": {"message": {"type": "string", "minLength": 1}}
+    },
+    "ticketResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "priority", "category", "summary", "tags"],
+      "properties": {
+        "title": {"type": "string"},
+        "priority": {"enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
+        "category": {"type": "string"},
+        "summary": {"type": "string"},
+        "tags": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "replyRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chatId", "message"],
+      "properties": {
+        "chatId": {"type": "string"},
+        "message": {"type": "string", "minLength": 1}
+      }
+    },
+    "replyResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reply"],
+      "properties": {"reply": {"type": "string", "minLength": 1}}
+    }
+  }
+}

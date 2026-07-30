@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform.local/contracts/boundaries/analytics-sql-plan.schema.json",
+  "title": "Analytics SQL Planner Boundary",
+  "$defs": {
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["question", "sql"],
+      "properties": {
+        "question": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sql": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question",
+        "sql",
+        "rowCount",
+        "rows",
+        "executed",
+        "rejectionReason"
+      ],
+      "properties": {
+        "question": {
+          "type": "string"
+        },
+        "sql": {
+          "type": ["string", "null"]
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "executed": {
+          "type": "boolean"
+        },
+        "rejectionReason": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

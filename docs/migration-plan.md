@@ -28,8 +28,9 @@
 ## Phase 1：只读 ReAct 垂直切片
 
 状态：代码切片、离线门禁和 Shadow 双跑工具已完成；本地真实协议三轮双跑已通过。
-订单事实证据和 trace 归因估算成本门禁已通过；开放式答案质量和 edge 灰度发布仍待
-批准。候选 `/agent/v2/run` 默认关闭入口已准备。
+订单事实证据和 trace 归因估算成本门禁已通过；候选 `/agent/v2/run` 默认关闭入口已准备，
+且旧平台 edge 的本地 `acme` 测试租户透明切流/回滚演练已通过。开放式答案模型 grader 与
+生产扩量仍待批准。
 
 范围：
 
@@ -59,7 +60,7 @@
 
 状态：`/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run`、critic/replan
 同步质量闭环，以及 Prompt Chaining、Voting、Reflexion 同步 sibling orchestrators 已完成。
-Process 状态/待办只读切片也已完成；流程发起写能力和流式/异步能力待治理后迁移。
+Process 状态/待办只读切片也已完成；流程发起写能力仍留在旧服务。
 
 范围：
 
@@ -78,12 +79,14 @@ Process 状态/待办只读切片也已完成；流程发起写能力和流式/�
 
 ## Phase 3：异步任务
 
+状态：候选实现完成，默认关闭，等待双仓故障注入、真实双跑和生产灰度审批。
+
 范围：
 
 - 复用 `async-task-service`。
 - lease、心跳、取消、状态机。
 - SSE、断点恢复、webhook。
-- worker 重启恢复。
+- worker 重启后的遗留任务由五 kind allowlist reaper 明确失败；不恢复/重放模型调用。
 
 退出条件：
 
@@ -111,12 +114,15 @@ Process 状态/待办只读切片也已完成；流程发起写能力和流式/�
 
 ## Phase 5：灰度切换
 
+状态：本地全量默认切换已获批准并实施；edge、interop、Compose 与 Helm 默认指向
+AgentScope，Java 镜像/服务定义保留为整服务回滚目标。生产发布与 Java 代码删除未执行。
+
 1. Shadow：新服务运行但结果不返回用户。
 2. 按能力灰度：只读 Agent 先切。
 3. 按租户灰度：内部/测试租户先切。
 4. 扩大流量，持续比较完成率、工具错误率、延迟、成本和安全事件。
-5. 将 `AGENT_URI` 切换到新服务。
-6. 保留旧镜像和配置一个完整回滚周期。
+5. [x] 将 `AGENT_URI` 和 interop `AGENT_BASE_URL` 切换到新服务。
+6. [x] 保留旧镜像和配置一个完整回滚周期。
 7. 稳定后移除旧 Java 编排代码，保留契约与回归用例。
 
 ## 工作清单
@@ -139,7 +145,8 @@ Process 状态/待办只读切片也已完成；流程发起写能力和流式/�
 - [x] 实现 critic/replan、加权阈值和有限重规划。
 - [x] 实现同步 Prompt Chaining、Voting、Reflexion sibling orchestrators。
 - [x] 实现 Process 状态/待办只读查询切片，写能力保持在旧服务。
-- [ ] 对接 async-task。
+- [x] 对接 async-task、持久事件 journal、任务 SSE、取消、心跳和定向 orphan reaper。
 - [ ] 建立副作用 Tool Policy。
 - [x] 完成候选服务侧 `/agent/v2/run` 开关与本地启停回滚演练。
-- [ ] 完成 edge 按测试租户切流与回滚演练。
+- [x] 完成本地 edge 按 `acme` Casdoor 测试租户切流与回滚演练；生产扩量仍需独立审批。
+- [x] 补齐 `/agent/capabilities`，将 Compose/Helm、edge 与 interop 默认目标全量切到 AgentScope。
