@@ -54,12 +54,18 @@ AgentScope 的 finished reason 和异常必须在应用层映射，不把框架�
 - `uid`：userId
 - `scopes`：字符串数组
 - `dept`：可选部门
-- `exp`：必需
+- `iss=langchain4j-platform`、`aud=[platform-internal]`：签发域和唯一内部 audience
+- JOSE `kid=platform-internal-v1`、`typ=JWT`：当前内部签名 key 标识
+- `token_use=internal_access`：拒绝 service callback 或其它用途令牌冒充业务身份
+- `jti`、`iat`、`exp`：必需；默认最长 300 秒，只允许有界 clock skew
 
 无效或缺失 token 在认证开启时返回 401。`/health`、`/readiness`、`/info` 不要求业务身份。
 
-Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须延长多跳调用窗口，应新增与
-`platform-security` 一致的内部 token 签发端口，而不是静默使用 master secret。
+调用保留的 Java 领域服务继续沿用经过验证的内部 token，以保持 tenant/user 权威上下文。
+MCP、Browser 与 Code 等外部 provider 不接收该 caller token；每次调用改发专用
+`X-Agent-Service-Token`，使用独立 key，并绑定 provider audience、tenant、actor、action、
+`token_use=agent_downstream`、`jti/iat/exp`。provider 必须校验完整契约，不能把它当平台内部 token。
+claims JSON Schema 位于 `contracts/boundaries/downstream-service-token-claims.schema.json`。
 
 ## 5. Trace
 
@@ -81,7 +87,11 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 任务外部视图固定为十字段，不暴露中央 `kind/webhookUrl/lease*`；同租户的非 Agent kind
 也按 404/过滤处理。中央 task-scoped sequence 作为 SSE `id`，lifecycle data 投影为十字段，
 `dag-*` progress data 保持 `{taskId,event,data,ts}`。内部 token 仅存在于进程内上下文，
-不会进入任务 input/result/event/webhook。取消与 worker 完成由中央原子终态竞争裁决。
+不会进入任务 input/result/event/webhook。用户查询、列表、流和取消按 `tenant + owner user`
+授权；同租户其他用户也得到 404。`lease/status/events` 是独立 worker 数据面，只接受
+`X-Async-Worker-Token`：HS256 凭据绑定 service、tenant、actor、worker、task 和单一 action，
+TTL 最长 120 秒，不能用普通 `X-Internal-Token` 替代。状态与进度写入还必须持有当前未过期
+租约。取消与 worker 完成由中央原子终态竞争裁决。
 
 ## 7. `/agent/dag/run`
 
@@ -132,16 +142,43 @@ Phase 1 的出站工具沿用经过验证的入口内部 token。后续如必须
 
 空文本和非法候选数返回 `400 {"error":"..."}`；纯文本生成失败返回脱敏 502。Reflexion
 Critic 失败沿用质量评审脱敏 502。流式 Reflexion 不创建持久任务，断开连接会取消 producer。
+流式 answer/critique/done 和任务 lifecycle/progress 的任意嵌套字符串都会遮蔽邮箱、中国手机号与
+身份证号。Reflexion 失败事件固定为
+`{"error":"agent reflexion failed","code":"AGENT_REFLEXION_STREAM_FAILED"}`；任务代理解析或
+上游失败固定为 `AGENT_TASK_STREAM_FAILED`，不得透传 provider/HTTP 异常文本。
 
-## 10. `/agent/process/run` 只读候选
+## 10. `/agent/process/run` 受治理候选
 
-请求与旧同步入口相同，响应继续使用 `AgentDagRunReply`。候选服务仅迁移
-`workflow_status`、`workflow_tasks` 和 `rag_search` 查询；不会执行 `refund_start` 或
-任何审批/认领/删除操作。要求写操作的目标会返回只读能力边界说明。
+请求与旧同步入口相同，响应继续使用 `AgentDagRunReply`。默认仍只使用
+`workflow_status`、`workflow_tasks` 和 `rag_search`。当 `AGENT_REFUND_START_ENABLED=true` 时，
+调用方须先以相同的身份和 `Idempotency-Key` 调用 `POST /agent/tool-confirmations`，提交
+`toolName=refund_start` 与精确工具参数。执行请求再通过 `X-Agent-Confirmation-Grants` 携带
+返回的一次性短时签名 grant，Planner 才能规划 `refund_start`，并由 Java workflow-service
+以该键发起流程。grant 绑定 tenant、user、工具、参数摘要、幂等键和有效期，且在 provider
+调用前原子消费；旧 `X-Agent-Confirmed-Tools` 头明确返回 400。
 
-该收窄契约不与旧 Process 写能力等价。全量默认切换后，“发起退款”等写诉求会明确停留在
-只读能力边界，不会静默回退 Java。
-`/agent/process/run/async` 已迁移但仍调用相同只读 Planner/DAG 工具集。
+模型参数不能提供确认、幂等键、tenantId 或 userId。候选始终禁止审批、认领、取消认领、
+完成审批和删除；`WAITING_APPROVAL` 也不得表述为已批准。异步入口复用相同策略和工具集。
+
+## 10.1 MCP 工具绑定
+
+`contracts/boundaries/mcp-tool-binding.schema.json` 定义运维配置中的远端 server/tool 到本地
+Agent 工具的显式绑定。每项必须包含 `serverId`、`remoteName`、`description` 和完整
+`ToolMetadata`；本地名以 `mcp_<serverId>_` 开头。运行时只有配置项能成为工具，远端 discovery
+不会扩大能力面，`platform.agent.*` 递归工具被禁止。
+
+MCP 模型参数不包含可信 tenant/user/token/trace/confirmation/idempotency 字段。签名身份与 trace
+从已验证请求上下文以 HTTP header 传播；幂等键只注入实际 `tools/call` 的 `_meta`，不会污染
+`initialize` 握手；确认结果不发送给 provider。协议只支持 Streamable HTTP，结果文本有界，
+错误脱敏。
+
+## 10.2 远端 Sandbox 契约
+
+Browser 使用 `POST /v1/browser/actions` 和 `DELETE /v1/browser/sessions/{sessionId}`。请求包含
+不透明 `sessionId/operationId`、固定动作、参数和运维 host allowlist；不包含 tenant/user/token。
+Code 使用 `POST /v1/code/execute`，请求固定 Java、禁网、临时 workspace，并明确 timeout、输出、
+内存、进程上限。对应 JSON Schema 位于 `contracts/boundaries/browser-action-*.schema.json` 与
+`code-execution-*.schema.json`。可信身份、trace 和 operation id 只通过 HTTP header 传播。
 
 ## 11. `/agent/capabilities`
 
@@ -149,6 +186,28 @@ Critic 失败沿用质量评审脱敏 502。流式 Reflexion 不创建持久任�
 `McpToolDescriptor`：run、run_async、dag.plan_run、dag.plan_run_async。字段名和 input
 JSON Schema 保持旧契约，description 标明 AgentScope。该端点是 interop live discovery
 全量切换的必需契约。
+
+### 11.1 版本化 registry 与可恢复 session
+
+`GET /agent/capabilities/registry` 返回 `agent-capability-registry.v1`、64 位 SHA-256 revision
+和完整能力列表，并设置同值 ETag。它包含旧四项以及 `platform.agent.session.run/get`。
+旧 `/agent/capabilities` 仍只投影前四项，保持既有 JSON 不变。
+
+`POST /agent/sessions/{sessionId}/run` 与 `GET /agent/sessions/{sessionId}` 使用
+`agent-session-checkpoint.v1`。记录按 tenant/user owner 隔离，只保存 goal 摘要、脱敏步骤、
+revision/租约/TTL 和稳定结果；禁止持久化原始 goal、内部 token、grant 或 AgentScope 对象。
+副作用恢复要求相同幂等键与新 confirmation grant。
+
+详细运行语义见 [Agent 会话检查点与能力注册](agent-sessions-and-capabilities.md)。
+
+### 11.2 运行版本与评测数据
+
+内部 `agent-trajectory.v1` 通过 `agent-execution-versions.v1` 绑定 prompt、model、toolset 和逐工具
+SHA-256；旧 `/agent/run` JSON 不增加字段，只通过响应头公开三个集合级版本。Shadow report v4
+绑定 `agent-evaluation-dataset.v1` 内容版本与可选 replay report 摘要。线上反馈只接受
+`agent-online-feedback.v1` 的 consented/read-only 最小字段并在导入时脱敏。
+
+详细命令和数据边界见 [运行版本与评测数据闭环](evaluation-versioning.md)。
 
 ## 12. 契约资产
 
@@ -168,6 +227,13 @@ JSON Schema 保持旧契约，description 标明 AgentScope。该端点是 inter
 - `contracts/legacy/agent-task-progress.schema.json`
 - `contracts/legacy/async-task-stream-event.schema.json`
 - `contracts/openapi.json`
+- `contracts/boundaries/agent-session-checkpoint.schema.json`
+- `contracts/boundaries/agent-execution-versions.schema.json`
+- `contracts/boundaries/agent-trajectory.schema.json`
+- `contracts/evaluation/evaluation-dataset.schema.json`
+- `contracts/evaluation/online-feedback.schema.json`
+- `contracts/evaluation/shadow-report.schema.json`
+- `contracts/capabilities/agent-capabilities.v1.json`
 
 运行 `uv run python scripts/export_contracts.py --check` 可阻止生成契约与快照漂移。
 

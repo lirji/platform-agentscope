@@ -13,10 +13,10 @@ Python 固定为 3.12，AgentScope 固定为 2.0.5。升级 AgentScope 必须先
 ## 新增工具
 
 1. 在 `application` 定义必要的领域端口。
-2. 在 `infrastructure/http` 或 `infrastructure/mcp` 实现客户端。
+2. 在 `infrastructure/http`、`infrastructure/mcp` 或 `infrastructure/sandbox` 实现客户端。
 3. 工具从 `current_run_context()` 获取身份，不能让模型传 tenantId。
 4. 返回前限制大小、处理敏感字段、标记来源。
-5. 注册 AgentScope `FunctionTool`。
+5. 用 `GovernedFunctionTool` 注册，并声明完整 `ToolMetadata`；不能直接绕过 Tool Policy。
 6. 补工具单测、HTTP stub 集成测试和双跑评测。
 
 工具元数据至少包含：
@@ -29,7 +29,8 @@ Python 固定为 3.12，AgentScope 固定为 2.0.5。升级 AgentScope 必须先
 - `timeout`
 - `retry_policy`
 
-Phase 1 只注册只读工具。写工具框架在 Phase 4 统一实现，禁止各工具自行绕过。
+Phase 4 已提供统一 Tool Policy。写工具默认关闭，确认和幂等只能来自可信请求上下文；远端
+MCP/sandbox 失败不得回退到本地执行。每项能力必须有独立关闭开关和 `stub_only` 评测用例。
 
 ## 新增 API
 

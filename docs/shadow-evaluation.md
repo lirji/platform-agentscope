@@ -13,6 +13,7 @@
 - candidate 是否达到绝对最低门槛。
 - 可选的答案业务事实证据是否满足。
 - 显式启用时，开放式 RAG/Analytics 回答的 Judge 分数是否达标且不相对旧服务回归。
+- 数据集版本、prompt/model/toolset 版本和回放来源是否一致。
 
 该工具不会改变 edge 路由，也不会把完整回答、observation、请求 token 或响应正文写入报告。
 
@@ -24,6 +25,7 @@
 - Token 只从进程环境读取，不提供命令行 token 参数，避免进入 shell history/process list。
 - 不自动重试，防止非确定性调用被静默放大。
 - 当前 suite 只允许 `readOnly=true`。
+- 生产发布门禁使用版本化 `--dataset` 和 `--require-version-metadata`；目标版本批内漂移直接失败。
 - Judge 默认关闭；远程 Judge 必须单独添加 `--allow-remote-judge`，不能借用目标地址的
   远程授权。
 - Judge API Key 只从 `SHADOW_JUDGE_API_KEY` 读取。报告不保存回答或 Judge prompt，但评分
@@ -163,7 +165,9 @@ export SHADOW_CANDIDATE_TOKEN='replace-with-candidate-test-token'
 
 报告不包含目标 URL、token、goal、最终答案、actionInput 或 observation。
 单个目标响应超过 2 MB 会以 `RESPONSE_TOO_LARGE` 失败，不进入契约解析。
-Shadow v3 新增可空的 Judge 分数字段；未启用 Judge 时 `judgeEvaluated=false` 且分数为空。
+Shadow v4 绑定 dataset ID/version、可选 replay report 摘要和每次目标运行的版本摘要；未启用
+Judge 时 `judgeEvaluated=false` 且分数为空。数据集迁移、对抗集和反馈导入见
+[运行版本与评测数据闭环](evaluation-versioning.md)。
 
 ## 成本归因
 

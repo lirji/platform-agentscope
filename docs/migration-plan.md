@@ -97,12 +97,16 @@ Process 状态/待办只读切片也已完成；流程发起写能力仍留在�
 
 ## Phase 4：受治理工具
 
+状态：统一 Tool Policy、`refund_start`、allowlist-only Streamable HTTP MCP、远端 Browser 与
+远端 Code Sandbox adapter 已实现。所有新增能力默认关闭；真实 sandbox provider 隔离门禁和
+生产启用尚未授权。
+
 范围：
 
-- `refund_start`
-- MCP
-- Browser
-- Code Sandbox
+- `refund_start`（已实现，待真实双跑/生产门禁）
+- MCP（已实现，禁用 stdio/动态未知工具，待测试环境 live provider 门禁）
+- Browser（远端 adapter 已实现，待独立 provider live/逃逸门禁）
+- Code Sandbox（远端 adapter 已实现，无本地 fallback，待独立 provider live/逃逸门禁）
 
 必要前置：
 

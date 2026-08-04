@@ -47,6 +47,7 @@
 - P50/P95/P99 延迟。
 - token 与货币成本。
 - 失败恢复与取消成功率。
+- dataset、prompt、model、toolset 版本一致性；批内漂移为失败。
 
 ## 2. 强制门禁
 
@@ -73,6 +74,10 @@
 
 需要文本质量时使用规则 grader 与模型 grader 组合，并保存 grader 版本和 prompt。
 
+生产发布使用 `agent-evaluation-dataset.v1`，并以 `--require-version-metadata` 执行 Shadow v4。
+版本化回放、对抗集和 consent-only 线上反馈导入见
+[运行版本与评测数据闭环](evaluation-versioning.md)。
+
 ## 4. 本地命令
 
 ```bash
@@ -83,9 +88,15 @@ uv run ruff format --check .
 uv run mypy src
 uv run pytest --cov=agentscope_platform --cov-report=term-missing --cov-fail-under=80
 uv run python scripts/shadow-smoke.py
+uv run python scripts/test_production_runbook.py
 uv build
 docker compose -f compose.yml config
 ```
+
+生产 GO 还必须复制并填写机器可读证据模板，再执行
+`scripts/test_production_runbook.py --evidence <release-evidence.json> --require-go`。默认模板保持
+NO-GO；本地门禁不会伪造 IAM、恢复、容量、完整高峰 soak、canary、值班或回滚证据。完整步骤见
+[生产发布、RPO/RTO 与恢复手册](operations/production-release-runbook.md)。
 
 Phase 1 的离线评测样例位于 `eval/baseline/readonly-cases.jsonl`。它验证案例结构、预期
 工具、禁止副作用和已声明的答案事实证据。CI 使用 HTTPX 离线 stub 验证双跑门禁本身；
@@ -113,3 +124,13 @@ Critic 双跑样例位于 `eval/baseline/critic-cases.jsonl`。门禁要求每�
 Shadow v2 每次调用都有唯一 W3C trace。`agentscope-shadow-cost` 要求每个运行都有至少
 一条 trace 账本记录并拒绝重复 `requestId`，从而把 Agent 多步及下游 embedding 合并到
 同一次运行。账本契约和安全导出方法见 [Shadow 双跑指南](shadow-evaluation.md)。
+
+Phase 4 副作用用例与只读 shadow runner 完全隔离。`governed-tool-cases.jsonl` 覆盖退款的
+确认、幂等、人工审批和重复键；`mcp-governed-cases.jsonl` 覆盖 allowlist、可信上下文覆盖
+拒绝、只读与写策略。两者的 `executionMode` 固定为 `stub_only`，CI 只验证策略和调用次数，
+不会连接真实 workflow/MCP provider。真实双跑必须在命名测试环境显式执行并独立审计副作用。
+
+`sandbox-governed-cases.jsonl` 以同一 `stub_only` 契约覆盖 Browser host 拒绝、确认、只读截图，
+以及 Code 确认、完成和超时。架构门禁禁止 sandbox adapter 导入 subprocess/Playwright/Selenium/
+Docker。该门禁证明 orchestrator 没有本地执行路径，但不能替代远端 provider 的逃逸、禁网、
+DNS rebinding、重定向、内存/进程限制、强制超时和 session TTL 测试。
