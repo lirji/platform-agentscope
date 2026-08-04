@@ -46,6 +46,4 @@ def validate_conversation_stream(events: Sequence[Mapping[str, object]]) -> None
             raise ConversationStreamContractError("conversation error data must not be empty")
 
     if not terminal_seen:
-        raise ConversationStreamContractError(
-            "conversation stream must end with done or error"
-        )
+        raise ConversationStreamContractError("conversation stream must end with done or error")

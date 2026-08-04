@@ -49,6 +49,7 @@ class CentralAsyncTask(BaseModel):
     finished_at: datetime | None = Field(default=None, alias="finishedAt")
     lease_owner_id: str | None = Field(default=None, alias="leaseOwnerId")
     lease_expires_at: datetime | None = Field(default=None, alias="leaseExpiresAt")
+    lease_epoch: int = Field(default=0, alias="leaseEpoch", ge=0)
 
     @property
     def agent_kind(self) -> bool:
@@ -111,6 +112,7 @@ class AsyncTaskEventAppend(BaseModel):
     event: str = Field(min_length=1, max_length=128)
     data: Any
     worker_id: str = Field(alias="workerId", min_length=1, max_length=128)
+    lease_epoch: int = Field(alias="leaseEpoch", ge=1)
 
 
 class CentralAsyncTaskEvent(BaseModel):

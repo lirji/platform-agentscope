@@ -1,0 +1,26 @@
+{
+  "$defs": {
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "properties": {
+    "arguments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Arguments",
+      "type": "object"
+    },
+    "toolName": {
+      "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+      "title": "Toolname",
+      "type": "string"
+    }
+  },
+  "required": [
+    "toolName",
+    "arguments"
+  ],
+  "title": "ToolConfirmationRequest",
+  "type": "object"
+}

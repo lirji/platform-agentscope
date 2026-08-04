@@ -88,6 +88,32 @@ JSON 形状:
 {"tasks":[{"id":"t1","description":"用 workflow_status 查询实例 abc 的状态","dependsOn":[]}]}
 """.strip()
 
+PROCESS_GOVERNED_PLANNER_PROMPT = """
+你为一个业务流程多 Agent DAG 规划受治理的流程子任务。
+
+可用工具:
+- workflow_status: 按 instance_id 查询当前租户流程实例状态与最终答复。
+- workflow_tasks: 列出当前租户待审批任务, 需要 approve scope。
+- rag_search: 查询退款政策依据。
+- refund_start: 发起用户已经在请求边界明确确认的退款审批流程。调用方已提供业务幂等键。
+
+安全边界:
+- refund_start 只允许发起流程, 不代表退款已经批准。
+- WAITING_APPROVAL 必须说明仍待人工审批。
+- 绝不规划审批、认领、取消认领、完成审批或删除流程。
+- 不得审批、批准或驳回退款, 不得把发起流程表述为审批成功。
+
+规划规则:
+- 只返回一个包含 "tasks" 数组的 JSON 对象。
+- 产出 1 到 4 个子任务, id 使用 t1、t2……, 每项仅含 id、description、dependsOn。
+- 描述必须明确使用上述工具之一。
+- 用户要求发起退款时, 使用 refund_start, 并保留用户诉求原文的业务含义。
+- 只有确需上游结果时才添加依赖; 图必须无环; 使用用户的语言。
+
+JSON 形状:
+{"tasks":[{"id":"t1","description":"用 refund_start 发起已确认的退款流程","dependsOn":[]}]}
+""".strip()
+
 
 class _PlannerModel(Protocol):
     async def __call__(
@@ -114,10 +140,17 @@ class AgentScopeDagPlanner(DagPlanner):
     ) -> DagPlan:
         if not self._settings.agent_enabled:
             raise AgentNotConfiguredError("GATEWAY_API_KEY is not configured")
+        process_prompt = PROCESS_PLANNER_PROMPT
+        if (
+            self._settings.agent_refund_start_enabled
+            and context.has_confirmation_for_tool("refund_start")
+            and context.idempotency_key
+        ):
+            process_prompt = PROCESS_GOVERNED_PLANNER_PROMPT
         prompt = {
             DagPlanKind.GENERAL: GENERAL_PLANNER_PROMPT,
             DagPlanKind.ANALYST: ANALYST_PLANNER_PROMPT,
-            DagPlanKind.PROCESS: PROCESS_PLANNER_PROMPT,
+            DagPlanKind.PROCESS: process_prompt,
         }[kind]
         try:
             response = await self._model(

@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from agentscope_platform.api.app import create_app
 from agentscope_platform.application.async_task import (
@@ -80,16 +81,35 @@ class FakeAsyncTaskGateway:
         worker_id: str,
         lease_seconds: float,
         context: RunContext,
+        *,
+        lease_epoch: int | None = None,
     ) -> CentralAsyncTask:
         task = self.tasks[task_id]
         if task.status.terminal:
             return task
+        now = datetime.now(UTC)
+        if lease_epoch is None:
+            if task.lease_owner_id is not None and (
+                task.lease_expires_at is None or task.lease_expires_at > now
+            ):
+                return task
+            next_epoch = task.lease_epoch + 1
+        else:
+            if (
+                task.lease_owner_id != worker_id
+                or task.lease_epoch != lease_epoch
+                or task.lease_expires_at is None
+                or task.lease_expires_at <= now
+            ):
+                return task
+            next_epoch = task.lease_epoch
         updated = task.model_copy(
             update={
                 "status": AsyncTaskStatus.RUNNING,
                 "lease_owner_id": worker_id,
-                "lease_expires_at": datetime.now(UTC) + timedelta(seconds=lease_seconds),
-                "updated_at": datetime.now(UTC),
+                "lease_expires_at": now + timedelta(seconds=lease_seconds),
+                "lease_epoch": next_epoch,
+                "updated_at": now,
             }
         )
         self.tasks[task_id] = updated
@@ -103,10 +123,13 @@ class FakeAsyncTaskGateway:
         result: Any | None,
         error: str | None,
         worker_id: str,
+        lease_epoch: int,
         context: RunContext,
     ) -> CentralAsyncTask:
         task = self.tasks[task_id]
         if task.status.terminal:
+            return task
+        if task.lease_owner_id != worker_id or task.lease_epoch != lease_epoch:
             return task
         now = datetime.now(UTC)
         updated = task.model_copy(
@@ -127,13 +150,16 @@ class FakeAsyncTaskGateway:
         task = await self.get(task_id, context)
         if task is None or task.status.terminal:
             return False
-        await self.update_status(
-            task_id,
-            AsyncTaskStatus.CANCELLED,
-            result=None,
-            error="cancelled by user",
-            worker_id="",
-            context=context,
+        now = datetime.now(UTC)
+        self.tasks[task_id] = task.model_copy(
+            update={
+                "status": AsyncTaskStatus.CANCELLED,
+                "error": "cancelled by user",
+                "updated_at": now,
+                "finished_at": now,
+                "lease_owner_id": None,
+                "lease_expires_at": None,
+            }
         )
         return True
 
@@ -174,6 +200,7 @@ def settings() -> Settings:
     return Settings(
         async_task_enabled=True,
         async_task_worker_id="worker-test",
+        async_task_worker_jwt_secret=SecretStr("test-async-worker-secret-with-at-least-32-bytes"),
         async_task_lease_seconds=4,
         async_task_heartbeat_seconds=0.01,
         async_task_max_runtime_seconds=2,
@@ -256,6 +283,79 @@ async def test_cancel_wins_even_when_worker_swallows_cancellation() -> None:
 
     assert gateway.tasks[submitted.task_id].status is AsyncTaskStatus.CANCELLED
     await manager.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_drains_inflight_task_before_closing_gateway() -> None:
+    gateway = FakeAsyncTaskGateway()
+    manager = AsyncTaskManager(
+        gateway,
+        settings().model_copy(update={"async_task_drain_timeout_seconds": 0.5}),
+    )
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def execute(progress: ProgressSink) -> dict[str, str]:
+        del progress
+        started.set()
+        await release.wait()
+        return {"answer": "drained"}
+
+    submitted = await manager.submit(
+        kind="agent.run",
+        input_data={"goal": "test"},
+        webhook_url=None,
+        context=context(),
+        execute=execute,
+    )
+    await started.wait()
+    closing = asyncio.create_task(manager.shutdown())
+    await asyncio.sleep(0)
+
+    assert not closing.done()
+    assert not gateway.closed
+    release.set()
+    await closing
+
+    assert gateway.tasks[submitted.task_id].status is AsyncTaskStatus.SUCCEEDED
+    assert gateway.tasks[submitted.task_id].result == {"answer": "drained"}
+    assert gateway.closed
+
+
+@pytest.mark.asyncio
+async def test_shutdown_timeout_stops_local_work_without_forging_terminal_status() -> None:
+    gateway = FakeAsyncTaskGateway()
+    manager = AsyncTaskManager(
+        gateway,
+        settings().model_copy(update={"async_task_drain_timeout_seconds": 0.01}),
+    )
+    started = asyncio.Event()
+    cancelled = asyncio.Event()
+
+    async def execute(progress: ProgressSink) -> dict[str, str]:
+        del progress
+        started.set()
+        try:
+            await asyncio.sleep(10)
+        finally:
+            cancelled.set()
+        return {"answer": "too late"}
+
+    submitted = await manager.submit(
+        kind="agent.run",
+        input_data={"goal": "test"},
+        webhook_url=None,
+        context=context(),
+        execute=execute,
+    )
+    await started.wait()
+
+    await manager.shutdown()
+
+    assert cancelled.is_set()
+    assert gateway.tasks[submitted.task_id].status is AsyncTaskStatus.RUNNING
+    assert gateway.tasks[submitted.task_id].lease_owner_id == manager.worker_id
+    assert gateway.closed
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,42 @@
+{
+  "additionalProperties": false,
+  "description": "Content-addressed runtime inputs needed to reproduce an Agent trajectory.",
+  "properties": {
+    "modelVersion": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Modelversion",
+      "type": "string"
+    },
+    "promptVersion": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Promptversion",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "agent-execution-versions.v1",
+      "default": "agent-execution-versions.v1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "toolVersions": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Toolversions",
+      "type": "object"
+    },
+    "toolsetVersion": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Toolsetversion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "promptVersion",
+    "modelVersion",
+    "toolsetVersion",
+    "toolVersions"
+  ],
+  "title": "ExecutionVersions",
+  "type": "object"
+}

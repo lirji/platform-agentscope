@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from agentscope.agent import Agent
@@ -18,16 +19,30 @@ from agentscope.event import (
 from agentscope.message import AssistantMsg, ToolResultState
 from agentscope.types import ReplyFinishedReason
 from pydantic import SecretStr
+from pytest import MonkeyPatch
 
 from agentscope_platform.application.observer import RunObservation
+from agentscope_platform.application.ports import RemoteSandboxGateway
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
-from agentscope_platform.domain.agent import RunContext, TenantIdentity
+from agentscope_platform.domain.agent import AgentStep, RunContext, TenantIdentity
+from agentscope_platform.domain.sandbox import (
+    BrowserActionReply,
+    BrowserActionRequest,
+    CodeExecutionReply,
+    CodeExecutionRequest,
+)
+from agentscope_platform.domain.session import (
+    AgentSessionCheckpoint,
+    AgentSessionStatus,
+    goal_sha256,
+)
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentScopeRunner,
     _agentscope_max_iters,
 )
 from agentscope_platform.infrastructure.http.platform_client import PlatformClient
+from tool_confirmation_support import CONFIRMATION_SECRET, DOWNSTREAM_SECRET
 
 
 class FakeAgent:
@@ -59,6 +74,9 @@ class CapturingObserver:
     def __init__(self) -> None:
         self.observations: list[RunObservation] = []
 
+    def started(self, model: str) -> None:
+        del model
+
     def record(self, observation: RunObservation) -> None:
         self.observations.append(observation)
 
@@ -69,18 +87,56 @@ class StubRunner(AgentScopeRunner):
         settings: Settings,
         agent: FakeAgent,
         observer: CapturingObserver,
+        sandbox_gateway: RemoteSandboxGateway | None = None,
     ) -> None:
-        super().__init__(settings, PlatformClient(settings), observer)
+        super().__init__(
+            settings,
+            PlatformClient(settings),
+            observer,
+            sandbox_gateway=sandbox_gateway,
+        )
         self._agent = agent
 
     def _build_agent(self) -> Agent:
         return cast(Agent, self._agent)
+
+    def _build_resumable_agent(self, checkpoint: AgentSessionCheckpoint) -> Agent:
+        del checkpoint
+        return cast(Agent, self._agent)
+
+
+class CloseOnlySandboxGateway:
+    def __init__(self) -> None:
+        self.closed: list[RunContext] = []
+
+    async def browser_action(
+        self,
+        request: BrowserActionRequest,
+        context: RunContext,
+        timeout_seconds: float,
+    ) -> BrowserActionReply:
+        del request, context, timeout_seconds
+        raise AssertionError("not expected")
+
+    async def execute_code(
+        self,
+        request: CodeExecutionRequest,
+        context: RunContext,
+        timeout_seconds: float,
+    ) -> CodeExecutionReply:
+        del request, context, timeout_seconds
+        raise AssertionError("not expected")
+
+    async def close_browser(self, context: RunContext) -> None:
+        self.closed.append(context)
 
 
 def settings(**overrides: object) -> Settings:
     values: dict[str, object] = {
         "gateway_api_key": SecretStr("test-key"),
         "internal_auth_required": False,
+        "agent_confirmation_secret": SecretStr(CONFIRMATION_SECRET),
+        "agent_downstream_jwt_secret": SecretStr(DOWNSTREAM_SECRET),
     }
     values.update(overrides)
     return Settings(**values)
@@ -116,10 +172,67 @@ def completed_events() -> list[object]:
     ]
 
 
+def session_checkpoint() -> AgentSessionCheckpoint:
+    now = datetime.now(UTC)
+    return AgentSessionCheckpoint(
+        sessionId="sess-11111111111111111111111111111111",
+        revision=1,
+        tenantId="acme",
+        userId="alice",
+        goalSha256=goal_sha256("goal"),
+        status=AgentSessionStatus.RUNNING,
+        steps=[AgentStep(n=1, action="previous_search", observation="safe result")],
+        leaseOwnerId="worker-a",
+        leaseExpiresAt=now + timedelta(seconds=30),
+        createdAt=now,
+        updatedAt=now,
+        expiresAt=now + timedelta(hours=1),
+    )
+
+
 def test_agentscope_iteration_budget_preserves_legacy_action_steps() -> None:
     assert _agentscope_max_iters(1) == 1
     assert _agentscope_max_iters(4) == 7
     assert _agentscope_max_iters(8) == 15
+
+
+def test_runner_bounds_each_model_call_and_disables_duplicate_retries(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_build_model(
+        configured: Settings,
+        **kwargs: object,
+    ) -> object:
+        captured["settings"] = configured
+        captured.update(kwargs)
+        return object()
+
+    def fake_agent(**kwargs: object) -> object:
+        captured["agent"] = kwargs
+        return object()
+
+    monkeypatch.setattr(
+        "agentscope_platform.infrastructure.agentscope.runner.build_openai_chat_model",
+        fake_build_model,
+    )
+    monkeypatch.setattr(
+        "agentscope_platform.infrastructure.agentscope.runner.Agent",
+        fake_agent,
+    )
+    configured = settings(
+        agent_max_tokens=2_000,
+        agent_model_max_output_tokens=4_096,
+        agent_model_max_retries=0,
+    )
+    runner = AgentScopeRunner(configured, PlatformClient(configured))
+
+    built = runner._build_agent()
+
+    assert built is not None
+    assert captured["max_tokens"] == 2_000
+    assert captured["max_retries"] == 0
 
 
 async def test_runner_returns_steps_and_non_secret_observation() -> None:
@@ -152,6 +265,74 @@ async def test_runner_returns_steps_and_non_secret_observation() -> None:
         pass
     else:
         raise AssertionError("run context leaked after execution")
+
+
+async def test_resumable_runner_checkpoints_each_completed_tool_boundary() -> None:
+    runner = StubRunner(settings(), FakeAgent(completed_events()), CapturingObserver())
+    progress: list[tuple[tuple[AgentStep, ...], bool]] = []
+
+    async def capture(steps: tuple[AgentStep, ...], side_effect: bool) -> None:
+        progress.append((steps, side_effect))
+
+    result = await runner.run_from_checkpoint(
+        "goal",
+        session_checkpoint(),
+        context(),
+        capture,
+    )
+
+    assert [step.action for step in result.steps] == ["previous_search", "rag_search"]
+    assert len(progress) == 1
+    assert [step.action for step in progress[0][0]] == ["previous_search", "rag_search"]
+    assert not progress[0][1]
+
+
+def test_resumable_runner_reconstructs_only_adapter_local_agentscope_state(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "agentscope_platform.infrastructure.agentscope.runner.build_openai_chat_model",
+        lambda *args, **kwargs: object(),
+    )
+
+    def fake_agent(**kwargs: object) -> object:
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(
+        "agentscope_platform.infrastructure.agentscope.runner.Agent",
+        fake_agent,
+    )
+    configured = settings()
+    runner = AgentScopeRunner(configured, PlatformClient(configured))
+
+    runner._build_resumable_agent(session_checkpoint())
+
+    state = captured["state"]
+    serialized = state.model_dump_json()  # type: ignore[union-attr]
+    assert "previous_search" in serialized
+    assert "safe result" in serialized
+    assert "must-not-enter-observation" not in serialized
+    assert state.session_id == session_checkpoint().session_id  # type: ignore[union-attr]
+
+
+async def test_runner_closes_remote_browser_session_after_run() -> None:
+    observer = CapturingObserver()
+    sandbox = CloseOnlySandboxGateway()
+    configured = settings(
+        agent_browser_enabled=True,
+        agent_browser_sandbox_url="https://browser-sandbox.test",
+        agent_browser_allowed_hosts_json='["example.com"]',
+    )
+    runner = StubRunner(configured, FakeAgent(completed_events()), observer, sandbox)
+    run_context = context()
+
+    result = await runner.run("goal", run_context)
+
+    assert result.stop_reason == "DONE"
+    assert sandbox.closed == [run_context]
 
 
 async def test_runner_enforces_token_budget() -> None:

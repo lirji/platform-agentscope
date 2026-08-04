@@ -14,6 +14,7 @@ from agentscope_platform.domain.dag import (
     DagPlan,
     DagPlanKind,
 )
+from tool_confirmation_support import confirmation_grant
 
 
 def context() -> RunContext:
@@ -26,6 +27,23 @@ def context() -> RunContext:
         ),
         internal_token="internal-token",
         trace_id="planning-trace",
+    )
+
+
+def confirmed_context() -> RunContext:
+    base = context()
+    return RunContext(
+        identity=base.identity,
+        internal_token=base.internal_token,
+        trace_id=base.trace_id,
+        confirmation_grants=(
+            confirmation_grant(
+                "refund_start",
+                {},
+                idempotency_key="refund-42",
+            ),
+        ),
+        idempotency_key="refund-42",
     )
 
 
@@ -171,6 +189,61 @@ async def test_process_fallback_never_executes_planned_write_operations(
     assert "严格只读" in description
     assert "不得发起、审批或修改流程" in description
     assert "refund_start" not in description
+
+
+async def test_process_accepts_only_configured_confirmed_refund_start() -> None:
+    plan = DagPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "t1",
+                    "description": "用 refund_start 发起用户明确确认的退款流程",
+                    "dependsOn": [],
+                }
+            ]
+        }
+    )
+    runner = FakeRunner()
+    service = AgentDagPlanningService(
+        FakePlanner(plan),
+        AgentDagApplicationService(runner),
+        process_write_tools=frozenset({"refund_start"}),
+    )
+
+    reply = await service.plan_and_run(
+        AgentPlanRunRequest(goal="帮我发起退款"),
+        confirmed_context(),
+        DagPlanKind.PROCESS,
+    )
+
+    assert reply.task_results[0].description == "用 refund_start 发起用户明确确认的退款流程"
+
+
+async def test_process_rejects_refund_start_without_request_confirmation() -> None:
+    plan = DagPlan.model_validate(
+        {
+            "tasks": [
+                {
+                    "id": "t1",
+                    "description": "用 refund_start 发起退款",
+                    "dependsOn": [],
+                }
+            ]
+        }
+    )
+    service = AgentDagPlanningService(
+        FakePlanner(plan),
+        AgentDagApplicationService(FakeRunner()),
+        process_write_tools=frozenset({"refund_start"}),
+    )
+
+    reply = await service.plan_and_run(
+        AgentPlanRunRequest(goal="帮我发起退款"),
+        context(),
+        DagPlanKind.PROCESS,
+    )
+
+    assert "严格只读" in reply.task_results[0].description
 
 
 async def test_invalid_planned_graph_uses_existing_dag_validation() -> None:

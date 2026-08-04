@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "AgentStep": {
+      "properties": {
+        "action": {
+          "default": "",
+          "title": "Action",
+          "type": "string"
+        },
+        "actionInput": {
+          "default": "",
+          "title": "Actioninput",
+          "type": "string"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "observation": {
+          "default": "",
+          "title": "Observation",
+          "type": "string"
+        },
+        "thought": {
+          "default": "",
+          "title": "Thought",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "title": "AgentStep",
+      "type": "object"
+    },
+    "ExecutionVersions": {
+      "additionalProperties": false,
+      "description": "Content-addressed runtime inputs needed to reproduce an Agent trajectory.",
+      "properties": {
+        "modelVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Modelversion",
+          "type": "string"
+        },
+        "promptVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Promptversion",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "agent-execution-versions.v1",
+          "default": "agent-execution-versions.v1",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "toolVersions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Toolversions",
+          "type": "object"
+        },
+        "toolsetVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Toolsetversion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "promptVersion",
+        "modelVersion",
+        "toolsetVersion",
+        "toolVersions"
+      ],
+      "title": "ExecutionVersions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Internal language-neutral trajectory; the legacy HTTP reply remains unchanged.",
+  "properties": {
+    "inputTokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Inputtokens",
+      "type": "integer"
+    },
+    "outputTokens": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Outputtokens",
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": "agent-trajectory.v1",
+      "default": "agent-trajectory.v1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/AgentStep"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "stopReason": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Stopreason",
+      "type": "string"
+    },
+    "traceId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Traceid",
+      "type": "string"
+    },
+    "versions": {
+      "$ref": "#/$defs/ExecutionVersions"
+    }
+  },
+  "required": [
+    "traceId",
+    "versions",
+    "steps",
+    "stopReason"
+  ],
+  "title": "AgentTrajectory",
+  "type": "object"
+}

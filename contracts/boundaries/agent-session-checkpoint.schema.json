@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "AgentSessionStatus": {
+      "enum": [
+        "READY",
+        "RUNNING",
+        "PAUSED",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "AgentSessionStatus",
+      "type": "string"
+    },
+    "AgentStep": {
+      "properties": {
+        "action": {
+          "default": "",
+          "title": "Action",
+          "type": "string"
+        },
+        "actionInput": {
+          "default": "",
+          "title": "Actioninput",
+          "type": "string"
+        },
+        "n": {
+          "title": "N",
+          "type": "integer"
+        },
+        "observation": {
+          "default": "",
+          "title": "Observation",
+          "type": "string"
+        },
+        "thought": {
+          "default": "",
+          "title": "Thought",
+          "type": "string"
+        }
+      },
+      "required": [
+        "n"
+      ],
+      "title": "AgentStep",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Language-neutral, bounded session state safe for durable persistence.",
+  "properties": {
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error"
+    },
+    "expiresAt": {
+      "format": "date-time",
+      "title": "Expiresat",
+      "type": "string"
+    },
+    "finalAnswer": {
+      "anyOf": [
+        {
+          "maxLength": 100000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finalanswer"
+    },
+    "goalSha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Goalsha256",
+      "type": "string"
+    },
+    "idempotencyKeySha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Idempotencykeysha256"
+    },
+    "leaseExpiresAt": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leaseexpiresat"
+    },
+    "leaseOwnerId": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leaseownerid"
+    },
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schemaVersion": {
+      "const": "agent-session-checkpoint.v1",
+      "default": "agent-session-checkpoint.v1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "sessionId": {
+      "pattern": "^sess-[a-f0-9]{32}$",
+      "title": "Sessionid",
+      "type": "string"
+    },
+    "sideEffectObserved": {
+      "default": false,
+      "title": "Sideeffectobserved",
+      "type": "boolean"
+    },
+    "status": {
+      "$ref": "#/$defs/AgentSessionStatus"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/AgentStep"
+      },
+      "maxItems": 256,
+      "title": "Steps",
+      "type": "array"
+    },
+    "stopReason": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stopreason"
+    },
+    "tenantId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "updatedAt": {
+      "format": "date-time",
+      "title": "Updatedat",
+      "type": "string"
+    },
+    "userId": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "title": "Userid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sessionId",
+    "revision",
+    "tenantId",
+    "userId",
+    "goalSha256",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "expiresAt"
+  ],
+  "title": "AgentSessionCheckpoint",
+  "type": "object"
+}

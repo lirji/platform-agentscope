@@ -6,11 +6,21 @@ from typing import Any
 
 from agentscope_platform.api.app import create_app
 from agentscope_platform.core.config import Settings
-from agentscope_platform.domain.agent import AgentRunReply, AgentRunRequest, AgentStep
+from agentscope_platform.domain.agent import (
+    AgentRunReply,
+    AgentRunRequest,
+    AgentStep,
+    AgentTrajectory,
+    ExecutionVersions,
+)
 from agentscope_platform.domain.async_task import (
     AgentAsyncTask,
     AgentTaskProgress,
     CentralAsyncTaskEvent,
+)
+from agentscope_platform.domain.confirmation import (
+    ToolConfirmationReply,
+    ToolConfirmationRequest,
 )
 from agentscope_platform.domain.dag import (
     AgentDagRunReply,
@@ -18,6 +28,19 @@ from agentscope_platform.domain.dag import (
     AgentDagTask,
     AgentPlanRunRequest,
 )
+from agentscope_platform.domain.interop import capability_registry
+from agentscope_platform.domain.mcp import McpToolBinding
+from agentscope_platform.domain.sandbox import (
+    BrowserActionReply,
+    BrowserActionRequest,
+    CodeExecutionReply,
+    CodeExecutionRequest,
+)
+from agentscope_platform.domain.security import (
+    AsyncTaskWorkerTokenClaims,
+    DownstreamServiceTokenClaims,
+)
+from agentscope_platform.domain.session import AgentSessionCheckpoint
 from agentscope_platform.domain.sibling import (
     ChainRunReply,
     ChainRunRequest,
@@ -26,7 +49,14 @@ from agentscope_platform.domain.sibling import (
     VoteReply,
     VoteRequest,
 )
-from agentscope_platform.evaluation.models import ShadowCase, ShadowReport
+from agentscope_platform.domain.tool import ToolMetadata
+from agentscope_platform.evaluation.models import (
+    EvaluationDataset,
+    GovernedToolCase,
+    OnlineFeedbackRecord,
+    ShadowCase,
+    ShadowReport,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
@@ -87,6 +117,57 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         ),
         CONTRACTS / "evaluation" / "shadow-report.schema.json": ShadowReport.model_json_schema(
             by_alias=True
+        ),
+        CONTRACTS / "evaluation" / "governed-tool-case.schema.json": (
+            GovernedToolCase.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "evaluation" / "evaluation-dataset.schema.json": (
+            EvaluationDataset.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "evaluation" / "online-feedback.schema.json": (
+            OnlineFeedbackRecord.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "agent-execution-versions.schema.json": (
+            ExecutionVersions.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "agent-trajectory.schema.json": (
+            AgentTrajectory.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "tool-policy.schema.json": ToolMetadata.model_json_schema(
+            by_alias=True
+        ),
+        CONTRACTS / "boundaries" / "tool-confirmation-request.schema.json": (
+            ToolConfirmationRequest.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "tool-confirmation-reply.schema.json": (
+            ToolConfirmationReply.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "mcp-tool-binding.schema.json": (
+            McpToolBinding.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "browser-action-request.schema.json": (
+            BrowserActionRequest.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "browser-action-reply.schema.json": (
+            BrowserActionReply.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "code-execution-request.schema.json": (
+            CodeExecutionRequest.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "code-execution-reply.schema.json": (
+            CodeExecutionReply.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "downstream-service-token-claims.schema.json": (
+            DownstreamServiceTokenClaims.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "async-task-worker-token-claims.schema.json": (
+            AsyncTaskWorkerTokenClaims.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "boundaries" / "agent-session-checkpoint.schema.json": (
+            AgentSessionCheckpoint.model_json_schema(by_alias=True)
+        ),
+        CONTRACTS / "capabilities" / "agent-capabilities.v1.json": (
+            capability_registry().model_dump(by_alias=True, mode="json")
         ),
         CONTRACTS / "openapi.json": app.openapi(),
     }

@@ -1,0 +1,182 @@
+{
+  "$defs": {
+    "AnswerAssertions": {
+      "additionalProperties": false,
+      "properties": {
+        "allOf": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allof",
+          "type": "array"
+        },
+        "anyOf": {
+          "default": [],
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Anyof",
+          "type": "array"
+        },
+        "noneOf": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Noneof",
+          "type": "array"
+        }
+      },
+      "title": "AnswerAssertions",
+      "type": "object"
+    },
+    "ShadowCase": {
+      "additionalProperties": false,
+      "properties": {
+        "answerAssertions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnswerAssertions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expectedTools": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Expectedtools",
+          "type": "array"
+        },
+        "forbiddenTools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbiddentools",
+          "type": "array"
+        },
+        "goal": {
+          "minLength": 1,
+          "title": "Goal",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "judgeCriteria": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judgecriteria"
+        },
+        "judgeMinScore": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judgeminscore"
+        },
+        "readOnly": {
+          "title": "Readonly",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "goal",
+        "expectedTools",
+        "readOnly"
+      ],
+      "title": "ShadowCase",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/ShadowCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    },
+    "createdAt": {
+      "format": "date-time",
+      "title": "Createdat",
+      "type": "string"
+    },
+    "datasetId": {
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+      "title": "Datasetid",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "baseline",
+        "adversarial",
+        "feedback"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "agent-evaluation-dataset.v1",
+      "default": "agent-evaluation-dataset.v1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "sourceSha256": {
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sourcesha256"
+    },
+    "version": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "datasetId",
+    "version",
+    "kind",
+    "createdAt",
+    "cases"
+  ],
+  "title": "EvaluationDataset",
+  "type": "object"
+}

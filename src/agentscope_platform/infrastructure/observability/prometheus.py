@@ -5,7 +5,7 @@ from typing import Any
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import Gauge, InMemoryMetricReader, Sum
+from opentelemetry.sdk.metrics.export import Gauge, Histogram, InMemoryMetricReader, Sum
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
 from agentscope_platform.core.config import Settings
@@ -56,6 +56,8 @@ def render_prometheus_metrics() -> str:
                         metric_name = f"{metric_name}_total"
                 elif isinstance(metric.data, Gauge):
                     metric_type = "gauge"
+                elif isinstance(metric.data, Histogram):
+                    metric_type = "histogram"
                 else:
                     continue
 
@@ -68,9 +70,31 @@ def render_prometheus_metrics() -> str:
                         )
                     )
                     declared.add(metric_name)
-                for point in metric.data.data_points:
-                    labels = _prometheus_labels(dict(point.attributes or {}))
-                    lines.append(f"{metric_name}{labels} {_prometheus_number(point.value)}")
+                if isinstance(metric.data, Histogram):
+                    for histogram_point in metric.data.data_points:
+                        attributes = dict(histogram_point.attributes or {})
+                        cumulative = 0
+                        for upper_bound, count in zip(
+                            histogram_point.explicit_bounds,
+                            histogram_point.bucket_counts[:-1],
+                            strict=True,
+                        ):
+                            cumulative += count
+                            labels = _prometheus_labels(
+                                {**attributes, "le": _prometheus_number(upper_bound)}
+                            )
+                            lines.append(f"{metric_name}_bucket{labels} {cumulative}")
+                        cumulative += histogram_point.bucket_counts[-1]
+                        infinite_labels = _prometheus_labels({**attributes, "le": "+Inf"})
+                        labels = _prometheus_labels(attributes)
+                        lines.append(f"{metric_name}_bucket{infinite_labels} {cumulative}")
+                        lines.append(f"{metric_name}_count{labels} {histogram_point.count}")
+                        point_sum = histogram_point.sum or 0
+                        lines.append(f"{metric_name}_sum{labels} {_prometheus_number(point_sum)}")
+                    continue
+                for number_point in metric.data.data_points:
+                    labels = _prometheus_labels(dict(number_point.attributes or {}))
+                    lines.append(f"{metric_name}{labels} {_prometheus_number(number_point.value)}")
     return "\n".join(lines) + ("\n" if lines else "")
 
 

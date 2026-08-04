@@ -162,6 +162,40 @@ async def test_workflow_read_contracts_preserve_context_and_encode_instance() ->
     assert all(request.headers["X-Internal-Token"] == "signed-internal-token" for request in seen)
 
 
+async def test_workflow_start_contract_forwards_only_explicit_business_fields() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "instanceId": "wf-1",
+                "status": "WAITING_APPROVAL",
+                "taskId": "t-1",
+                "priority": "HIGH",
+                "deduplicated": False,
+            },
+        )
+
+    client = PlatformClient(Settings(), httpx.MockTransport(handler))
+    reply = await client.start_refund(
+        message="refund order 101",
+        chat_id="agent:alice",
+        dedupe_id="refund-42",
+        context=context(),
+    )
+
+    assert reply.instance_id == "wf-1"
+    assert len(seen) == 1
+    assert json.loads(seen[0].content) == {
+        "message": "refund order 101",
+        "chatId": "agent:alice",
+        "dedupeId": "refund-42",
+    }
+    assert seen[0].headers["X-Internal-Token"] == "signed-internal-token"
+
+
 async def test_workflow_instance_404_is_normalized() -> None:
     client = PlatformClient(
         Settings(),

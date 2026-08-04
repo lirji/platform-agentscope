@@ -26,6 +26,16 @@ class AsyncTaskMetrics:
             description="Agent async tasks executing in this process.",
             unit="task",
         )
+        self._inflight = meter.create_up_down_counter(
+            "agent_async_task_inflight",
+            description="Accepted Agent async tasks held by this process.",
+            unit="task",
+        )
+        self._backlog = meter.create_up_down_counter(
+            "agent_async_task_backlog",
+            description="Agent async tasks waiting for an execution slot.",
+            unit="task",
+        )
 
     def submitted(self, kind: str) -> None:
         self._submissions.add(1, {"kind": kind})
@@ -38,3 +48,9 @@ class AsyncTaskMetrics:
 
     def running(self, delta: int, kind: str) -> None:
         self._running.add(delta, {"kind": kind})
+
+    def inflight(self, delta: int, kind: str) -> None:
+        self._inflight.add(delta, {"kind": kind})
+
+    def backlog(self, delta: int, kind: str) -> None:
+        self._backlog.add(delta, {"kind": kind})

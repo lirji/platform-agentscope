@@ -1,6 +1,3 @@
-from datetime import UTC, datetime, timedelta
-
-import jwt
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
@@ -10,6 +7,7 @@ from agentscope_platform.domain.agent import AgentExecution, RunContext
 from agentscope_platform.infrastructure.observability.async_task_metrics import (
     AsyncTaskMetrics,
 )
+from internal_jwt_support import signed_internal_token
 
 TEST_SECRET = "test-only-internal-secret-with-at-least-32-bytes"
 
@@ -29,15 +27,10 @@ def _settings() -> Settings:
 
 
 def _token() -> str:
-    return jwt.encode(
-        {
-            "sub": "acme",
-            "uid": "metrics-scraper",
-            "scopes": ["metrics"],
-            "exp": datetime.now(UTC) + timedelta(minutes=5),
-        },
+    return signed_internal_token(
         TEST_SECRET,
-        algorithm="HS256",
+        user="metrics-scraper",
+        scopes=("metrics",),
     )
 
 
@@ -54,6 +47,8 @@ def test_metrics_endpoint_exports_low_cardinality_async_metrics() -> None:
     metrics = AsyncTaskMetrics()
     metrics.submitted("agent.run")
     metrics.running(1, "agent.run")
+    metrics.inflight(1, "agent.run")
+    metrics.backlog(1, "agent.run")
     metrics.completed("agent.run", "SUCCEEDED")
     metrics.heartbeat_failed()
 
@@ -69,6 +64,8 @@ def test_metrics_endpoint_exports_low_cardinality_async_metrics() -> None:
         'agent_async_task_completions_total{kind="agent.run",status="SUCCEEDED"}' in response.text
     )
     assert 'agent_async_task_running{kind="agent.run"}' in response.text
+    assert 'agent_async_task_inflight{kind="agent.run"}' in response.text
+    assert 'agent_async_task_backlog{kind="agent.run"}' in response.text
     assert "agent_async_task_heartbeat_failures_total" in response.text
     for forbidden_label in ("task_id=", "tenant_id=", "prompt=", "result=", "token="):
         assert forbidden_label not in response.text

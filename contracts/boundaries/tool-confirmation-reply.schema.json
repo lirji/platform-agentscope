@@ -1,0 +1,36 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "argumentsSha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Argumentssha256",
+      "type": "string"
+    },
+    "expiresAt": {
+      "format": "date-time",
+      "title": "Expiresat",
+      "type": "string"
+    },
+    "grant": {
+      "title": "Grant",
+      "type": "string"
+    },
+    "grantId": {
+      "title": "Grantid",
+      "type": "string"
+    },
+    "toolName": {
+      "title": "Toolname",
+      "type": "string"
+    }
+  },
+  "required": [
+    "grant",
+    "grantId",
+    "toolName",
+    "argumentsSha256",
+    "expiresAt"
+  ],
+  "title": "ToolConfirmationReply",
+  "type": "object"
+}

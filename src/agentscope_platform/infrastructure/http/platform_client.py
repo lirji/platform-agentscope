@@ -5,6 +5,7 @@ import httpx
 from pydantic import BaseModel
 
 from agentscope_platform.core.config import Settings
+from agentscope_platform.core.deadline import outbound_deadline_epoch_ms
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.infrastructure.http.models import (
     AnalyticsSqlPlanReply,
@@ -14,8 +15,14 @@ from agentscope_platform.infrastructure.http.models import (
     KnowledgeQueryReply,
     OrderView,
     WorkflowInstanceReply,
+    WorkflowStartReply,
     WorkflowTasksReply,
     WorkflowTaskView,
+)
+from agentscope_platform.infrastructure.http.resilience import (
+    DependencyCallRejected,
+    DependencyGuardRegistry,
+    httpx_limits,
 )
 
 
@@ -33,15 +40,30 @@ class PlatformClient:
         self,
         settings: Settings,
         transport: httpx.AsyncBaseTransport | None = None,
+        *,
+        client: httpx.AsyncClient | None = None,
+        guards: DependencyGuardRegistry | None = None,
     ) -> None:
+        if client is not None and transport is not None:
+            raise ValueError("client and transport are mutually exclusive")
         self._settings = settings
-        self._transport = transport
         self._timeout = httpx.Timeout(
             connect=settings.http_connect_timeout_seconds,
             read=settings.http_read_timeout_seconds,
             write=settings.http_read_timeout_seconds,
             pool=settings.http_connect_timeout_seconds,
         )
+        self._owns_client = client is None
+        self._client = client or httpx.AsyncClient(
+            timeout=self._timeout,
+            transport=transport,
+            limits=httpx_limits(settings),
+        )
+        self._guards = guards or DependencyGuardRegistry(settings)
+
+    async def close(self) -> None:
+        if self._owns_client:
+            await self._client.aclose()
 
     async def query_knowledge(
         self,
@@ -149,6 +171,26 @@ class PlatformClient:
                 return None
             raise
 
+    async def start_refund(
+        self,
+        *,
+        message: str,
+        chat_id: str,
+        dedupe_id: str,
+        context: RunContext,
+    ) -> WorkflowStartReply:
+        return await self._post(
+            "workflow-service",
+            f"{self._settings.workflow_base_url.rstrip('/')}/workflow/refund/start",
+            {
+                "message": message,
+                "chatId": chat_id,
+                "dedupeId": dedupe_id,
+            },
+            context,
+            WorkflowStartReply,
+        )
+
     async def list_workflow_tasks(
         self,
         context: RunContext,
@@ -202,21 +244,32 @@ class PlatformClient:
         response_type: type[ResponseT],
         payload: dict[str, Any] | None = None,
     ) -> ResponseT:
-        headers = {"X-Trace-Id": context.trace_id}
+        headers = {
+            "X-Trace-Id": context.trace_id,
+            "X-Request-Deadline-Ms": str(
+                outbound_deadline_epoch_ms(self._settings.http_read_timeout_seconds)
+            ),
+        }
         if context.internal_token:
             headers[self._settings.internal_jwt_header] = context.internal_token
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout,
-                transport=self._transport,
-            ) as client:
-                response = await client.request(
+            response = await self._guards.for_dependency(service).execute(
+                lambda: self._client.request(
                     method,
                     url,
                     json=payload,
                     headers=headers,
-                )
+                ),
+                timeout_seconds=self._settings.http_read_timeout_seconds,
+                response_failed=lambda item: item.status_code >= 500,
+            )
+        except DependencyCallRejected as exc:
+            raise PlatformServiceError(
+                service,
+                None,
+                f"{service} unavailable ({exc.reason})",
+            ) from exc
         except httpx.HTTPError as exc:
             raise PlatformServiceError(service, None, f"{service} unavailable") from exc
 

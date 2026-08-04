@@ -1,10 +1,11 @@
 import asyncio
 import codecs
 import json
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, HTTPException, Path, Query, Request, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -13,10 +14,17 @@ from agentscope_platform.application.async_task import (
     AsyncTaskManager,
     AsyncTaskNotFoundError,
 )
+from agentscope_platform.application.confirmation import (
+    ToolConfirmationDeniedError,
+    ToolConfirmationService,
+    ToolConfirmationUnavailableError,
+)
 from agentscope_platform.application.dag import AgentDagApplicationService
 from agentscope_platform.application.planning import AgentDagPlanningService
-from agentscope_platform.application.ports import ProgressSink
+from agentscope_platform.application.ports import DependencyReadiness, ProgressSink
+from agentscope_platform.application.privacy import redact_pii
 from agentscope_platform.application.service import AgentApplicationService
+from agentscope_platform.application.session import AgentSessionService
 from agentscope_platform.application.sibling import (
     PromptChainService,
     ReflexionService,
@@ -31,13 +39,22 @@ from agentscope_platform.domain.async_task import (
     AsyncTaskStatus,
     CentralAsyncTask,
 )
+from agentscope_platform.domain.confirmation import (
+    ToolConfirmationReply,
+    ToolConfirmationRequest,
+)
 from agentscope_platform.domain.dag import (
     AgentDagRunReply,
     AgentDagRunRequest,
     AgentPlanRunRequest,
     DagPlanKind,
 )
-from agentscope_platform.domain.interop import McpToolDescriptor
+from agentscope_platform.domain.interop import (
+    AgentCapabilityRegistry,
+    McpToolDescriptor,
+    capability_registry,
+)
+from agentscope_platform.domain.session import AgentSessionCheckpoint, AgentSessionRunRequest
 from agentscope_platform.domain.sibling import (
     ChainRunReply,
     ChainRunRequest,
@@ -59,6 +76,7 @@ from agentscope_platform.infrastructure.observability.prometheus import (
 
 router = APIRouter()
 candidate_router = APIRouter(prefix="/agent/v2")
+log = logging.getLogger(__name__)
 
 
 @router.get("/health", tags=["platform"])
@@ -83,18 +101,45 @@ async def prometheus_metrics(context: RunContextDependency) -> Response:
 @router.get("/readiness", tags=["platform"])
 async def readiness(request: Request) -> JSONResponse:
     configured = request.app.state.container.settings.agent_enabled
+    try:
+        dependencies = await request.app.state.container.readiness_probe.check()
+        session_ready = await request.app.state.container.session_store.ready(
+            request.app.state.container.settings.readiness_probe_timeout_seconds
+        )
+        dependencies = (
+            *dependencies,
+            DependencyReadiness(
+                name="agentSessionStore",
+                required=True,
+                status="UP" if session_ready else "DOWN",
+            ),
+        )
+    except Exception:
+        dependencies = (
+            DependencyReadiness(
+                name="runtimeDependencies",
+                required=True,
+                status="DOWN",
+            ),
+        )
+    dependencies_ready = all(not item.required or item.status == "UP" for item in dependencies)
     body: dict[str, Any] = {
-        "status": "UP" if configured else "DEGRADED",
+        "status": "UP" if configured and dependencies_ready else "DEGRADED",
         "checks": {
             "agentScope": "UP",
             "modelConfiguration": "UP" if configured else "MISSING_GATEWAY_API_KEY",
             "candidateRoute": (
                 "ENABLED" if request.app.state.container.settings.agent_v2_enabled else "DISABLED"
             ),
+            **{item.name: item.status for item in dependencies},
         },
     }
     return JSONResponse(
-        status_code=status.HTTP_200_OK if configured else status.HTTP_503_SERVICE_UNAVAILABLE,
+        status_code=(
+            status.HTTP_200_OK
+            if configured and dependencies_ready
+            else status.HTTP_503_SERVICE_UNAVAILABLE
+        ),
         content=body,
     )
 
@@ -150,40 +195,91 @@ async def draft_workflow_reply(
 )
 async def agent_capabilities(context: RunContextDependency) -> list[McpToolDescriptor]:
     del context
-    goal_schema = {
-        "type": "object",
-        "required": ["goal"],
-        "properties": {
-            "goal": {"type": "string"},
-            "webhookUrl": {"type": "string"},
-        },
-    }
-    return [
-        McpToolDescriptor(
-            name="platform.agent.run",
-            description="Runs the platform agent through AgentScope.",
-            inputSchema=goal_schema,
-        ),
-        McpToolDescriptor(
-            name="platform.agent.run_async",
-            description="Starts an async platform agent run through AgentScope.",
-            inputSchema=goal_schema,
-        ),
-        McpToolDescriptor(
-            name="platform.agent.dag.plan_run",
-            description="Plans and runs a DAG agent workflow through AgentScope.",
-            inputSchema={
-                "type": "object",
-                "required": ["goal"],
-                "properties": {"goal": {"type": "string"}},
-            },
-        ),
-        McpToolDescriptor(
-            name="platform.agent.dag.plan_run_async",
-            description="Starts an async planned DAG agent workflow through AgentScope.",
-            inputSchema=goal_schema,
-        ),
-    ]
+    return list(capability_registry().capabilities[:4])
+
+
+@router.get(
+    "/agent/capabilities/registry",
+    response_model=AgentCapabilityRegistry,
+    tags=["agent"],
+    summary="Discover the versioned platform Agent capability registry",
+)
+async def agent_capability_registry(
+    context: RunContextDependency,
+    response: Response,
+) -> AgentCapabilityRegistry:
+    del context
+    registry = capability_registry()
+    response.headers["ETag"] = f'"{registry.revision}"'
+    return registry
+
+
+@router.post(
+    "/agent/sessions/{session_id}/run",
+    response_model=AgentSessionCheckpoint,
+    tags=["agent-session"],
+    summary="Create or resume an owner-scoped durable Agent session",
+)
+async def run_agent_session(
+    session_id: Annotated[str, Path(pattern=r"^sess-[a-f0-9]{32}$")],
+    payload: AgentSessionRunRequest,
+    context: RunContextDependency,
+    request: Request,
+) -> AgentSessionCheckpoint:
+    service = cast(AgentSessionService, request.app.state.container.session_service)
+    return await service.run(session_id, payload.goal, context)
+
+
+@router.get(
+    "/agent/sessions/{session_id}",
+    response_model=AgentSessionCheckpoint,
+    tags=["agent-session"],
+    summary="Read an owner-scoped durable Agent session checkpoint",
+)
+async def get_agent_session(
+    session_id: Annotated[str, Path(pattern=r"^sess-[a-f0-9]{32}$")],
+    context: RunContextDependency,
+    request: Request,
+) -> AgentSessionCheckpoint:
+    service = cast(AgentSessionService, request.app.state.container.session_service)
+    return await service.get(session_id, context)
+
+
+@router.post(
+    "/agent/tool-confirmations",
+    response_model=ToolConfirmationReply,
+    status_code=status.HTTP_201_CREATED,
+    tags=["agent"],
+    summary="Issue a short-lived argument-bound tool confirmation grant",
+)
+async def issue_tool_confirmation(
+    payload: ToolConfirmationRequest,
+    context: RunContextDependency,
+    request: Request,
+) -> ToolConfirmationReply:
+    metadata = request.app.state.container.confirmable_tools.get(payload.tool_name)
+    if metadata is None:
+        raise HTTPException(status_code=404, detail="confirmable tool not found")
+    service = cast(
+        ToolConfirmationService,
+        request.app.state.container.confirmation_service,
+    )
+    try:
+        return service.issue(metadata, payload.arguments, context)
+    except ToolConfirmationDeniedError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except (ValueError, ToolConfirmationUnavailableError) as exc:
+        status_code = (
+            status.HTTP_503_SERVICE_UNAVAILABLE
+            if isinstance(exc, ToolConfirmationUnavailableError)
+            else status.HTTP_400_BAD_REQUEST
+        )
+        detail = (
+            "tool confirmation service is unavailable"
+            if status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+            else "invalid tool confirmation request"
+        )
+        raise HTTPException(status_code=status_code, detail=detail) from exc
 
 
 @router.post(
@@ -195,8 +291,9 @@ async def run_agent(
     payload: AgentRunRequest,
     context: RunContextDependency,
     request: Request,
+    response: Response,
 ) -> AgentRunReply:
-    return await _run_agent(payload, context, request)
+    return await _run_agent(payload, context, request, response)
 
 
 @router.post(
@@ -229,8 +326,9 @@ async def run_candidate_agent(
     payload: AgentRunRequest,
     context: RunContextDependency,
     request: Request,
+    response: Response,
 ) -> AgentRunReply:
-    return await _run_agent(payload, context, request)
+    return await _run_agent(payload, context, request, response)
 
 
 @router.post(
@@ -425,13 +523,14 @@ async def stream_reflexion(
     "/agent/process/run",
     response_model=AgentDagRunReply,
     tags=["agent-process"],
-    summary="Run the read-only Process candidate",
+    summary="Run the governed Process agent",
     description=(
-        "Queries workflow status, pending tasks, or policy only. This candidate never "
-        "starts, approves, claims, or modifies a workflow."
+        "Queries workflow state by default. When refund_start is enabled, explicitly confirmed, "
+        "and protected by an idempotency key, it may start a refund workflow. It never approves, "
+        "claims, or deletes workflow state."
     ),
 )
-async def run_readonly_process(
+async def run_process(
     context: RunContextDependency,
     request: Request,
     payload: AgentPlanRunRequest | None = None,
@@ -453,7 +552,7 @@ async def run_readonly_process(
     status_code=status.HTTP_202_ACCEPTED,
     tags=["agent-process"],
 )
-async def run_readonly_process_async(
+async def run_process_async(
     context: RunContextDependency,
     request: Request,
     payload: AgentPlanRunRequest | None = None,
@@ -553,12 +652,18 @@ async def _run_agent(
     payload: AgentRunRequest,
     context: RunContextDependency,
     request: Request,
+    response: Response,
 ) -> AgentRunReply:
     service = cast(
         AgentApplicationService,
         request.app.state.container.agent_service,
     )
-    return await service.run(payload, context)
+    reply = await service.run(payload, context)
+    versions = request.app.state.container.execution_versions
+    response.headers["X-Agent-Prompt-Version"] = versions.prompt_version
+    response.headers["X-Agent-Model-Version"] = versions.model_version
+    response.headers["X-Agent-Toolset-Version"] = versions.toolset_version
+    return reply
 
 
 async def _plan_and_run(
@@ -608,22 +713,47 @@ async def _submit(
 async def _project_task_events(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
     buffer = ""
     decoder = codecs.getincrementaldecoder("utf-8")()
-    async for chunk in chunks:
-        buffer += decoder.decode(chunk)
-        while True:
-            boundary = _frame_boundary(buffer)
-            if boundary is None:
-                break
-            index, width = boundary
-            frame, buffer = buffer[:index], buffer[index + width :]
-            projected = _project_task_frame(frame)
+    try:
+        async for chunk in chunks:
+            buffer += decoder.decode(chunk)
+            while True:
+                boundary = _frame_boundary(buffer)
+                if boundary is None:
+                    break
+                index, width = boundary
+                frame, buffer = buffer[:index], buffer[index + width :]
+                projected = _project_task_frame(frame)
+                if projected is not None:
+                    yield projected
+        buffer += decoder.decode(b"", final=True)
+        if buffer.strip():
+            projected = _project_task_frame(buffer)
             if projected is not None:
                 yield projected
-    buffer += decoder.decode(b"", final=True)
-    if buffer.strip():
-        projected = _project_task_frame(buffer)
-        if projected is not None:
-            yield projected
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        log.warning(
+            "agent task stream terminated error_type=%s",
+            type(exc).__name__,
+        )
+        yield _stream_error_event("AGENT_TASK_STREAM_FAILED")
+    finally:
+        close = getattr(chunks, "aclose", None)
+        if close is not None:
+            try:
+                await close()
+            except Exception as exc:
+                log.warning(
+                    "agent task upstream close failed error_type=%s",
+                    type(exc).__name__,
+                )
+
+
+def _stream_error_event(code: str) -> bytes:
+    return (
+        f'event: error\ndata: {{"error":"agent task stream failed","code":"{code}"}}\n\n'
+    ).encode()
 
 
 def _frame_boundary(value: str) -> tuple[int, int] | None:
@@ -654,6 +784,7 @@ def _project_task_frame(frame: str) -> bytes | None:
             by_alias=True,
             mode="json",
         )
+    data = redact_pii(data)
     lines = []
     if event_id:
         lines.append(f"id: {event_id}")
@@ -685,21 +816,42 @@ async def _reflexion_events(
     sink = _QueueProgressSink(queue)
 
     async def produce() -> None:
+        cancelled = False
         try:
             await service.run(payload, context, sink)
-        except Exception:
-            await queue.put(("error", {"error": "agent reflexion failed"}))
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+        except Exception as exc:
+            log.warning(
+                "agent reflexion stream terminated error_type=%s",
+                type(exc).__name__,
+            )
+            await queue.put(
+                (
+                    "error",
+                    {
+                        "error": "agent reflexion failed",
+                        "code": "AGENT_REFLEXION_STREAM_FAILED",
+                    },
+                )
+            )
         finally:
-            await queue.put(None)
+            # Cancellation means the consumer has gone away. Awaiting a sentinel write here can
+            # deadlock forever when the bounded queue is full and nobody will drain it.
+            if not cancelled:
+                await queue.put(None)
 
     producer = asyncio.create_task(produce())
     try:
         while (item := await queue.get()) is not None:
             event, data = item
-            yield (
-                f"event: {event}\n"
-                f"data: {json.dumps(data, ensure_ascii=False, separators=(',', ':'))}\n\n"
-            ).encode()
+            serialized = json.dumps(
+                redact_pii(data),
+                ensure_ascii=False,
+                separators=(",", ":"),
+            )
+            yield (f"event: {event}\ndata: {serialized}\n\n").encode()
     finally:
         producer.cancel()
         await asyncio.gather(producer, return_exceptions=True)

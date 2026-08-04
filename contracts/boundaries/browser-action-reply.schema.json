@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifactId": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifactid"
+    },
+    "currentUrl": {
+      "anyOf": [
+        {
+          "maxLength": 4096,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currenturl"
+    },
+    "output": {
+      "maxLength": 100000,
+      "title": "Output",
+      "type": "string"
+    },
+    "truncated": {
+      "default": false,
+      "title": "Truncated",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "output"
+  ],
+  "title": "BrowserActionReply",
+  "type": "object"
+}

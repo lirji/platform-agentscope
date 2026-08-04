@@ -1,6 +1,3 @@
-from datetime import UTC, datetime, timedelta
-
-import jwt
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
@@ -8,6 +5,7 @@ from agentscope_platform.api.app import create_app
 from agentscope_platform.application.ports import (
     DagPlanningError,
     DagQualityError,
+    DependencyReadiness,
     TextGenerationError,
 )
 from agentscope_platform.core.config import Settings
@@ -20,6 +18,8 @@ from agentscope_platform.domain.dag import (
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
 )
+from internal_jwt_support import signed_internal_token
+from tool_confirmation_support import CONFIRMATION_SECRET
 
 TEST_SECRET = "test-only-internal-secret-with-at-least-32-bytes"
 
@@ -31,6 +31,17 @@ class FakeRunner:
     async def run(self, goal: str, context: RunContext) -> AgentExecution:
         self.context = context
         return AgentExecution(final_answer=f"completed: {goal}")
+
+
+class FakeReadinessProbe:
+    def __init__(self, *checks: DependencyReadiness) -> None:
+        self.checks = checks
+
+    async def check(self) -> tuple[DependencyReadiness, ...]:
+        return self.checks
+
+    async def close(self) -> None:
+        pass
 
 
 class UnconfiguredRunner:
@@ -173,18 +184,12 @@ def settings(**overrides: object) -> Settings:
     return Settings(**values)
 
 
-def internal_token(**overrides: object) -> str:
-    now = datetime.now(UTC)
-    claims: dict[str, object] = {
-        "sub": "acme",
-        "uid": "alice",
-        "scopes": ["chat", "agent"],
-        "dept": "acme_rd",
-        "iat": now,
-        "exp": now + timedelta(minutes=5),
-    }
-    claims.update(overrides)
-    return jwt.encode(claims, TEST_SECRET, algorithm="HS256")
+def internal_token() -> str:
+    return signed_internal_token(
+        TEST_SECRET,
+        scopes=("chat", "agent"),
+        department="acme_rd",
+    )
 
 
 def test_health_is_open_and_returns_trace_id() -> None:
@@ -205,9 +210,7 @@ def test_workflow_ai_draft_endpoints_use_trusted_context_and_never_decide() -> N
             "您的退款请求已受理, 我们会尽快处理。",
         ]
     )
-    client = TestClient(
-        create_app(settings(), FakeRunner(), text_generator=generator)
-    )
+    client = TestClient(create_app(settings(), FakeRunner(), text_generator=generator))
     headers = {"X-Internal-Token": internal_token()}
 
     ticket = client.post(
@@ -236,6 +239,64 @@ def test_agent_run_requires_internal_token() -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"] == "valid internal authentication is required"
+
+
+def test_agent_run_binds_confirmation_and_idempotency_from_request_headers() -> None:
+    runner = FakeRunner()
+    client = TestClient(
+        create_app(
+            settings(
+                agent_refund_start_enabled=True,
+                agent_confirmation_secret=SecretStr(CONFIRMATION_SECRET),
+            ),
+            runner,
+        )
+    )
+    issued = client.post(
+        "/agent/tool-confirmations",
+        json={"toolName": "refund_start", "arguments": {"message": "订单 101 退款"}},
+        headers={
+            "X-Internal-Token": internal_token(),
+            "Idempotency-Key": "refund-request-42",
+        },
+    )
+    assert issued.status_code == 201
+
+    response = client.post(
+        "/agent/run",
+        json={"goal": "发起退款"},
+        headers={
+            "X-Internal-Token": internal_token(),
+            "X-Agent-Confirmation-Grants": issued.json()["grant"],
+            "Idempotency-Key": "refund-request-42",
+        },
+    )
+
+    assert response.status_code == 200
+    assert runner.context is not None
+    assert runner.context.has_confirmation_for_tool("refund_start")
+    assert runner.context.idempotency_key == "refund-request-42"
+
+
+def test_agent_run_rejects_invalid_confirmation_or_idempotency_headers() -> None:
+    client = TestClient(create_app(settings(), FakeRunner()))
+    headers = {"X-Internal-Token": internal_token()}
+
+    invalid_tool = client.post(
+        "/agent/run",
+        json={"goal": "test"},
+        headers={**headers, "X-Agent-Confirmed-Tools": "refund start"},
+    )
+    invalid_key = client.post(
+        "/agent/run",
+        json={"goal": "test"},
+        headers={**headers, "Idempotency-Key": "contains whitespace"},
+    )
+
+    assert invalid_tool.status_code == 400
+    assert invalid_tool.json()["detail"] == "legacy tool-name confirmation is not supported"
+    assert invalid_key.status_code == 400
+    assert invalid_key.json()["detail"] == "invalid idempotency key"
 
 
 def test_agent_capabilities_require_auth_and_match_legacy_discovery_contract() -> None:
@@ -577,15 +638,10 @@ def test_agent_dag_run_rejects_forged_token() -> None:
             "tasks": [{"id": "t1", "description": "work"}],
         },
         headers={
-            "X-Internal-Token": jwt.encode(
-                {
-                    "sub": "acme",
-                    "uid": "mallory",
-                    "scopes": ["agent"],
-                    "exp": datetime.now(UTC) + timedelta(minutes=5),
-                },
-                "another-test-secret-with-at-least-32-bytes",
-                algorithm="HS256",
+            "X-Internal-Token": signed_internal_token(
+                TEST_SECRET,
+                user="mallory",
+                signing_secret="another-test-secret-with-at-least-32-bytes",
             ),
         },
     )
@@ -649,15 +705,10 @@ def test_candidate_route_preserves_contract_security_and_context() -> None:
         "/agent/v2/run",
         json={"goal": "test"},
         headers={
-            "X-Internal-Token": jwt.encode(
-                {
-                    "sub": "acme",
-                    "uid": "mallory",
-                    "scopes": ["agent"],
-                    "exp": datetime.now(UTC) + timedelta(minutes=5),
-                },
-                "another-test-secret-with-at-least-32-bytes",
-                algorithm="HS256",
+            "X-Internal-Token": signed_internal_token(
+                TEST_SECRET,
+                user="mallory",
+                signing_secret="another-test-secret-with-at-least-32-bytes",
             ),
         },
     )
@@ -691,15 +742,10 @@ def test_candidate_route_preserves_contract_security_and_context() -> None:
 
 def test_agent_run_rejects_forged_token() -> None:
     client = TestClient(create_app(settings(), FakeRunner()))
-    forged = jwt.encode(
-        {
-            "sub": "acme",
-            "uid": "mallory",
-            "scopes": ["agent"],
-            "exp": datetime.now(UTC) + timedelta(minutes=5),
-        },
-        "another-test-secret-with-at-least-32-bytes",
-        algorithm="HS256",
+    forged = signed_internal_token(
+        TEST_SECRET,
+        user="mallory",
+        signing_secret="another-test-secret-with-at-least-32-bytes",
     )
 
     response = client.post(
@@ -713,7 +759,9 @@ def test_agent_run_rejects_forged_token() -> None:
 
 def test_readiness_reports_missing_model_configuration() -> None:
     app_settings = settings(gateway_api_key=SecretStr(""))
-    client = TestClient(create_app(app_settings, FakeRunner()))
+    client = TestClient(
+        create_app(app_settings, FakeRunner(), readiness_probe=FakeReadinessProbe())
+    )
 
     response = client.get("/readiness")
 
@@ -728,6 +776,9 @@ def test_readiness_reports_enabled_candidate_route() -> None:
         create_app(
             settings(agent_v2_enabled=True),
             FakeRunner(),
+            readiness_probe=FakeReadinessProbe(
+                DependencyReadiness(name="modelGateway", required=True, status="UP")
+            ),
         ),
     )
 
@@ -735,6 +786,26 @@ def test_readiness_reports_enabled_candidate_route() -> None:
 
     assert response.status_code == 200
     assert response.json()["checks"]["candidateRoute"] == "ENABLED"
+
+
+def test_readiness_fails_when_required_runtime_dependency_is_down() -> None:
+    client = TestClient(
+        create_app(
+            settings(),
+            FakeRunner(),
+            readiness_probe=FakeReadinessProbe(
+                DependencyReadiness(name="modelGateway", required=True, status="DOWN"),
+                DependencyReadiness(name="asyncTask", required=False, status="DISABLED"),
+            ),
+        )
+    )
+
+    response = client.get("/readiness")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "DEGRADED"
+    assert response.json()["checks"]["modelGateway"] == "DOWN"
+    assert response.json()["checks"]["asyncTask"] == "DISABLED"
 
 
 def test_local_auth_can_be_explicitly_disabled() -> None:

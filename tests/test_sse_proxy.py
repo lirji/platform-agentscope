@@ -53,3 +53,45 @@ async def test_projects_lifecycle_and_preserves_progress_across_chunk_boundaries
     assert "leaseOwnerId" not in lifecycle
     assert "中文" in first
     assert "dag-worker-start" in second
+
+
+@pytest.mark.asyncio
+async def test_invalid_upstream_frame_is_sanitized_and_closes_source() -> None:
+    secret = "provider-secret-must-not-leak"
+    closed = False
+
+    async def chunks() -> AsyncIterator[bytes]:
+        nonlocal closed
+        try:
+            yield f"event: RUNNING\ndata: {secret}\n\n".encode()
+        finally:
+            closed = True
+
+    output = b"".join([part async for part in _project_task_events(chunks())]).decode()
+
+    assert output == (
+        'event: error\ndata: {"error":"agent task stream failed",'
+        '"code":"AGENT_TASK_STREAM_FAILED"}\n\n'
+    )
+    assert secret not in output
+    assert closed is True
+
+
+@pytest.mark.asyncio
+async def test_consumer_disconnect_closes_upstream_generator() -> None:
+    closed = False
+
+    async def chunks() -> AsyncIterator[bytes]:
+        nonlocal closed
+        try:
+            yield b"event: progress\ndata: {}\n\n"
+            await __import__("asyncio").Event().wait()
+        finally:
+            closed = True
+
+    projected = _project_task_events(chunks())
+    assert await anext(projected) == b"event: progress\ndata: {}\n\n"
+
+    await projected.aclose()
+
+    assert closed is True

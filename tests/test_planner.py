@@ -13,11 +13,16 @@ from agentscope_platform.domain.agent import RunContext, TenantIdentity
 from agentscope_platform.domain.dag import DagPlanKind
 from agentscope_platform.infrastructure.agentscope.planner import (
     ANALYST_PLANNER_PROMPT,
+    PROCESS_GOVERNED_PLANNER_PROMPT,
     PROCESS_PLANNER_PROMPT,
     AgentScopeDagPlanner,
 )
 from agentscope_platform.infrastructure.agentscope.runner import (
     AgentNotConfiguredError,
+)
+from tool_confirmation_support import (
+    CONFIRMATION_SECRET,
+    confirmation_grant,
 )
 
 
@@ -45,11 +50,15 @@ class FakeModel:
         )
 
 
-def settings(api_key: str = "test-key") -> Settings:
+def settings(api_key: str = "test-key", **overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "_env_file": None,
+        "gateway_api_key": SecretStr(api_key),
+        "internal_auth_required": False,
+    }
+    values.update(overrides)
     return Settings(
-        _env_file=None,
-        gateway_api_key=SecretStr(api_key),
-        internal_auth_required=False,
+        **values,  # type: ignore[arg-type]
     )
 
 
@@ -58,6 +67,22 @@ def context() -> RunContext:
         identity=TenantIdentity("acme", "alice"),
         internal_token="must-not-enter-planner-prompt",
         trace_id="trace-plan",
+    )
+
+
+def confirmed_context() -> RunContext:
+    return RunContext(
+        identity=TenantIdentity("acme", "alice", frozenset({"agent"})),
+        internal_token="must-not-enter-planner-prompt",
+        trace_id="trace-plan",
+        confirmation_grants=(
+            confirmation_grant(
+                "refund_start",
+                {},
+                idempotency_key="refund-42",
+            ),
+        ),
+        idempotency_key="refund-42",
     )
 
 
@@ -103,6 +128,25 @@ async def test_process_planner_exposes_only_readonly_workflow_tools() -> None:
     assert "workflow_status" in prompt
     assert "workflow_tasks" in prompt
     assert "不得规划 refund_start" in prompt
+
+
+async def test_process_planner_exposes_refund_start_only_when_enabled_and_confirmed() -> None:
+    model = FakeModel()
+    planner = AgentScopeDagPlanner(
+        settings(
+            agent_refund_start_enabled=True,
+            agent_confirmation_secret=SecretStr(CONFIRMATION_SECRET),
+        ),
+        model,
+    )
+
+    await planner.plan("发起退款", confirmed_context(), DagPlanKind.PROCESS)
+
+    prompt = model.calls[0][0][0].get_text_content()
+    assert prompt == PROCESS_GOVERNED_PLANNER_PROMPT
+    assert "refund_start" in prompt
+    assert "不得审批" in prompt
+    assert "refund-42" not in str(model.calls)
 
 
 @pytest.mark.parametrize(

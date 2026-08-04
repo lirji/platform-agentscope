@@ -78,6 +78,17 @@ class WorkflowInstanceReply(BaseModel):
     reply: str | None = None
 
 
+class WorkflowStartReply(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    instance_id: str = Field(alias="instanceId")
+    status: str
+    reply: str | None = None
+    task_id: str | None = Field(default=None, alias="taskId")
+    priority: str | None = None
+    deduplicated: bool = False
+
+
 class WorkflowTaskView(BaseModel):
     model_config = ConfigDict(extra="ignore")
 

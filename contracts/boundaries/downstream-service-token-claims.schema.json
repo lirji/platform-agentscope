@@ -1,0 +1,84 @@
+{
+  "additionalProperties": false,
+  "description": "Language-neutral JWT claim contract for external tool providers.",
+  "properties": {
+    "act": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Act",
+      "type": "string"
+    },
+    "actor_uid": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Actor Uid",
+      "type": "string"
+    },
+    "aud": {
+      "pattern": "^\\S{1,128}$",
+      "title": "Aud",
+      "type": "string"
+    },
+    "exp": {
+      "exclusiveMinimum": 0,
+      "title": "Exp",
+      "type": "integer"
+    },
+    "iat": {
+      "minimum": 0,
+      "title": "Iat",
+      "type": "integer"
+    },
+    "iss": {
+      "pattern": "^\\S{1,128}$",
+      "title": "Iss",
+      "type": "string"
+    },
+    "jti": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Jti",
+      "type": "string"
+    },
+    "scopes": {
+      "items": {
+        "const": "agent.tool.invoke",
+        "type": "string"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "title": "Scopes",
+      "type": "array"
+    },
+    "sub": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "title": "Sub",
+      "type": "string"
+    },
+    "tenant": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Tenant",
+      "type": "string"
+    },
+    "token_use": {
+      "const": "agent_downstream",
+      "title": "Token Use",
+      "type": "string"
+    }
+  },
+  "required": [
+    "iss",
+    "aud",
+    "sub",
+    "tenant",
+    "actor_uid",
+    "scopes",
+    "token_use",
+    "act",
+    "jti",
+    "iat",
+    "exp"
+  ],
+  "title": "DownstreamServiceTokenClaims",
+  "type": "object"
+}

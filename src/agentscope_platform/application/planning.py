@@ -15,11 +15,14 @@ from agentscope_platform.domain.dag import (
 )
 
 log = logging.getLogger(__name__)
-PROCESS_WRITE_MARKERS = (
+REFUND_START_MARKERS = (
     "refund_start",
-    "workflow_complete",
     "发起退款",
     "启动退款",
+)
+PROCESS_WRITE_MARKERS = (
+    *REFUND_START_MARKERS,
+    "workflow_complete",
     "批准退款",
     "驳回退款",
     "认领任务",
@@ -39,9 +42,11 @@ class AgentDagPlanningService:
         self,
         planner: DagPlanner,
         dag_service: AgentDagApplicationService,
+        process_write_tools: frozenset[str] = frozenset(),
     ) -> None:
         self._planner = planner
         self._dag_service = dag_service
+        self._process_write_tools = process_write_tools
 
     async def plan_and_run(
         self,
@@ -54,6 +59,12 @@ class AgentDagPlanningService:
         if not goal:
             raise DagValidationError("goal is required")
 
+        refund_start_allowed = (
+            kind is DagPlanKind.PROCESS
+            and "refund_start" in self._process_write_tools
+            and context.has_confirmation_for_tool("refund_start")
+            and bool(context.idempotency_key)
+        )
         try:
             plan = await self._planner.plan(goal, context, kind)
             tasks = [
@@ -64,17 +75,24 @@ class AgentDagPlanningService:
                 )
                 for task in plan.tasks
             ]
+            allowed_markers = PROCESS_READ_MARKERS + (
+                REFUND_START_MARKERS if refund_start_allowed else ()
+            )
+            forbidden_write_markers = tuple(
+                marker
+                for marker in PROCESS_WRITE_MARKERS
+                if marker not in (REFUND_START_MARKERS if refund_start_allowed else ())
+            )
             if kind is DagPlanKind.PROCESS and (
                 len(tasks) > 4
                 or any(
                     marker in (task.description or "").casefold()
                     for task in tasks
-                    for marker in PROCESS_WRITE_MARKERS
+                    for marker in forbidden_write_markers
                 )
                 or any(
                     not any(
-                        marker in (task.description or "").casefold()
-                        for marker in PROCESS_READ_MARKERS
+                        marker in (task.description or "").casefold() for marker in allowed_markers
                     )
                     for task in tasks
                 )
@@ -101,11 +119,19 @@ class AgentDagPlanningService:
         if not tasks:
             description = goal
             if kind is DagPlanKind.PROCESS:
-                description = (
-                    "严格只读处理以下流程诉求。仅可使用 workflow_status、workflow_tasks "
-                    "或 rag_search；不得发起、审批或修改流程。若诉求需要写操作，明确说明"
-                    f"当前候选服务不支持并不得声称成功。\n用户诉求：{goal}"
-                )
+                if refund_start_allowed:
+                    description = (
+                        "受治理处理以下流程诉求。可使用 workflow_status、workflow_tasks、"
+                        "rag_search 或 refund_start；refund_start 仅发起用户已确认且有幂等键的"
+                        "流程，不得审批、认领或删除流程，也不得声称退款已批准。"
+                        f"\n用户诉求：{goal}"
+                    )
+                else:
+                    description = (
+                        "严格只读处理以下流程诉求。仅可使用 workflow_status、workflow_tasks "
+                        "或 rag_search；不得发起、审批或修改流程。若诉求需要写操作，明确说明"
+                        f"当前候选服务不支持并不得声称成功。\n用户诉求：{goal}"
+                    )
             tasks = [AgentDagTask(id="t1", description=description, dependsOn=[])]
         if progress is not None:
             await progress.emit(

@@ -1,0 +1,74 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "language": {
+      "const": "java",
+      "title": "Language",
+      "type": "string"
+    },
+    "maxMemoryMb": {
+      "maximum": 1024,
+      "minimum": 16,
+      "title": "Maxmemorymb",
+      "type": "integer"
+    },
+    "maxOutputChars": {
+      "maximum": 100000,
+      "minimum": 100,
+      "title": "Maxoutputchars",
+      "type": "integer"
+    },
+    "maxProcesses": {
+      "maximum": 64,
+      "minimum": 1,
+      "title": "Maxprocesses",
+      "type": "integer"
+    },
+    "networkEnabled": {
+      "const": false,
+      "title": "Networkenabled",
+      "type": "boolean"
+    },
+    "operationId": {
+      "pattern": "^op-[a-f0-9]{32}$",
+      "title": "Operationid",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1",
+      "default": "1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "timeoutMs": {
+      "maximum": 300000,
+      "minimum": 100,
+      "title": "Timeoutms",
+      "type": "integer"
+    },
+    "workspace": {
+      "const": "ephemeral",
+      "title": "Workspace",
+      "type": "string"
+    }
+  },
+  "required": [
+    "operationId",
+    "language",
+    "source",
+    "timeoutMs",
+    "maxOutputChars",
+    "networkEnabled",
+    "workspace",
+    "maxMemoryMb",
+    "maxProcesses"
+  ],
+  "title": "CodeExecutionRequest",
+  "type": "object"
+}

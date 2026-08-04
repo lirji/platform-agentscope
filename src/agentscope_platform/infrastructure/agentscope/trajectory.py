@@ -18,7 +18,7 @@ from agentscope.event import (
 )
 from agentscope.types import ReplyFinishedReason
 
-from agentscope_platform.domain.agent import AgentStep
+from agentscope_platform.domain.agent import AgentStep, AgentTrajectory, ExecutionVersions
 
 
 @dataclass(slots=True)
@@ -33,12 +33,20 @@ class _PendingTool:
 class TrajectoryCollector:
     """Translate AgentScope events into the stable legacy AgentStep contract."""
 
-    def __init__(self, loop_window: int = 6) -> None:
+    def __init__(
+        self,
+        loop_window: int = 6,
+        initial_steps: tuple[AgentStep, ...] = (),
+        versions: ExecutionVersions | None = None,
+    ) -> None:
         self._pending: dict[str, _PendingTool] = {}
-        self._completed: list[tuple[int, AgentStep]] = []
+        self._completed: list[tuple[int, AgentStep]] = [
+            (index, step) for index, step in enumerate(initial_steps)
+        ]
         self._signatures: deque[str] = deque(maxlen=max(1, loop_window))
         self._text_blocks: dict[str, str] = {}
-        self._next_order = 0
+        self._next_order = len(initial_steps)
+        self._versions = versions
         self.input_tokens = 0
         self.output_tokens = 0
         self.exceeded_max_iters = False
@@ -121,6 +129,18 @@ class TrajectoryCollector:
 
     def steps(self) -> tuple[AgentStep, ...]:
         return tuple(step for _, step in sorted(self._completed, key=lambda item: item[0]))
+
+    def trajectory(self, *, trace_id: str, stop_reason: str) -> AgentTrajectory:
+        if self._versions is None:
+            raise ValueError("trajectory runtime versions are required")
+        return AgentTrajectory(
+            traceId=trace_id,
+            versions=self._versions,
+            steps=self.steps(),
+            stopReason=stop_reason,
+            inputTokens=self.input_tokens,
+            outputTokens=self.output_tokens,
+        )
 
     def stop_reason(self) -> str:
         if self.exceeded_max_iters:

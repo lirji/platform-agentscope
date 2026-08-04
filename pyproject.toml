@@ -14,12 +14,14 @@ dependencies = [
     "agentscope==2.0.5",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    "mcp>=1.28,<2",
     "opentelemetry-exporter-otlp-proto-http>=1.44,<2",
     "opentelemetry-instrumentation-fastapi>=0.65b0,<1",
     "opentelemetry-instrumentation-httpx>=0.65b0,<1",
     "opentelemetry-sdk>=1.44,<2",
     "pydantic-settings>=2.10,<3",
     "pyjwt[crypto]>=2.10,<3",
+    "redis>=6.4,<7",
     "structlog>=25.4,<26",
     "uvicorn[standard]>=0.35,<1",
 ]
@@ -38,6 +40,7 @@ agentscope-platform = "agentscope_platform.main:run"
 agentscope-shadow-eval = "agentscope_platform.evaluation.cli:main"
 agentscope-shadow-cost = "agentscope_platform.evaluation.cost_cli:main"
 agentscope-dag-shadow-eval = "agentscope_platform.evaluation.dag_cli:main"
+agentscope-eval-dataset = "agentscope_platform.evaluation.dataset_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agentscope_platform"]
@@ -57,10 +60,12 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/agentscope_platform/infrastructure/agentscope/readonly_tools.py" = ["RUF001"]
+"src/agentscope_platform/infrastructure/agentscope/governed_tools.py" = ["RUF001"]
 "src/agentscope_platform/application/sibling.py" = ["RUF001"]
 "src/agentscope_platform/application/planning.py" = ["RUF001"]
 "src/agentscope_platform/core/config.py" = ["RUF001"]
 "tests/test_readonly_tools.py" = ["RUF001"]
+"tests/test_governed_tools.py" = ["RUF001"]
 "tests/test_sibling_services.py" = ["RUF001"]
 
 [tool.mypy]

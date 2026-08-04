@@ -78,6 +78,36 @@
         "title": "AgentAsyncTask",
         "type": "object"
       },
+      "AgentCapabilityRegistry": {
+        "additionalProperties": false,
+        "description": "Versioned, language-neutral Agent capability catalog.",
+        "properties": {
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/McpToolDescriptor"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "revision": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Revision",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": "agent-capability-registry.v1",
+            "default": "agent-capability-registry.v1",
+            "title": "Schemaversion",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "capabilities"
+        ],
+        "title": "AgentCapabilityRegistry",
+        "type": "object"
+      },
       "AgentDagAttempt": {
         "properties": {
           "aggregate": {
@@ -431,6 +461,187 @@
         "title": "AgentRunRequest",
         "type": "object"
       },
+      "AgentSessionCheckpoint": {
+        "additionalProperties": false,
+        "description": "Language-neutral, bounded session state safe for durable persistence.",
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "finalAnswer": {
+            "anyOf": [
+              {
+                "maxLength": 100000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finalanswer"
+          },
+          "goalSha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Goalsha256",
+            "type": "string"
+          },
+          "idempotencyKeySha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotencykeysha256"
+          },
+          "leaseExpiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseexpiresat"
+          },
+          "leaseOwnerId": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leaseownerid"
+          },
+          "revision": {
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "const": "agent-session-checkpoint.v1",
+            "default": "agent-session-checkpoint.v1",
+            "title": "Schemaversion",
+            "type": "string"
+          },
+          "sessionId": {
+            "pattern": "^sess-[a-f0-9]{32}$",
+            "title": "Sessionid",
+            "type": "string"
+          },
+          "sideEffectObserved": {
+            "default": false,
+            "title": "Sideeffectobserved",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentSessionStatus"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AgentStep"
+            },
+            "maxItems": 256,
+            "title": "Steps",
+            "type": "array"
+          },
+          "stopReason": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stopreason"
+          },
+          "tenantId": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+            "title": "Tenantid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "userId": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+            "title": "Userid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId",
+          "revision",
+          "tenantId",
+          "userId",
+          "goalSha256",
+          "status",
+          "createdAt",
+          "updatedAt",
+          "expiresAt"
+        ],
+        "title": "AgentSessionCheckpoint",
+        "type": "object"
+      },
+      "AgentSessionRunRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "title": "AgentSessionRunRequest",
+        "type": "object"
+      },
+      "AgentSessionStatus": {
+        "enum": [
+          "READY",
+          "RUNNING",
+          "PAUSED",
+          "SUCCEEDED",
+          "FAILED",
+          "CANCELLED"
+        ],
+        "title": "AgentSessionStatus",
+        "type": "string"
+      },
       "AgentStep": {
         "properties": {
           "action": {
@@ -588,6 +799,7 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "JsonValue": {},
       "McpToolDescriptor": {
         "additionalProperties": false,
         "description": "Language-neutral capability descriptor consumed by platform interop.",
@@ -716,6 +928,65 @@
           }
         },
         "title": "ReflexionRequest",
+        "type": "object"
+      },
+      "ToolConfirmationReply": {
+        "additionalProperties": false,
+        "properties": {
+          "argumentsSha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Argumentssha256",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "title": "Expiresat",
+            "type": "string"
+          },
+          "grant": {
+            "title": "Grant",
+            "type": "string"
+          },
+          "grantId": {
+            "title": "Grantid",
+            "type": "string"
+          },
+          "toolName": {
+            "title": "Toolname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "grant",
+          "grantId",
+          "toolName",
+          "argumentsSha256",
+          "expiresAt"
+        ],
+        "title": "ToolConfirmationReply",
+        "type": "object"
+      },
+      "ToolConfirmationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "arguments": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "title": "Arguments",
+            "type": "object"
+          },
+          "toolName": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+            "title": "Toolname",
+            "type": "string"
+          }
+        },
+        "required": [
+          "toolName",
+          "arguments"
+        ],
+        "title": "ToolConfirmationRequest",
         "type": "object"
       },
       "ValidationError": {
@@ -1075,6 +1346,27 @@
         ]
       }
     },
+    "/agent/capabilities/registry": {
+      "get": {
+        "operationId": "agent_capability_registry_agent_capabilities_registry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCapabilityRegistry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Discover the versioned platform Agent capability registry",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/agent/chain": {
       "post": {
         "operationId": "run_prompt_chain_agent_chain_post",
@@ -1303,8 +1595,8 @@
     },
     "/agent/process/run": {
       "post": {
-        "description": "Queries workflow status, pending tasks, or policy only. This candidate never starts, approves, claims, or modifies a workflow.",
-        "operationId": "run_readonly_process_agent_process_run_post",
+        "description": "Queries workflow state by default. When refund_start is enabled, explicitly confirmed, and protected by an idempotency key, it may start a refund workflow. It never approves, claims, or deletes workflow state.",
+        "operationId": "run_process_agent_process_run_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1344,7 +1636,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Run the read-only Process candidate",
+        "summary": "Run the governed Process agent",
         "tags": [
           "agent-process"
         ]
@@ -1352,7 +1644,7 @@
     },
     "/agent/process/run/async": {
       "post": {
-        "operationId": "run_readonly_process_async_agent_process_run_async_post",
+        "operationId": "run_process_async_agent_process_run_async_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1392,7 +1684,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Run Readonly Process Async",
+        "summary": "Run Process Async",
         "tags": [
           "agent-process"
         ]
@@ -1569,6 +1861,102 @@
         ]
       }
     },
+    "/agent/sessions/{session_id}": {
+      "get": {
+        "operationId": "get_agent_session_agent_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "pattern": "^sess-[a-f0-9]{32}$",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionCheckpoint"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Read an owner-scoped durable Agent session checkpoint",
+        "tags": [
+          "agent-session"
+        ]
+      }
+    },
+    "/agent/sessions/{session_id}/run": {
+      "post": {
+        "operationId": "run_agent_session_agent_sessions__session_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "pattern": "^sess-[a-f0-9]{32}$",
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSessionRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionCheckpoint"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create or resume an owner-scoped durable Agent session",
+        "tags": [
+          "agent-session"
+        ]
+      }
+    },
     "/agent/tasks": {
       "get": {
         "operationId": "list_agent_tasks_agent_tasks_get",
@@ -1724,6 +2112,47 @@
         "summary": "Stream Agent Task",
         "tags": [
           "agent-tasks"
+        ]
+      }
+    },
+    "/agent/tool-confirmations": {
+      "post": {
+        "operationId": "issue_tool_confirmation_agent_tool_confirmations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolConfirmationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolConfirmationReply"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue a short-lived argument-bound tool confirmation grant",
+        "tags": [
+          "agent"
         ]
       }
     },

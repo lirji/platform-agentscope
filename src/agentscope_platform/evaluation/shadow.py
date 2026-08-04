@@ -1,5 +1,6 @@
 import json
 import math
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,19 +11,22 @@ from uuid import uuid4
 import httpx
 from pydantic import ValidationError
 
-from agentscope_platform.domain.agent import AgentRunReply
+from agentscope_platform.domain.agent import AgentRunReply, ExecutionVersions
 from agentscope_platform.evaluation.judge import (
     AnswerJudge,
     JudgeError,
     JudgeRequest,
 )
 from agentscope_platform.evaluation.models import (
+    EvaluationDatasetReference,
     GateResult,
+    ReplayReference,
     RunSample,
     ShadowCase,
     ShadowReport,
     ShadowThresholds,
     TargetSummary,
+    computed_dataset_version,
 )
 
 MAX_RESPONSE_BYTES = 2_000_000
@@ -95,6 +99,9 @@ async def evaluate_shadow(
     transport: httpx.AsyncBaseTransport | None = None,
     suite_name: str = "readonly-cases",
     judge: AnswerJudge | None = None,
+    dataset: EvaluationDatasetReference | None = None,
+    replay: ReplayReference | None = None,
+    require_version_metadata: bool = False,
 ) -> ShadowReport:
     if runs < 1:
         raise ShadowEvaluationError("runs must be at least 1")
@@ -131,6 +138,7 @@ async def evaluate_shadow(
                             run_number,
                             uuid4().hex,
                             judge,
+                            require_version_metadata,
                         ),
                     )
 
@@ -141,10 +149,20 @@ async def evaluate_shadow(
         candidate_summary,
         thresholds or ShadowThresholds(),
     )
+    version_regressions = _version_consistency_regressions(samples)
+    if version_regressions:
+        gate = gate.model_copy(
+            update={
+                "passed": False,
+                "regressions": (*gate.regressions, *version_regressions),
+            }
+        )
     return ShadowReport(
         suite=suite_name,
         generated_at=datetime.now(UTC),
         runs_per_case=runs,
+        dataset=dataset or _legacy_dataset_reference(cases, suite_name),
+        replay=replay,
         gate=gate,
         samples=tuple(samples),
     )
@@ -157,6 +175,7 @@ async def _execute(
     run_number: int,
     trace_id: str,
     judge: AnswerJudge | None,
+    require_version_metadata: bool,
 ) -> RunSample:
     headers = {
         "Content-Type": "application/json",
@@ -214,6 +233,19 @@ async def _execute(
             run_number,
             started,
             "INVALID_CONTRACT",
+            status_code=response.status_code,
+            latency_ms=latency_ms,
+            trace_id=trace_id,
+        )
+
+    versions = _response_versions(response)
+    if require_version_metadata and versions is None:
+        return _failed_sample(
+            case,
+            target,
+            run_number,
+            started,
+            "VERSION_METADATA_MISSING",
             status_code=response.status_code,
             latency_ms=latency_ms,
             trace_id=trace_id,
@@ -296,6 +328,7 @@ async def _execute(
         judge_evaluated=judge_evaluated,
         judge_passed=judge_passed,
         judge_score=judge_score,
+        versions=versions,
         error=error,
     )
 
@@ -551,12 +584,59 @@ def _evaluate_answer(
     return True, passed_checks == len(checks), passed_checks / len(checks)
 
 
+def _response_versions(response: httpx.Response) -> ExecutionVersions | None:
+    prompt = response.headers.get("X-Agent-Prompt-Version")
+    model = response.headers.get("X-Agent-Model-Version")
+    toolset = response.headers.get("X-Agent-Toolset-Version")
+    if not prompt or not model or not toolset:
+        return None
+    try:
+        return ExecutionVersions(
+            promptVersion=prompt,
+            modelVersion=model,
+            toolsetVersion=toolset,
+            toolVersions={},
+        )
+    except ValidationError:
+        return None
+
+
+def _version_consistency_regressions(samples: list[RunSample]) -> tuple[str, ...]:
+    regressions: list[str] = []
+    for target in ("legacy", "candidate"):
+        versions = {
+            (
+                sample.versions.prompt_version,
+                sample.versions.model_version,
+                sample.versions.toolset_version,
+            )
+            for sample in samples
+            if sample.target == target and sample.versions is not None
+        }
+        if len(versions) > 1:
+            regressions.append(f"version_drift regression: {target} used multiple runtime versions")
+    return tuple(regressions)
+
+
+def _legacy_dataset_reference(
+    cases: tuple[ShadowCase, ...],
+    suite_name: str,
+) -> EvaluationDatasetReference:
+    dataset_id = re.sub(r"[^a-z0-9._-]+", "-", suite_name.lower()).strip("-._")
+    dataset_id = dataset_id[:128] or "legacy-suite"
+    return EvaluationDatasetReference(
+        datasetId=dataset_id,
+        version=computed_dataset_version(dataset_id, "baseline", cases),
+        kind="baseline",
+    )
+
+
 def write_report(report: ShadowReport, path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(
-                report.model_dump(mode="json"),
+                report.model_dump(mode="json", by_alias=True),
                 ensure_ascii=False,
                 indent=2,
                 sort_keys=True,
