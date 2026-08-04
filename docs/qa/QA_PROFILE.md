@@ -92,3 +92,23 @@ plans, logs, JSON evidence, and the final report under the timestamped QA direct
 - A time-sensitive Critic false negative was fixed by supplying trusted server UTC evaluation
   time and an explicit ±120 second latency rule. Evidence:
   `docs/qa/agentscope-migration-acceptance-0729-1653/QA_REPORT.md`.
+
+## 2026-08-03 Local Full-Stack Rebuild
+
+- The two dirty working trees can be packaged into the localhost Compose topology without
+  resetting or cleaning either repository. The current UI is `http://localhost:8093`, edge is
+  `:18080`, AgentScope is `:18085`, and local Casdoor is `:8000`.
+- On an existing MySQL volume, rerun `deploy/mysql/init/001-platform-databases.sql` before the
+  migration jobs if the current `*_migrator` accounts are absent. An already-existing
+  `nl2sql_ro` account may additionally require its development password/grant to be converged;
+  `CREATE USER IF NOT EXISTS` alone does not update credentials.
+- `mvn -DskipTests package` currently fails during `platform-eventbus` test compilation because
+  migration test types are unavailable. `mvn -Dmaven.test.skip=true package` is a packaging-only
+  workaround and does not constitute a test pass.
+- The repository launcher always uses `--remove-orphans`; reproduce its build/up sequence
+  manually when existing optional containers must be preserved.
+- Final local evidence: 16/16 HTTP probes matched expected status, the edge rejected anonymous
+  chat with 401, 8/8 migration jobs exited 0, and all running Compose containers had restart
+  count 0. The capability login page and local Casdoor authorization page rendered in Chrome.
+- Evidence:
+  `docs/qa/local-full-stack-rebuild-0803-1711/QA_REPORT.md`.

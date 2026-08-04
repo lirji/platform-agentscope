@@ -57,19 +57,24 @@ api ───────▶ application ───────▶ domain
 ## 4. 请求生命周期
 
 1. edge-gateway 验证外部凭据并签发 `X-Internal-Token`。
-2. API 层验证 HS256/RS256、过期时间及 `sub/uid/scopes/dept`。
+2. API 层验证 HS256/RS256 签名以及 `iss/aud/kid/token_use/jti/iat/exp` 和
+   `sub/uid/scopes/dept`；超长 TTL、混合 audience 与非业务用途 token 均拒绝。
 3. 生成或复用 `X-Trace-Id`。
 4. 构造不可变 `RunContext`。
 5. AgentScope Runner 为本次请求创建独立 Agent。
 6. plan-run/analyst/process 请求先通过独立 Planner 端口生成语言中立 DAG；空或无效计划
    回退单任务。Process 额外拒绝任何流程写操作计划。
 7. 普通请求直接执行；DAG 请求先做拓扑分层，每层 worker 有界并发，层间传递直接依赖结果。
-8. 工具经 HTTP/MCP 调用 Java 服务，并传播 token 与 trace。
-9. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变
+8. Java 领域工具传播已验证 caller token 与 trace；外部 MCP/Browser/Code provider 只收到
+   audience/action 绑定的短时服务令牌，绝不收到原始 caller token。异步 worker 的
+   lease/status/event 同样只使用 task/action 绑定的专用短时凭据，用户控制面继续按 owner 授权。
+9. Runner 绑定请求级 monotonic deadline；共享 HTTP client 传播绝对 deadline，并以每依赖
+   bulkhead/circuit breaker 限制故障扩散。应用关闭时由 lifespan 统一释放连接池。
+10. DAG 在全部 worker 完成后执行 synthesis；每次 runner 调用都复用同一不可变
    `RunContext`，但创建独立 Agent。
-10. replan 开启时，Critic 评审 synthesis；低于阈值则 Replanner 修订 DAG 并有限次重跑。
-11. AgentScope 返回结果，应用层映射成稳定 DTO。
-12. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
+11. replan 开启时，Critic 评审 synthesis；低于阈值则 Replanner 修订 DAG 并有限次重跑。
+12. AgentScope 返回结果，应用层映射成稳定 DTO。
+13. API 返回兼容 JSON/SSE，同时记录评测、审计、成本与追踪数据。
 
 每次请求创建独立 Agent 是 Phase 0 的安全选择，优先保证租户和会话隔离。引入持久会话后，
 必须使用 `(tenant_id, user_id, session_id)` 复合键，并验证不同租户不能恢复彼此状态。
@@ -79,8 +84,12 @@ api ───────▶ application ───────▶ domain
 - platform edge 与 interop 默认都指向部署名 `agentscope-orchestrator`；Java Agent 只作
   显式整服务回滚，不做单请求自动 fallback。
 - AgentScope 模型调用继续指向 LiteLLM，不在应用中维护 provider switch。
+- Java/MCP/sandbox/async-task 客户端按进程复用连接池；每个下游独立隔离，不能用一个故障
+  依赖耗尽全部出站并发。
 - 服务默认无状态，可横向扩容。
 - 长期任务、取消、SSE 和 webhook 状态最终仍以 `async-task-service` 为权威。
+- worker 签名密钥只挂载到中央 verifier 与实际 worker；普通业务服务和用户 JWT 均不能进入
+  worker 数据面。
 - 会话/Agent 状态不得只存在于单进程内存。
 - 探针不要求业务身份；其他业务路径默认要求内部 JWT。
 
@@ -93,6 +102,7 @@ api ───────▶ application ───────▶ domain
 5. workflow 工具必须保留人在环，不提供自动审批能力。
 6. code/browser 工具必须进入隔离 sandbox，不与 API 进程共享宿主文件系统。
 7. prompt、工具输入输出和模型结果不得写入包含密钥的日志。
+8. 外部工具 provider 的 credential 必须与内部 JWT/确认 key 分离，并按 audience 限权。
 
 ## 7. 后续演进
 
