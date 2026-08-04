@@ -21,7 +21,7 @@ dependencies = [
     "opentelemetry-sdk>=1.44,<2",
     "pydantic-settings>=2.10,<3",
     "pyjwt[crypto]>=2.10,<3",
-    "redis>=6.4,<7",
+    "redis>=8.1.0,<9",
     "structlog>=25.4,<26",
     "uvicorn[standard]>=0.35,<1",
 ]
