@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "agent-production-evidence.v1",
+  "releaseId": "REPLACE_WITH_RELEASE_ID",
+  "candidateDigest": "",
+  "rollbackDigest": "",
+  "decision": "NO_GO",
+  "objectives": {
+    "agentRouting": {
+      "rpoMinutes": 0,
+      "rtoMinutes": 15
+    },
+    "agentSessionRedis": {
+      "rpoMinutes": 5,
+      "rtoMinutes": 30
+    },
+    "authoritativeMysql": {
+      "rpoMinutes": 5,
+      "rtoMinutes": 60
+    },
+    "evaluationArtifacts": {
+      "rpoMinutes": 1440,
+      "rtoMinutes": 240
+    }
+  },
+  "checks": [
+    {"id": "release.change_approval", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "release.oncall", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "supply_chain.signature", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "supply_chain.sbom_scan", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "iam.workload_identity", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "security.egress_callbacks", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "database.migration", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "recovery.redis_restore", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "recovery.mysql_restore", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "capacity.peak", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "capacity.autoscaling", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "soak.peak_cycle", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "evaluation.shadow_v4", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "evaluation.adversarial", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "security.tenant_isolation", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "canary.tenant", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "observability.dashboard_alert", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "rollback.full_service", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""},
+    {"id": "rollback.post_restore", "required": true, "status": "PENDING", "owner": "", "observedAt": null, "evidenceUri": ""}
+  ]
+}

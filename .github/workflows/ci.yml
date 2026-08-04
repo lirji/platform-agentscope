@@ -1,35 +1,58 @@
-name: CI
+name: CI and trusted release
 
 on:
   push:
-    branches: ["main"]
+    branches: [main]
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: agentscope-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout immutable source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v6
+      - name: Set up uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
           version: "0.11.3"
           enable-cache: true
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version-file: ".python-version"
 
       - name: Install locked dependencies
         run: uv sync --frozen --dev
 
+      - name: Audit locked production dependencies
+        run: uv --preview-features audit audit --locked --no-dev
+
+      - name: Verify supply-chain policy
+        run: uv run python scripts/test_supply_chain_config.py
+
       - name: Verify contract snapshots
         run: uv run python scripts/export_contracts.py --check
+
+      - name: Verify production runbook and pending evidence template
+        run: |
+          uv run python scripts/test_production_runbook.py
+          uv run agentscope-eval-dataset validate \
+            eval/datasets/agent-safety-adversarial.v1.json
 
       - name: Lint
         run: uv run ruff check .
@@ -50,11 +73,162 @@ jobs:
       - name: Offline shadow gate smoke
         run: uv run python scripts/shadow-smoke.py
 
-      - name: Build package
-        run: uv build
+      - name: Build package and CycloneDX SBOM
+        run: |
+          uv build
+          uv --preview-features sbom-export export --quiet --frozen --no-dev \
+            --format cyclonedx1.5 --output-file dist/agentscope-platform.cdx.json
 
       - name: Validate Compose
-        run: docker compose -f compose.yml config
+        run: docker compose -f compose.yml config --quiet
 
       - name: Build runtime image
-        run: docker build --tag agentscope-platform:ci .
+        run: docker build --tag agentscope-platform:ci-${{ github.sha }} .
+
+      # v0.36.0 is the first selected post-incident release; the immutable peeled commit is pinned.
+      - name: Scan runtime image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: agentscope-platform:ci-${{ github.sha }}
+          format: json
+          output: dist/trivy-image.json
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Upload package, SBOM and scan evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: agentscope-supply-chain-${{ github.sha }}
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+            dist/*.cdx.json
+            dist/trivy-image.json
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+
+    steps:
+      - name: Checkout immutable source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Download verified package evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: agentscope-supply-chain-${{ github.sha }}
+          path: dist
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push immutable image
+        id: image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Prepare release evidence directory
+        run: mkdir -p release-evidence
+
+      - name: Scan exact published digest before signing
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          format: json
+          output: release-evidence/vulnerabilities.json
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      - name: Generate exact image CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          format: cyclonedx
+          output: release-evidence/agentscope-platform.cdx.json
+          scanners: vuln
+          exit-code: "0"
+
+      - name: Install Cosign with release verification
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2 / cosign v3.0.6
+
+      - name: Sign image digest with GitHub OIDC
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+        run: cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"
+
+      - name: Attest image provenance
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attach exact image SBOM attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          sbom-path: release-evidence/agentscope-platform.cdx.json
+          push-to-registry: true
+          create-storage-record: false
+
+      - name: Attest Python package provenance
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Attach package SBOM attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: |
+            dist/*.whl
+            dist/*.tar.gz
+          sbom-path: dist/agentscope-platform.cdx.json
+
+      - name: Upload exact release evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: agentscope-release-evidence-${{ github.sha }}
+          path: release-evidence/
+          if-no-files-found: warn
+          retention-days: 90
