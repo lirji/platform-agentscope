@@ -1,0 +1,88 @@
+{
+  "additionalProperties": false,
+  "description": "Offline-only parity and safety case for a side-effect tool.\n\nThese cases are deliberately separate from ``ShadowCase`` so the normal\nread-only shadow runner can never execute a business side effect.",
+  "properties": {
+    "candidateTool": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Candidatetool",
+      "type": "string"
+    },
+    "confirmed": {
+      "title": "Confirmed",
+      "type": "boolean"
+    },
+    "executionMode": {
+      "const": "stub_only",
+      "title": "Executionmode",
+      "type": "string"
+    },
+    "expectedPolicy": {
+      "enum": [
+        "allowed",
+        "confirmation_required",
+        "idempotency_required",
+        "allowlist_denied",
+        "arguments_rejected",
+        "host_denied",
+        "input_rejected",
+        "provider_error"
+      ],
+      "title": "Expectedpolicy",
+      "type": "string"
+    },
+    "expectedProviderCalls": {
+      "maximum": 2,
+      "minimum": 0,
+      "title": "Expectedprovidercalls",
+      "type": "integer"
+    },
+    "expectedResult": {
+      "enum": [
+        "DENIED",
+        "WAITING_APPROVAL",
+        "COMPLETED",
+        "DEDUPLICATED",
+        "PROVIDER_ERROR",
+        "TIMED_OUT",
+        "TRUNCATED"
+      ],
+      "title": "Expectedresult",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "idempotencyKeyPresent": {
+      "title": "Idempotencykeypresent",
+      "type": "boolean"
+    },
+    "legacyAction": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Legacyaction",
+      "type": "string"
+    },
+    "readOnly": {
+      "title": "Readonly",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "id",
+    "legacyAction",
+    "candidateTool",
+    "executionMode",
+    "readOnly",
+    "confirmed",
+    "idempotencyKeyPresent",
+    "expectedPolicy",
+    "expectedProviderCalls",
+    "expectedResult"
+  ],
+  "title": "GovernedToolCase",
+  "type": "object"
+}

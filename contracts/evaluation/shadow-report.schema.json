@@ -1,5 +1,84 @@
 {
   "$defs": {
+    "EvaluationDatasetReference": {
+      "additionalProperties": false,
+      "properties": {
+        "datasetId": {
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$",
+          "title": "Datasetid",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "baseline",
+            "adversarial",
+            "feedback"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "agent-evaluation-dataset-ref.v1",
+          "default": "agent-evaluation-dataset-ref.v1",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "datasetId",
+        "version",
+        "kind"
+      ],
+      "title": "EvaluationDatasetReference",
+      "type": "object"
+    },
+    "ExecutionVersions": {
+      "additionalProperties": false,
+      "description": "Content-addressed runtime inputs needed to reproduce an Agent trajectory.",
+      "properties": {
+        "modelVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Modelversion",
+          "type": "string"
+        },
+        "promptVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Promptversion",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "agent-execution-versions.v1",
+          "default": "agent-execution-versions.v1",
+          "title": "Schemaversion",
+          "type": "string"
+        },
+        "toolVersions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Toolversions",
+          "type": "object"
+        },
+        "toolsetVersion": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Toolsetversion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "promptVersion",
+        "modelVersion",
+        "toolsetVersion",
+        "toolVersions"
+      ],
+      "title": "ExecutionVersions",
+      "type": "object"
+    },
     "GateResult": {
       "properties": {
         "candidate": {
@@ -31,6 +110,33 @@
         "candidate"
       ],
       "title": "GateResult",
+      "type": "object"
+    },
+    "ReplayReference": {
+      "additionalProperties": false,
+      "properties": {
+        "originalGeneratedAt": {
+          "format": "date-time",
+          "title": "Originalgeneratedat",
+          "type": "string"
+        },
+        "reportSha256": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Reportsha256",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "const": "agent-evaluation-replay.v1",
+          "default": "agent-evaluation-replay.v1",
+          "title": "Schemaversion",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reportSha256",
+        "originalGeneratedAt"
+      ],
+      "title": "ReplayReference",
       "type": "object"
     },
     "RunSample": {
@@ -173,6 +279,17 @@
           "default": "",
           "title": "Trace Id",
           "type": "string"
+        },
+        "versions": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExecutionVersions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -378,6 +495,9 @@
     }
   },
   "properties": {
+    "dataset": {
+      "$ref": "#/$defs/EvaluationDatasetReference"
+    },
     "gate": {
       "$ref": "#/$defs/GateResult"
     },
@@ -385,6 +505,17 @@
       "format": "date-time",
       "title": "Generated At",
       "type": "string"
+    },
+    "replay": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReplayReference"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "runs_per_case": {
       "title": "Runs Per Case",
@@ -398,7 +529,7 @@
       "type": "array"
     },
     "schema_version": {
-      "default": "3",
+      "default": "4",
       "title": "Schema Version",
       "type": "string"
     },

@@ -47,12 +47,19 @@ class _NoopAsyncTaskMetrics:
     def running(self, delta: int, kind: str) -> None:
         del delta, kind
 
+    def inflight(self, delta: int, kind: str) -> None:
+        del delta, kind
+
+    def backlog(self, delta: int, kind: str) -> None:
+        del delta, kind
+
 
 @dataclass(slots=True)
 class ExecutionHandle:
     task_id: str
     kind: str
     context: RunContext
+    lease_epoch: int
     stop: asyncio.Event = field(default_factory=asyncio.Event)
     terminal_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     event_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
@@ -78,7 +85,9 @@ class _TaskProgressSink(ProgressSink):
             return
         async with self._handle.event_lock:
             self._handle.event_counter += 1
-            key = f"{self._worker_id}:{self._handle.event_counter}:{event}"
+            key = (
+                f"{self._worker_id}:{self._handle.lease_epoch}:{self._handle.event_counter}:{event}"
+            )
         await self._gateway.append_event(
             self._handle.task_id,
             AsyncTaskEventAppend(
@@ -91,6 +100,7 @@ class _TaskProgressSink(ProgressSink):
                     "ts": datetime.now(UTC).isoformat(),
                 },
                 workerId=self._worker_id,
+                leaseEpoch=self._handle.lease_epoch,
             ),
             self._handle.context,
         )
@@ -105,7 +115,9 @@ class AsyncTaskManager:
     ) -> None:
         self.gateway = gateway
         self.settings = settings
-        self.worker_id = settings.async_task_worker_id.strip() or f"agentscope-{uuid4()}"
+        service_id = settings.async_task_worker_id.strip() or "agentscope"
+        suffix = uuid4().hex[:12]
+        self.worker_id = f"{service_id[: 127 - len(suffix)]}.{suffix}"
         self._metrics = metrics or _NoopAsyncTaskMetrics()
         self._semaphore = asyncio.Semaphore(settings.async_task_max_concurrent)
         self._handles: dict[str, ExecutionHandle] = {}
@@ -144,15 +156,25 @@ class AsyncTaskManager:
                 self.worker_id,
                 self.settings.async_task_lease_seconds,
                 context,
+                lease_epoch=None,
             )
         except Exception:
             await self.gateway.cancel(task_id, context)
             raise
-        if leased.lease_owner_id != self.worker_id or leased.status.terminal:
+        if (
+            leased.lease_owner_id != self.worker_id
+            or leased.lease_epoch <= 0
+            or leased.status.terminal
+        ):
             await self.gateway.cancel(task_id, context)
             raise AsyncTaskRejectedError("async task lease was not acquired")
 
-        handle = ExecutionHandle(task_id=task_id, kind=kind, context=context)
+        handle = ExecutionHandle(
+            task_id=task_id,
+            kind=kind,
+            context=context,
+            lease_epoch=leased.lease_epoch,
+        )
         async with self._registry_lock:
             if self._closing or len(self._handles) >= self.settings.async_task_max_inflight:
                 await self.gateway.cancel(task_id, context)
@@ -163,6 +185,7 @@ class AsyncTaskManager:
                 name=f"async-task-{task_id}",
             )
             self._metrics.submitted(kind)
+            self._metrics.inflight(1, kind)
         return AgentAsyncTask.from_central(created)
 
     async def get(self, task_id: str, context: RunContext) -> AgentAsyncTask:
@@ -196,20 +219,27 @@ class AsyncTaskManager:
         self._closing = True
         async with self._registry_lock:
             handles = list(self._handles.values())
-        for handle in handles:
-            handle.stop.set()
-            if handle.work is not None:
-                handle.work.cancel()
-        await asyncio.gather(
-            *(handle.work for handle in handles if handle.work is not None),
-            return_exceptions=True,
-        )
+        work = [handle.work for handle in handles if handle.work is not None]
+        if work:
+            _, pending = await asyncio.wait(
+                work,
+                timeout=self.settings.async_task_drain_timeout_seconds,
+            )
+            if pending:
+                by_work = {handle.work: handle for handle in handles}
+                for task in pending:
+                    handle = by_work[task]
+                    handle.stop.set()
+                    task.cancel()
+                await asyncio.gather(*pending, return_exceptions=True)
         async with self._registry_lock:
             self._handles.clear()
         await self.gateway.close()
 
     async def _run(self, handle: ExecutionHandle, execute: ExecuteAsyncTask) -> None:
         heartbeat: asyncio.Task[None] | None = None
+        queued = True
+        running = False
         sink = _TaskProgressSink(
             self.gateway,
             handle,
@@ -217,10 +247,14 @@ class AsyncTaskManager:
             self.settings.async_task_progress_enabled,
         )
         try:
-            self._metrics.running(1, handle.kind)
+            self._metrics.backlog(1, handle.kind)
             heartbeat = asyncio.create_task(self._heartbeat(handle))
             async with asyncio.timeout(self._runtime_seconds(handle.context)):
                 async with self._semaphore:
+                    self._metrics.backlog(-1, handle.kind)
+                    queued = False
+                    self._metrics.running(1, handle.kind)
+                    running = True
                     result = await execute(sink)
             if handle.stop.is_set():
                 return
@@ -251,7 +285,11 @@ class AsyncTaskManager:
             )
             self._metrics.completed(handle.kind, terminal.status.value)
         finally:
-            self._metrics.running(-1, handle.kind)
+            if queued:
+                self._metrics.backlog(-1, handle.kind)
+            if running:
+                self._metrics.running(-1, handle.kind)
+            self._metrics.inflight(-1, handle.kind)
             if heartbeat is not None:
                 heartbeat.cancel()
                 await asyncio.gather(heartbeat, return_exceptions=True)
@@ -267,8 +305,13 @@ class AsyncTaskManager:
                     self.worker_id,
                     self.settings.async_task_lease_seconds,
                     handle.context,
+                    lease_epoch=handle.lease_epoch,
                 )
-                if task.status.terminal or task.lease_owner_id != self.worker_id:
+                if (
+                    task.status.terminal
+                    or task.lease_owner_id != self.worker_id
+                    or task.lease_epoch != handle.lease_epoch
+                ):
                     handle.stop.set()
                     if handle.work is not None:
                         handle.work.cancel()
@@ -302,6 +345,7 @@ class AsyncTaskManager:
                 result=result,
                 error=error,
                 worker_id=self.worker_id,
+                lease_epoch=handle.lease_epoch,
                 context=handle.context,
             )
             if updated.status is not status and not updated.status.terminal:

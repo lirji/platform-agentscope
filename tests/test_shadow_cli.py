@@ -5,12 +5,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from agentscope_platform.evaluation import cli
+from agentscope_platform.evaluation.dataset import build_dataset, write_dataset
 from agentscope_platform.evaluation.models import (
     GateResult,
     ShadowReport,
     ShadowThresholds,
     TargetSummary,
 )
+from agentscope_platform.evaluation.shadow import load_cases
 
 
 def report(passed: bool) -> ShadowReport:
@@ -147,6 +149,52 @@ async def test_cli_exit_codes_and_report(
     result.gate.passed = False
     result.gate.regressions = ("regression",)
     assert await cli.async_main(args) == 1
+
+
+async def test_cli_uses_versioned_dataset_and_replay_reference(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    dataset = build_dataset(
+        "versioned-suite",
+        "baseline",
+        load_cases(suite(tmp_path)),
+    )
+    dataset_path = tmp_path / "dataset.json"
+    write_dataset(dataset, dataset_path)
+    prior = report(True).model_copy(update={"dataset": dataset.reference()})
+    prior_path = tmp_path / "prior.json"
+    prior_path.write_text(prior.model_dump_json(), encoding="utf-8")
+    captured: dict[str, object] = {}
+
+    async def fake_evaluate(*args: object, **kwargs: object) -> ShadowReport:
+        del args
+        captured.update(kwargs)
+        return prior
+
+    monkeypatch.setattr(cli, "evaluate_shadow", fake_evaluate)
+    output = tmp_path / "replay.json"
+
+    exit_code = await cli.async_main(
+        [
+            "--legacy-url",
+            "http://legacy.localhost",
+            "--candidate-url",
+            "http://candidate.localhost",
+            "--dataset",
+            str(dataset_path),
+            "--replay-report",
+            str(prior_path),
+            "--require-version-metadata",
+            "--output",
+            str(output),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["dataset"] == dataset.reference()
+    assert captured["replay"] is not None
+    assert captured["require_version_metadata"] is True
 
 
 async def test_cli_returns_configuration_error_for_remote_target(tmp_path: Path) -> None:

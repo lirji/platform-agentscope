@@ -4,6 +4,11 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
+from agentscope_platform.evaluation.dataset import (
+    EvaluationDatasetError,
+    load_dataset,
+    replay_reference,
+)
 from agentscope_platform.evaluation.judge import JudgeError, LiteLLMAnswerJudge
 from agentscope_platform.evaluation.models import ShadowThresholds
 from agentscope_platform.evaluation.shadow import (
@@ -24,6 +29,21 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--legacy-url", required=True)
     value.add_argument("--candidate-url", required=True)
     value.add_argument("--suite", type=Path, default=DEFAULT_SUITE)
+    value.add_argument(
+        "--dataset",
+        type=Path,
+        help="Versioned dataset JSON. Takes precedence over the legacy --suite JSONL.",
+    )
+    value.add_argument(
+        "--replay-report",
+        type=Path,
+        help="Prior v4 report whose exact dataset version must match this replay.",
+    )
+    value.add_argument(
+        "--require-version-metadata",
+        action="store_true",
+        help="Fail closed unless both targets return prompt/model/toolset version headers.",
+    )
     value.add_argument("--output", type=Path, default=Path("reports/shadow-evaluation.json"))
     value.add_argument("--runs", type=int, default=3)
     value.add_argument("--timeout-seconds", type=float, default=120)
@@ -80,7 +100,17 @@ async def async_main(argv: Sequence[str] | None = None) -> int:
             p95_latency_ratio=args.p95_latency_ratio,
             p95_latency_slack_ms=args.p95_latency_slack_ms,
         )
-        cases = load_cases(args.suite)
+        dataset = load_dataset(args.dataset) if args.dataset is not None else None
+        cases = dataset.cases if dataset is not None else load_cases(args.suite)
+        if args.replay_report is not None and dataset is None:
+            raise EvaluationDatasetError("--replay-report requires --dataset")
+        replay = (
+            replay_reference(args.replay_report, dataset)
+            if args.replay_report is not None and dataset is not None
+            else None
+        )
+        dataset_reference = dataset.reference() if dataset is not None else None
+        suite_name = dataset.dataset_id if dataset is not None else args.suite.stem
         judge = (
             LiteLLMAnswerJudge(
                 base_url=args.judge_base_url,
@@ -111,7 +141,10 @@ async def async_main(argv: Sequence[str] | None = None) -> int:
                 timeout_seconds=args.timeout_seconds,
                 thresholds=thresholds,
                 allow_remote_targets=args.allow_remote_targets,
-                suite_name=args.suite.stem,
+                suite_name=suite_name,
+                dataset=dataset_reference,
+                replay=replay,
+                require_version_metadata=args.require_version_metadata,
             )
         else:
             async with judge:
@@ -133,11 +166,14 @@ async def async_main(argv: Sequence[str] | None = None) -> int:
                     timeout_seconds=args.timeout_seconds,
                     thresholds=thresholds,
                     allow_remote_targets=args.allow_remote_targets,
-                    suite_name=args.suite.stem,
+                    suite_name=suite_name,
                     judge=judge,
+                    dataset=dataset_reference,
+                    replay=replay,
+                    require_version_metadata=args.require_version_metadata,
                 )
         write_report(report, args.output)
-    except (JudgeError, ShadowEvaluationError, ValueError) as exc:
+    except (EvaluationDatasetError, JudgeError, ShadowEvaluationError, ValueError) as exc:
         print(f"shadow evaluation error: {exc}")
         return 2
 

@@ -1,0 +1,65 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "consentForEvaluation": {
+      "title": "Consentforevaluation",
+      "type": "boolean"
+    },
+    "expectedTools": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Expectedtools",
+      "type": "array"
+    },
+    "feedbackId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Feedbackid",
+      "type": "string"
+    },
+    "forbiddenTools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbiddentools",
+      "type": "array"
+    },
+    "goal": {
+      "maxLength": 20000,
+      "minLength": 1,
+      "title": "Goal",
+      "type": "string"
+    },
+    "rating": {
+      "enum": [
+        "positive",
+        "negative"
+      ],
+      "title": "Rating",
+      "type": "string"
+    },
+    "readOnly": {
+      "title": "Readonly",
+      "type": "boolean"
+    },
+    "schemaVersion": {
+      "const": "agent-online-feedback.v1",
+      "title": "Schemaversion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "feedbackId",
+    "goal",
+    "rating",
+    "consentForEvaluation",
+    "readOnly",
+    "expectedTools"
+  ],
+  "title": "OnlineFeedbackRecord",
+  "type": "object"
+}

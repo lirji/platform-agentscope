@@ -1,0 +1,100 @@
+{
+  "additionalProperties": false,
+  "description": "Language-neutral, request-scoped authorization for async worker operations.",
+  "properties": {
+    "act": {
+      "enum": [
+        "lease",
+        "status",
+        "event"
+      ],
+      "title": "Act",
+      "type": "string"
+    },
+    "actor_uid": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Actor Uid",
+      "type": "string"
+    },
+    "aud": {
+      "pattern": "^\\S{1,128}$",
+      "title": "Aud",
+      "type": "string"
+    },
+    "exp": {
+      "exclusiveMinimum": 0,
+      "title": "Exp",
+      "type": "integer"
+    },
+    "iat": {
+      "minimum": 0,
+      "title": "Iat",
+      "type": "integer"
+    },
+    "iss": {
+      "pattern": "^\\S{1,128}$",
+      "title": "Iss",
+      "type": "string"
+    },
+    "jti": {
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "title": "Jti",
+      "type": "string"
+    },
+    "scopes": {
+      "items": {
+        "const": "async.task.worker",
+        "type": "string"
+      },
+      "maxItems": 1,
+      "minItems": 1,
+      "title": "Scopes",
+      "type": "array"
+    },
+    "sub": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "title": "Sub",
+      "type": "string"
+    },
+    "task_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Task Id",
+      "type": "string"
+    },
+    "tenant": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Tenant",
+      "type": "string"
+    },
+    "token_use": {
+      "const": "async_task_worker",
+      "title": "Token Use",
+      "type": "string"
+    },
+    "worker_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$",
+      "title": "Worker Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "iss",
+    "aud",
+    "sub",
+    "tenant",
+    "actor_uid",
+    "worker_id",
+    "scopes",
+    "token_use",
+    "act",
+    "task_id",
+    "jti",
+    "iat",
+    "exp"
+  ],
+  "title": "AsyncTaskWorkerTokenClaims",
+  "type": "object"
+}

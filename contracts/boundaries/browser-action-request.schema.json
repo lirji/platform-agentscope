@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "open",
+        "click",
+        "click_xy",
+        "type",
+        "screenshot",
+        "see"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "allowedHosts": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Allowedhosts",
+      "type": "array"
+    },
+    "arguments": {
+      "additionalProperties": true,
+      "title": "Arguments",
+      "type": "object"
+    },
+    "operationId": {
+      "pattern": "^op-[a-f0-9]{32}$",
+      "title": "Operationid",
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1",
+      "default": "1",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "sessionId": {
+      "pattern": "^run-[a-f0-9]{32}$",
+      "title": "Sessionid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "sessionId",
+    "operationId",
+    "action",
+    "arguments",
+    "allowedHosts"
+  ],
+  "title": "BrowserActionRequest",
+  "type": "object"
+}

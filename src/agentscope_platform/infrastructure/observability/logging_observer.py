@@ -7,6 +7,9 @@ class LoggingRunObserver(RunObserver):
     def __init__(self) -> None:
         self._logger = structlog.get_logger("agent_run")
 
+    def started(self, model: str) -> None:
+        del model
+
     def record(self, observation: RunObservation) -> None:
         self._logger.info(
             "agent_run_completed",

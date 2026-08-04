@@ -1,7 +1,8 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
-from agentscope_platform.domain.agent import AgentExecution, RunContext
+from agentscope_platform.domain.agent import AgentExecution, AgentStep, RunContext
 from agentscope_platform.domain.analytics import AnalyticsSqlPlan
 from agentscope_platform.domain.async_task import (
     AsyncTaskEventAppend,
@@ -9,16 +10,83 @@ from agentscope_platform.domain.async_task import (
     CentralAsyncTask,
     CentralAsyncTaskEvent,
 )
+from agentscope_platform.domain.confirmation import ToolConfirmationGrant
 from agentscope_platform.domain.dag import (
     AgentDagCritique,
     DagPlan,
     DagPlanKind,
 )
+from agentscope_platform.domain.sandbox import (
+    BrowserActionReply,
+    BrowserActionRequest,
+    CodeExecutionReply,
+    CodeExecutionRequest,
+)
+from agentscope_platform.domain.session import AgentSessionCheckpoint
 
 
 class AgentRunner(Protocol):
     async def run(self, goal: str, context: RunContext) -> AgentExecution:
         """Execute one agent goal without leaking framework-specific types."""
+
+
+SessionProgressCallback = Callable[[tuple[AgentStep, ...], bool], Awaitable[None]]
+
+
+class ResumableAgentRunner(Protocol):
+    async def run_from_checkpoint(
+        self,
+        goal: str,
+        checkpoint: AgentSessionCheckpoint,
+        context: RunContext,
+        progress: SessionProgressCallback,
+    ) -> AgentExecution:
+        """Resume from stable state without exposing framework state."""
+
+
+class AgentSessionStore(Protocol):
+    async def get(self, session_id: str) -> AgentSessionCheckpoint | None: ...
+
+    async def compare_and_set(
+        self,
+        checkpoint: AgentSessionCheckpoint,
+        expected_revision: int | None,
+    ) -> bool: ...
+
+    async def ready(self, timeout_seconds: float) -> bool: ...
+
+    async def close(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class DependencyReadiness:
+    name: str
+    required: bool
+    status: str
+
+
+class ReadinessProbe(Protocol):
+    async def check(self) -> tuple[DependencyReadiness, ...]: ...
+
+    async def close(self) -> None: ...
+
+
+class ToolConfirmationTokenCodec(Protocol):
+    def encode(self, grant: ToolConfirmationGrant) -> str: ...
+
+    def decode(self, token: str) -> ToolConfirmationGrant: ...
+
+
+class ConfirmationReplayStore(Protocol):
+    async def consume(self, grant: ToolConfirmationGrant) -> bool: ...
+
+    async def ready(self, timeout_seconds: float) -> bool: ...
+
+    async def close(self) -> None: ...
+
+
+class ToolConfirmationConsumer(Protocol):
+    async def consume(self, grant: ToolConfirmationGrant) -> bool: ...
 
 
 class DagPlanningError(RuntimeError):
@@ -85,6 +153,37 @@ class AnalyticsSqlPlanner(Protocol):
         """Produce SQL only; execution and tenant enforcement remain in Java."""
 
 
+class McpGateway(Protocol):
+    async def call(
+        self,
+        *,
+        server_url: str,
+        tool_name: str,
+        arguments: dict[str, Any],
+        context: RunContext,
+        timeout_seconds: float,
+    ) -> str:
+        """Call one pre-approved remote MCP tool using trusted request context."""
+
+
+class RemoteSandboxGateway(Protocol):
+    async def browser_action(
+        self,
+        request: BrowserActionRequest,
+        context: RunContext,
+        timeout_seconds: float,
+    ) -> BrowserActionReply: ...
+
+    async def execute_code(
+        self,
+        request: CodeExecutionRequest,
+        context: RunContext,
+        timeout_seconds: float,
+    ) -> CodeExecutionReply: ...
+
+    async def close_browser(self, context: RunContext) -> None: ...
+
+
 class ProgressSink(Protocol):
     async def emit(self, event: str, data: Any) -> None:
         """Publish one language-neutral orchestration progress event."""
@@ -98,6 +197,10 @@ class AsyncTaskMetrics(Protocol):
     def heartbeat_failed(self) -> None: ...
 
     def running(self, delta: int, kind: str) -> None: ...
+
+    def inflight(self, delta: int, kind: str) -> None: ...
+
+    def backlog(self, delta: int, kind: str) -> None: ...
 
 
 class AsyncTaskGateway(Protocol):
@@ -121,6 +224,8 @@ class AsyncTaskGateway(Protocol):
         worker_id: str,
         lease_seconds: float,
         context: RunContext,
+        *,
+        lease_epoch: int | None = None,
     ) -> CentralAsyncTask: ...
 
     async def update_status(
@@ -131,6 +236,7 @@ class AsyncTaskGateway(Protocol):
         result: Any | None,
         error: str | None,
         worker_id: str,
+        lease_epoch: int,
         context: RunContext,
     ) -> CentralAsyncTask: ...
 

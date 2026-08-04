@@ -1,0 +1,110 @@
+{
+  "capabilities": [
+    {
+      "description": "Runs the platform agent through AgentScope.",
+      "inputSchema": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "webhookUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.run"
+    },
+    {
+      "description": "Starts an async platform agent run through AgentScope.",
+      "inputSchema": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "webhookUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.run_async"
+    },
+    {
+      "description": "Plans and runs a DAG agent workflow through AgentScope.",
+      "inputSchema": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.dag.plan_run"
+    },
+    {
+      "description": "Starts an async planned DAG agent workflow through AgentScope.",
+      "inputSchema": {
+        "properties": {
+          "goal": {
+            "type": "string"
+          },
+          "webhookUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.dag.plan_run_async"
+    },
+    {
+      "description": "Creates or resumes a durable Agent session.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "goal": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "goal"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.session.run"
+    },
+    {
+      "description": "Reads an owner-scoped durable Agent session checkpoint.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "sessionId": {
+            "pattern": "^sess-[a-f0-9]{32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sessionId"
+        ],
+        "type": "object"
+      },
+      "name": "platform.agent.session.get"
+    }
+  ],
+  "revision": "139151578e269df932666ec04b38e34404dceabca36cda53ef08c4202803b935",
+  "schemaVersion": "agent-capability-registry.v1"
+}

@@ -8,7 +8,8 @@ from agentscope.tool import ToolBase, ToolChunk
 from agentscope_platform.application.ports import AnalyticsSqlPlanner
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
-from agentscope_platform.infrastructure.agentscope.tools import ReadOnlyFunctionTool
+from agentscope_platform.domain.tool import ToolMetadata
+from agentscope_platform.infrastructure.agentscope.tools import GovernedFunctionTool
 from agentscope_platform.infrastructure.http.models import KnowledgeHit
 from agentscope_platform.infrastructure.http.platform_client import (
     PlatformClient,
@@ -35,43 +36,61 @@ class ReadonlyToolset:
 
     def tools(self) -> list[ToolBase]:
         return [
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.rag_search,
-                name="rag_search",
+                metadata=ToolMetadata.for_read_only(
+                    name="rag_search",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description=(
                     "在当前租户企业知识库检索资料。query 填关键词或问题，返回带 [doc=ID] 的片段。"
                 ),
-                is_read_only=True,
             ),
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.order_query,
-                name="order_query",
+                metadata=ToolMetadata.for_read_only(
+                    name="order_query",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description=("按订单号查当前租户订单详情，只读。统计问题应使用 analytics_sql。"),
-                is_read_only=True,
             ),
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.schema_explore,
-                name="schema_explore",
+                metadata=ToolMetadata.for_read_only(
+                    name="schema_explore",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description="留空列出可查表；填写表名查看字段、类型和枚举。应先探后查。",
-                is_read_only=True,
             ),
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.analytics_sql,
-                name="analytics_sql",
+                metadata=ToolMetadata.for_read_only(
+                    name="analytics_sql",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description="用自然语言查询当前租户业务数据库，只读并受 analytics 安全护栏保护。",
-                is_read_only=True,
             ),
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.workflow_status,
-                name="workflow_status",
+                metadata=ToolMetadata.for_read_only(
+                    name="workflow_status",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description="按 instance_id 查询当前租户工作流实例状态与最终答复，只读。",
-                is_read_only=True,
             ),
-            ReadOnlyFunctionTool(
+            GovernedFunctionTool(
                 self.workflow_tasks,
-                name="workflow_tasks",
+                metadata=ToolMetadata.for_read_only(
+                    name="workflow_tasks",
+                    required_scopes=(),
+                    timeout_seconds=self._settings.http_read_timeout_seconds,
+                ),
                 description="列出当前租户待审批退款任务，只读且要求 approve scope。",
-                is_read_only=True,
             ),
         ]
 
@@ -192,9 +211,7 @@ class ReadonlyToolset:
         try:
             tables = await self._client.list_analytics_tables(context)
             schema_parts: list[str] = []
-            for table in tables.tables[
-                : self._settings.analytics_external_planner_max_tables
-            ]:
+            for table in tables.tables[: self._settings.analytics_external_planner_max_tables]:
                 described = await self._client.describe_analytics_table(table, context)
                 if described and described.schema_text:
                     schema_parts.append(f"[{table}]\n{described.schema_text}")

@@ -41,9 +41,7 @@ def context() -> RunContext:
 
 
 async def test_analytics_planner_returns_neutral_sql_plan_without_identity() -> None:
-    model = FakeModel(
-        '{"sql":"select count(*) from orders where tenant_id = :tenantId"}'
-    )
+    model = FakeModel('{"sql":"select count(*) from orders where tenant_id = :tenantId"}')
     planner = AgentScopeAnalyticsSqlPlanner(settings(), model)
 
     plan = await planner.plan(
@@ -64,10 +62,7 @@ async def test_analytics_planner_returns_neutral_sql_plan_without_identity() -> 
 async def test_analytics_planner_rejects_extra_contract_fields() -> None:
     planner = AgentScopeAnalyticsSqlPlanner(
         settings(),
-        FakeModel(
-            '{"sql":"select 1 where tenant_id = :tenantId",'
-            '"tenantId":"acme"}'
-        ),
+        FakeModel('{"sql":"select 1 where tenant_id = :tenantId","tenantId":"acme"}'),
     )
 
     with pytest.raises(AnalyticsPlanningError, match="invalid analytics SQL plan"):

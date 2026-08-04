@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from agentscope_platform.evaluation.judge import JudgeError, JudgeRequest, JudgeResult
 from agentscope_platform.evaluation.models import (
+    EvaluationDatasetReference,
     RunSample,
     ShadowCase,
     ShadowThresholds,
@@ -89,6 +90,8 @@ async def test_evaluates_same_cases_and_sanitizes_report(tmp_path: Path) -> None
     assert report.gate.legacy.pass_rate == 1
     assert report.gate.candidate.forbidden_violations == 2
     assert not report.gate.passed
+    assert report.schema_version == "4"
+    assert report.dataset.version.startswith("sha256:")
     assert any("forbidden_tool regression" in item for item in report.gate.regressions)
 
     output = tmp_path / "report.json"
@@ -98,6 +101,78 @@ async def test_evaluates_same_cases_and_sanitizes_report(tmp_path: Path) -> None
     assert "candidate-secret" not in serialized
     assert "sensitive business answer" not in serialized
     assert "redacted from report" not in serialized
+
+
+async def test_report_captures_runtime_versions_and_can_require_them() -> None:
+    headers = {
+        "X-Agent-Prompt-Version": "sha256:" + "1" * 64,
+        "X-Agent-Model-Version": "sha256:" + "2" * 64,
+        "X-Agent-Toolset-Version": "sha256:" + "3" * 64,
+    }
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json=reply("goal", ["rag_search"]),
+            headers=headers,
+        )
+    )
+
+    report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        dataset=EvaluationDatasetReference(
+            datasetId="readonly",
+            version="sha256:" + "a" * 64,
+            kind="baseline",
+        ),
+        require_version_metadata=True,
+        transport=transport,
+    )
+
+    assert all(sample.versions is not None for sample in report.samples)
+    assert report.samples[0].versions.prompt_version == headers["X-Agent-Prompt-Version"]
+
+    missing = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        require_version_metadata=True,
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=reply("goal", ["rag_search"]))
+        ),
+    )
+    assert all(sample.error == "VERSION_METADATA_MISSING" for sample in missing.samples)
+
+
+async def test_gate_fails_closed_when_target_versions_drift_within_one_run() -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        version = "1" if calls <= 2 else "9"
+        return httpx.Response(
+            200,
+            json=reply("goal", ["rag_search"]),
+            headers={
+                "X-Agent-Prompt-Version": "sha256:" + version * 64,
+                "X-Agent-Model-Version": "sha256:" + "2" * 64,
+                "X-Agent-Toolset-Version": "sha256:" + "3" * 64,
+            },
+        )
+
+    report = await evaluate_shadow(
+        (case(),),
+        Target("legacy", "http://legacy.localhost"),
+        Target("candidate", "http://candidate.localhost"),
+        runs=2,
+        require_version_metadata=True,
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert not report.gate.passed
+    assert any("version_drift" in item for item in report.gate.regressions)
 
 
 async def test_http_and_contract_errors_are_safe_failures() -> None:
@@ -420,7 +495,7 @@ async def test_judge_low_score_fails_gate_without_persisting_sensitive_content(
         judge=judge,
     )
 
-    assert report.schema_version == "3"
+    assert report.schema_version == "4"
     assert report.samples[0].judge_passed is True
     assert report.samples[0].judge_score == 0.9
     assert report.samples[1].judge_passed is False

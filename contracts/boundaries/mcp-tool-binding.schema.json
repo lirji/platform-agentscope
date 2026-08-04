@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "ConfirmationRequirement": {
+      "enum": [
+        "never",
+        "always"
+      ],
+      "title": "ConfirmationRequirement",
+      "type": "string"
+    },
+    "IdempotencyStrategy": {
+      "enum": [
+        "none",
+        "request_key",
+        "business_key"
+      ],
+      "title": "IdempotencyStrategy",
+      "type": "string"
+    },
+    "RetryPolicy": {
+      "enum": [
+        "none",
+        "idempotent_transient"
+      ],
+      "title": "RetryPolicy",
+      "type": "string"
+    },
+    "SideEffectLevel": {
+      "enum": [
+        "none",
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "SideEffectLevel",
+      "type": "string"
+    },
+    "ToolMetadata": {
+      "additionalProperties": false,
+      "description": "Language-neutral safety contract for one Agent tool.",
+      "properties": {
+        "idempotency": {
+          "$ref": "#/$defs/IdempotencyStrategy"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "readOnly": {
+          "title": "Readonly",
+          "type": "boolean"
+        },
+        "requiredScopes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Requiredscopes",
+          "type": "array"
+        },
+        "requiresConfirmation": {
+          "$ref": "#/$defs/ConfirmationRequirement"
+        },
+        "retryPolicy": {
+          "$ref": "#/$defs/RetryPolicy"
+        },
+        "sideEffect": {
+          "$ref": "#/$defs/SideEffectLevel"
+        },
+        "timeoutSeconds": {
+          "exclusiveMinimum": 0,
+          "maximum": 300,
+          "title": "Timeoutseconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "readOnly",
+        "sideEffect",
+        "idempotency",
+        "requiresConfirmation",
+        "requiredScopes",
+        "timeoutSeconds",
+        "retryPolicy"
+      ],
+      "title": "ToolMetadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Explicit local-tool to remote-MCP-tool allowlist entry.",
+  "properties": {
+    "description": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/ToolMetadata"
+    },
+    "remoteName": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$",
+      "title": "Remotename",
+      "type": "string"
+    },
+    "serverId": {
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+      "title": "Serverid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "serverId",
+    "remoteName",
+    "description",
+    "metadata"
+  ],
+  "title": "McpToolBinding",
+  "type": "object"
+}
