@@ -6,8 +6,35 @@
 执行测试。工程交付完成后必须保持生产 NO-GO，直到目标环境的发布、IAM、恢复、容量、评测、
 canary、监控和回滚证据全部通过机器门禁。
 
+## 当前状态
+
+生产加固工程结论仍为 PASS，生产发布结论仍为 NO-GO，二者不得混写。2026-09-16 完成当前仓库
+只读项目深度分析（未改产品代码、未重跑 pytest、未授权生产切流）。分析产物：
+
+- `.engineering/analysis/PROJECT_DEEP_ANALYSIS.md`
+- `.engineering/analysis/ARCHITECTURE.md`
+- `.engineering/analysis/BUSINESS_FLOWS.md`
+- `.engineering/analysis/EVIDENCE_INDEX.md`
+
 ## 已完成
 
+- **契约 digest manifest（2026-09-16，与 langchain4j 仓联动）**：`scripts/export_contracts.py` 新增
+  `contracts/manifest.json`，对 `contracts/` 下 40 个 JSON 契约逐个固定 sha256 并纳入既有
+  `--check`。它覆盖手写 boundary schema（如 `conversation-generation.schema.json`），这类文件不由
+  Pydantic 重新生成，manifest 是唯一能发现改动的地方；相邻 `README.md` 不参与固定，避免改文档
+  被报成契约过期。新增 `contracts/README.md` 说明 manifest 与消费方约定。`tests/test_contracts.py`
+  新增 2 项测试，其中一项通过临时改动手写 schema 证明 `--check` 会 fail closed。
+  验证：`ruff` PASS、`mypy src` 87 files Success、`pytest` 472 项全绿。消费侧 vendored 副本、
+  digest 校验测试与 CI 步骤在 `langchain4j-platform` 落地（该仓仍未提交）。本仓已提交并推送
+  （`febc2c6`）。
+- **免鉴权 `/metrics`（2026-09-16，与 langchain4j 仓联动）**：`/metrics` 原先要求 `RunContextDependency`，
+  而 Prometheus 拿不到静态抓取凭据（内部 JWT 只活 5 分钟），指标面事实上不可采集。改为与 `/health`、
+  `/readiness` 同一姿态；导出序列本就低基数、不带 tenant/task/prompt/token 标签，故按内部端点对待。
+  契约随之重新导出（`contracts/openapi.json` + manifest digest），`tests/test_metrics_endpoint.py`
+  同时断言其他业务路由仍需鉴权。Java 侧对应做法是 actuator 迁独立 management 端口。
+  验证：`ruff` PASS、`mypy` 87 files Success、`pytest` 全绿。已提交并推送。
+- **`py.typed` marker（2026-09-16）**：`[tool.mypy] packages=["agentscope_platform"]` 但包内无 marker，
+  裸跑 `uv run mypy`（不带 `src`）退出码 2；CI 一直传 `mypy src` 才没暴露。已提交并推送。
 - AC-01～AC-16 的设计、实现、代码审查、QA、文档和本地工程验证全部完成。
 - Agent 运行具备有限 token/时间/单次输出预算；provider retry 责任明确。
 - 写工具使用 tenant/user/tool/参数/幂等键绑定的一次性短时确认 grant，Redis 原子防重放。
