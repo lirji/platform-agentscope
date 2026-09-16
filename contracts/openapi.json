@@ -2338,6 +2338,7 @@
     },
     "/metrics": {
       "get": {
+        "description": "Serve metrics without tenant credentials, like /health and /readiness.\n\nPrometheus cannot hold an internal JWT: those live five minutes, so no static scrape\ncredential exists. The exported series are deliberately low-cardinality and carry no\ntenant, task, prompt, or token labels, so this surface stays internal-only rather than\ntenant-scoped. The Java services take the same posture on their management port.",
         "operationId": "prometheus_metrics_metrics_get",
         "responses": {
           "200": {

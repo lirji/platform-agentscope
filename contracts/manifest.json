@@ -39,7 +39,7 @@
     "legacy/reflexion-request.schema.json": "sha256:bb1151a837cfacff71cf9689c8eb6b21beb465f890edd31e8bf852fd87970383",
     "legacy/vote-reply.schema.json": "sha256:03f3d18369d33536190b0b620092e8ab522936f6502edc0634f048aa28ed1d1f",
     "legacy/vote-request.schema.json": "sha256:5966278b9e793c3a37c056aac9cced552d3ec862b387dfbebdb50642b62e5cb7",
-    "openapi.json": "sha256:9d5bdb54190a6b1b1fedc0c956204673b6c0978880a7582ad99b9037de4681b3"
+    "openapi.json": "sha256:b102120308f259a5b51b6cbd2efa18f7af3fa56d63b43903bb7158e357d3247b"
   },
   "schema_version": "1"
 }

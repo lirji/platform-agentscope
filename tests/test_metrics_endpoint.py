@@ -34,12 +34,20 @@ def _token() -> str:
     )
 
 
-def test_metrics_endpoint_requires_internal_authentication() -> None:
+def test_metrics_endpoint_is_scrapable_without_tenant_credentials() -> None:
+    """Prometheus has no static internal JWT (they expire in five minutes)."""
     client = TestClient(create_app(_settings(), FakeRunner()))
 
     response = client.get("/metrics")
 
-    assert response.status_code == 401
+    assert response.status_code == 200
+
+
+def test_business_routes_still_require_internal_authentication() -> None:
+    """Opening /metrics must not open the tenant-scoped surface."""
+    client = TestClient(create_app(_settings(), FakeRunner()))
+
+    assert client.post("/agent/run", json={"goal": "hi"}).status_code == 401
 
 
 def test_metrics_endpoint_exports_low_cardinality_async_metrics() -> None:
@@ -52,10 +60,7 @@ def test_metrics_endpoint_exports_low_cardinality_async_metrics() -> None:
     metrics.completed("agent.run", "SUCCEEDED")
     metrics.heartbeat_failed()
 
-    response = client.get(
-        "/metrics",
-        headers={"X-Internal-Token": _token()},
-    )
+    response = client.get("/metrics")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/plain")

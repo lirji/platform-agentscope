@@ -90,8 +90,14 @@ async def health() -> dict[str, str]:
     tags=["platform"],
     summary="Scrape low-cardinality service metrics",
 )
-async def prometheus_metrics(context: RunContextDependency) -> Response:
-    del context
+async def prometheus_metrics() -> Response:
+    """Serve metrics without tenant credentials, like /health and /readiness.
+
+    Prometheus cannot hold an internal JWT: those live five minutes, so no static scrape
+    credential exists. The exported series are deliberately low-cardinality and carry no
+    tenant, task, prompt, or token labels, so this surface stays internal-only rather than
+    tenant-scoped. The Java services take the same posture on their management port.
+    """
     return Response(
         content=render_prometheus_metrics(),
         media_type=PROMETHEUS_CONTENT_TYPE,
