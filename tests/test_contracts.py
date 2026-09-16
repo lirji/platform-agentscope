@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import sys
@@ -6,10 +7,12 @@ from pathlib import Path
 from agentscope_platform.evaluation.models import GovernedToolCase
 
 ROOT = Path(__file__).resolve().parents[1]
+CONTRACTS = ROOT / "contracts"
+MANIFEST = CONTRACTS / "manifest.json"
 
 
-def test_contract_snapshots_are_current() -> None:
-    result = subprocess.run(
+def _export_contracts_check() -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [sys.executable, "scripts/export_contracts.py", "--check"],
         cwd=ROOT,
         capture_output=True,
@@ -17,7 +20,42 @@ def test_contract_snapshots_are_current() -> None:
         check=False,
     )
 
+
+def test_contract_snapshots_are_current() -> None:
+    result = _export_contracts_check()
+
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_contract_manifest_pins_every_json_contract() -> None:
+    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    payloads = {
+        path.relative_to(CONTRACTS).as_posix()
+        for path in CONTRACTS.rglob("*.json")
+        if path != MANIFEST
+    }
+
+    assert manifest["schema_version"] == "1"
+    assert set(manifest["files"]) == payloads
+    for name, pinned in manifest["files"].items():
+        actual = hashlib.sha256((CONTRACTS / name).read_bytes()).hexdigest()
+        assert pinned == f"sha256:{actual}", name
+
+
+def test_contract_manifest_detects_hand_written_schema_drift() -> None:
+    # Hand-written boundary schemas are not regenerated from Pydantic models, so the
+    # manifest is the only thing that can detect an edit to them.
+    target = CONTRACTS / "boundaries" / "conversation-stream-event.schema.json"
+    original = target.read_bytes()
+    try:
+        target.write_bytes(original + b"\n")
+        result = _export_contracts_check()
+    finally:
+        target.write_bytes(original)
+
+    assert result.returncode != 0
+    assert "contracts/manifest.json" in result.stdout
+    assert _export_contracts_check().returncode == 0
 
 
 def test_evaluation_contracts_are_language_neutral() -> None:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -60,6 +61,8 @@ from agentscope_platform.evaluation.models import (
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACTS = ROOT / "contracts"
+MANIFEST = CONTRACTS / "manifest.json"
+MANIFEST_SCHEMA_VERSION = "1"
 
 
 def artifacts() -> dict[Path, dict[str, Any]]:
@@ -177,6 +180,25 @@ def render(value: dict[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def contract_files() -> list[Path]:
+    # Only the JSON payloads are pinned; editing the README next to them must not
+    # report a stale contract.
+    return sorted(p for p in CONTRACTS.rglob("*.json") if p.is_file() and p != MANIFEST)
+
+
+def digest(path: Path) -> str:
+    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def manifest() -> dict[str, Any]:
+    # Covers hand-written contracts too, so consumers in other languages can pin any
+    # contract file, not only the Pydantic-generated ones.
+    return {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "files": {p.relative_to(CONTRACTS).as_posix(): digest(p) for p in contract_files()},
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -195,6 +217,15 @@ def main() -> int:
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(expected, encoding="utf-8")
+
+    # The manifest hashes files on disk, so it must be resolved after the generated
+    # artifacts have been written; otherwise it would pin the previous revision.
+    expected_manifest = render(manifest())
+    if args.check:
+        if not MANIFEST.exists() or MANIFEST.read_text(encoding="utf-8") != expected_manifest:
+            stale.append(MANIFEST.relative_to(ROOT))
+    else:
+        MANIFEST.write_text(expected_manifest, encoding="utf-8")
 
     if stale:
         print("Stale contract artifacts:")
