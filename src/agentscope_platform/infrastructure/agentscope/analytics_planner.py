@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from agentscope_platform.application.ports import AnalyticsSqlPlanner
 from agentscope_platform.core.config import Settings
+from agentscope_platform.core.context import run_context
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.analytics import AnalyticsSqlPlan
 from agentscope_platform.infrastructure.agentscope.model_factory import (
@@ -65,16 +66,17 @@ class AgentScopeAnalyticsSqlPlanner(AnalyticsSqlPlanner):
             raise AnalyticsPlanningError("analytics planner model is not configured")
         bounded_schema = schema[:MAX_SCHEMA_CHARS]
         try:
-            response = await self._model(
-                [
-                    SystemMsg(name="system", content=SYSTEM_PROMPT),
-                    UserMsg(
-                        name="user",
-                        content=f"Schema:\n{bounded_schema}\n\nQuestion:\n{question}",
-                    ),
-                ],
-                response_format={"type": "json_object"},
-            )
+            with run_context(context):
+                response = await self._model(
+                    [
+                        SystemMsg(name="system", content=SYSTEM_PROMPT),
+                        UserMsg(
+                            name="user",
+                            content=f"Schema:\n{bounded_schema}\n\nQuestion:\n{question}",
+                        ),
+                    ],
+                    response_format={"type": "json_object"},
+                )
             if not isinstance(response, ChatResponse):
                 raise AnalyticsPlanningError("streaming planner response is unsupported")
             if response.get("finished_reason") == FinishedReason.INTERRUPTED:

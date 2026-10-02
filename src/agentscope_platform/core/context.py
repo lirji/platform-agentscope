@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 
 from agentscope_platform.domain.agent import RunContext
@@ -18,3 +20,13 @@ def current_run_context() -> RunContext:
     if context is None:
         raise RuntimeError("run context is not bound")
     return context
+
+
+@contextmanager
+def run_context(context: RunContext) -> Iterator[None]:
+    """局部模型调用绑定可信上下文, 退出时还原在途请求, 避免 planner 丢失身份。"""
+    token = bind_run_context(context)
+    try:
+        yield
+    finally:
+        reset_run_context(token)

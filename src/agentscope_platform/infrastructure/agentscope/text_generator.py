@@ -8,6 +8,7 @@ from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 
 from agentscope_platform.application.ports import TextGenerationError, TextGenerator
 from agentscope_platform.core.config import Settings
+from agentscope_platform.core.context import run_context
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.infrastructure.agentscope.model_factory import (
     build_openai_chat_model,
@@ -54,12 +55,13 @@ class AgentScopeTextGenerator(TextGenerator):
             raise TextGenerationError("generation input exceeds safe size")
         model = self._deterministic_model if deterministic else self._general_model
         try:
-            response = await model(
-                [
-                    SystemMsg(name="system", content=system_prompt),
-                    UserMsg(name="user", content=user_prompt),
-                ]
-            )
+            with run_context(context):
+                response = await model(
+                    [
+                        SystemMsg(name="system", content=system_prompt),
+                        UserMsg(name="user", content=user_prompt),
+                    ]
+                )
             if not isinstance(response, ChatResponse):
                 raise TextGenerationError("streaming generation response is unsupported")
             if response.get("finished_reason") == FinishedReason.INTERRUPTED:

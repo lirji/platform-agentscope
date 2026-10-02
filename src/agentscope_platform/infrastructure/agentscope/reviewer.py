@@ -13,6 +13,7 @@ from agentscope_platform.application.ports import (
     DagQualityReviewer,
 )
 from agentscope_platform.core.config import Settings
+from agentscope_platform.core.context import run_context
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.dag import AgentDagCritique, DagPlan
 from agentscope_platform.infrastructure.agentscope.model_factory import (
@@ -145,13 +146,14 @@ class AgentScopeDagQualityReviewer(DagQualityReviewer):
         if len(user_payload) > MAX_REVIEW_INPUT_CHARS:
             raise DagQualityError(f"{operation} input exceeds safe size")
         try:
-            response = await self._model(
-                [
-                    SystemMsg(name="system", content=system_prompt),
-                    UserMsg(name="user", content=user_payload),
-                ],
-                response_format={"type": "json_object"},
-            )
+            with run_context(context):
+                response = await self._model(
+                    [
+                        SystemMsg(name="system", content=system_prompt),
+                        UserMsg(name="user", content=user_payload),
+                    ],
+                    response_format={"type": "json_object"},
+                )
             if not isinstance(response, ChatResponse):
                 raise DagQualityError(f"streaming {operation} response is unsupported")
             if response.get("finished_reason") == FinishedReason.INTERRUPTED:

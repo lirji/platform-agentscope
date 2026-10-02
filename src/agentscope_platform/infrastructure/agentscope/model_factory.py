@@ -19,7 +19,14 @@ def build_openai_chat_model(
         api_key=SecretStr(settings.gateway_api_key.get_secret_value()),
         base_url=settings.gateway_base_url,
     )
-    return OpenAIChatModel(
+    from agentscope_platform.infrastructure.agentscope.budget_model import BudgetedOpenAIChatModel
+
+    if settings.token_budget_enabled and max_retries != 0:
+        raise ValueError("shared model budget requires fail-once provider calls")
+    if settings.token_budget_enabled and max_tokens is None:
+        max_tokens = settings.token_budget_max_output_tokens
+    model_type = BudgetedOpenAIChatModel if settings.token_budget_enabled else OpenAIChatModel
+    model = model_type(
         credential=credential,
         model=settings.gateway_model,
         parameters=OpenAIChatModel.Parameters(
@@ -31,3 +38,6 @@ def build_openai_chat_model(
         max_retries=max_retries,
         client_kwargs=({"timeout": timeout_seconds} if timeout_seconds is not None else None),
     )
+    if isinstance(model, BudgetedOpenAIChatModel):
+        model.budget_settings = settings
+    return model

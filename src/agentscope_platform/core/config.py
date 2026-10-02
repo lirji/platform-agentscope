@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     gateway_api_key: SecretStr = SecretStr("")
     gateway_model: str = "chat-default"
     gateway_temperature: float = Field(default=0.2, ge=0, le=2)
+    token_budget_enabled: bool = False
+    token_budget_base_url: str = "http://conversation-service:8081"
+    token_budget_service_secret: SecretStr = SecretStr("")
+    token_budget_timeout_seconds: float = Field(default=2, gt=0, le=10)
+    token_budget_max_input_bytes: int = Field(default=131_072, ge=1, le=524_288)
+    token_budget_max_output_tokens: int = Field(default=4_096, ge=1, le=131_072)
+    token_budget_media_allowance: int = Field(default=16_384, ge=0, le=65_536)
     agent_max_steps: int = Field(default=8, ge=1, le=100)
     agent_max_tokens: int = Field(default=24_000, ge=0, le=1_000_000)
     agent_timeout_seconds: float = Field(default=120, ge=0, le=3_600)
@@ -474,6 +481,23 @@ class Settings(BaseSettings):
         if len(values) != len(set(values)):
             raise ValueError("AGENT_BROWSER_ALLOWED_HOSTS_JSON contains duplicate hosts")
         return values
+
+    @model_validator(mode="after")
+    def validate_shared_budget(self) -> "Settings":
+        if self.token_budget_enabled:
+            secret = self.token_budget_service_secret.get_secret_value()
+            if len(secret.encode("utf-8")) < 32:
+                raise ValueError("TOKEN_BUDGET_SERVICE_SECRET must contain at least 32 bytes")
+            if secret in {
+                self.internal_jwt_secret.get_secret_value(),
+                self.agent_confirmation_secret.get_secret_value(),
+                self.agent_downstream_jwt_secret.get_secret_value(),
+                self.async_task_worker_jwt_secret.get_secret_value(),
+            }:
+                raise ValueError("TOKEN_BUDGET_SERVICE_SECRET must be a dedicated credential")
+            if not self.token_budget_base_url.startswith(("http://", "https://")):
+                raise ValueError("TOKEN_BUDGET_BASE_URL must use http or https")
+        return self
 
     @property
     def agent_enabled(self) -> bool:

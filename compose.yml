@@ -19,6 +19,9 @@ services:
     environment:
       APP_HOST: 0.0.0.0
       APP_PORT: 8085
+      TOKEN_BUDGET_ENABLED: ${TOKEN_BUDGET_ENABLED:-false}
+      TOKEN_BUDGET_BASE_URL: ${DOCKER_TOKEN_BUDGET_BASE_URL:-http://host.docker.internal:8081}
+      TOKEN_BUDGET_SERVICE_SECRET: ${TOKEN_BUDGET_SERVICE_SECRET:-}
       INTERNAL_JWT_ISSUER: ${INTERNAL_JWT_ISSUER:-langchain4j-platform}
       INTERNAL_JWT_AUDIENCE: ${INTERNAL_JWT_AUDIENCE:-platform-internal}
       INTERNAL_JWT_KEY_ID: ${INTERNAL_JWT_KEY_ID:-platform-internal-v1}

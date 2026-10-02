@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from agentscope_platform.application.ports import DagPlanner, DagPlanningError
 from agentscope_platform.core.config import Settings
+from agentscope_platform.core.context import run_context
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.dag import DagPlan, DagPlanKind
 from agentscope_platform.infrastructure.agentscope.model_factory import (
@@ -153,13 +154,14 @@ class AgentScopeDagPlanner(DagPlanner):
             DagPlanKind.PROCESS: process_prompt,
         }[kind]
         try:
-            response = await self._model(
-                [
-                    SystemMsg(name="system", content=prompt),
-                    UserMsg(name="user", content=f"User goal:\n{goal}"),
-                ],
-                response_format={"type": "json_object"},
-            )
+            with run_context(context):
+                response = await self._model(
+                    [
+                        SystemMsg(name="system", content=prompt),
+                        UserMsg(name="user", content=f"User goal:\n{goal}"),
+                    ],
+                    response_format={"type": "json_object"},
+                )
             if not isinstance(response, ChatResponse):
                 raise DagPlanningError("streaming Planner response is unsupported")
             if response.get("finished_reason") == FinishedReason.INTERRUPTED:
