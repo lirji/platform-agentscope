@@ -1,0 +1,43 @@
+# 显式实验overlay: 独立无状态候选; 不继承Agent容器的写凭据/worker/session配置.
+services:
+  conversation-candidate:
+    image: ${AGENTSCOPE_IMAGE:-agentscope-platform:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "10001:10001"
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp:rw,nosuid,nodev,size=64m,mode=1777]
+    command: [python, -m, uvicorn, agentscope_platform.conversation_candidate:app, --host, 0.0.0.0, --port, "8085"]
+    environment:
+      APP_ENV: ${APP_ENV:-local}
+      ASYNC_TASK_ENABLED: "false"
+      ASYNC_TASK_ROLE: inline
+      GATEWAY_BASE_URL: ${DOCKER_GATEWAY_BASE_URL:-http://host.docker.internal:4000/v1}
+      GATEWAY_MODEL: ${GATEWAY_MODEL:-chat-default}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:-}
+      AGENT_TIMEOUT_SECONDS: ${CONVERSATION_CANDIDATE_TIMEOUT_SECONDS:-30}
+      AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-4096}
+      INTERNAL_AUTH_REQUIRED: "true"
+      INTERNAL_JWT_SECRET: ${PLATFORM_SECURITY_INTERNAL_JWT_SECRET:-}
+      INTERNAL_JWT_ALGORITHM: ${PLATFORM_SECURITY_JWT_ALGORITHM:-HS256}
+      INTERNAL_JWT_PUBLIC_KEY: ${PLATFORM_SECURITY_JWT_PUBLIC_KEY:-}
+      TOKEN_BUDGET_ENABLED: ${TOKEN_BUDGET_ENABLED:-false}
+      TOKEN_BUDGET_BASE_URL: ${DOCKER_TOKEN_BUDGET_BASE_URL:-http://host.docker.internal:8081}
+      TOKEN_BUDGET_SERVICE_SECRET: ${TOKEN_BUDGET_SERVICE_SECRET:-}
+      AGENT_REFUND_START_ENABLED: "false"
+      AGENT_MCP_ENABLED: "false"
+      AGENT_BROWSER_ENABLED: "false"
+      AGENT_CODE_EXEC_ENABLED: "false"
+      OTEL_ENABLED: "false"
+    extra_hosts: [host.docker.internal:host-gateway]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8085/health', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    ports: ["${CONVERSATION_CANDIDATE_PORT:-18085}:8085"]

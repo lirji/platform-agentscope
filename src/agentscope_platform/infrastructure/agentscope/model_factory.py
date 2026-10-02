@@ -3,6 +3,7 @@ from agentscope.model import OpenAIChatModel
 from pydantic import SecretStr
 
 from agentscope_platform.core.config import Settings
+from agentscope_platform.infrastructure.agentscope.closing_model import ClosingOpenAIChatModel
 
 
 def build_openai_chat_model(
@@ -25,7 +26,9 @@ def build_openai_chat_model(
         raise ValueError("shared model budget requires fail-once provider calls")
     if settings.token_budget_enabled and max_tokens is None:
         max_tokens = settings.token_budget_max_output_tokens
-    model_type = BudgetedOpenAIChatModel if settings.token_budget_enabled else OpenAIChatModel
+    model_type = (
+        BudgetedOpenAIChatModel if settings.token_budget_enabled else ClosingOpenAIChatModel
+    )
     model = model_type(
         credential=credential,
         model=settings.gateway_model,

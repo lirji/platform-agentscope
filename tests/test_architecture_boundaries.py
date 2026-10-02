@@ -100,15 +100,18 @@ def test_domain_and_application_do_not_depend_on_outer_layers() -> None:
 
 def test_agentscope_orchestrator_does_not_embed_conversation_runtime() -> None:
     forbidden_modules = [
-        PACKAGE_ROOT / "domain" / "conversation.py",
         PACKAGE_ROOT / "application" / "conversation.py",
         PACKAGE_ROOT / "infrastructure" / "conversation",
     ]
     assert not [path for path in forbidden_modules if path.exists()]
 
     api_source = "\n".join(
-        path.read_text(encoding="utf-8") for path in sorted((PACKAGE_ROOT / "api").rglob("*.py"))
+        path.read_text(encoding="utf-8")
+        for path in sorted((PACKAGE_ROOT / "api").rglob("*.py"))
+        if path.name != "conversation_app.py"
     )
+    assert "conversation_app" not in api_source
+    assert "ConversationCandidate" not in api_source
     assert '"/chat' not in api_source
     assert '"/internal/conversation/generate' not in api_source
 

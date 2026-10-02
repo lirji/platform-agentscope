@@ -40,3 +40,10 @@ API 不执行 request 闭包；新 worker 按持久化输入重建，禁用所�
 崩溃恢复可重复只读调用/模型费用；Java epoch 阻止旧写回，预算仍逐模型调用预留。
 完整 507 项、mypy/Ruff、真实 MySQL 和独立进程恢复/DAG/假OpenAI验证通过。
 完整设计、队列与租户配额、回滚及外部生产限制见 Java 规范 S6_DURABLE_WORKER.md。
+
+## S7：流式候选
+
+独立入口 `agentscope_platform.conversation_candidate:app`, 无Agent容器/状态/任务; 显式Compose overlay。
+强制JWT/chat scope, 连续序号、单终态、有界输入输出/并发、背压/断连关闭。
+SDK完整终帧去重; 每调用显式关闭parser/HTTP资源。真实Java→独立Python→假OpenAI测试
+验证成功/错误/TCP取消; 默认关闭, 不访问真实模型。细节与限制见Java S7_STREAM_SHADOW.md。

@@ -11,7 +11,7 @@
 - 两仓原有工作树及暂存区备份在 `.git/codex-cross-runtime-reliability-baseline/`。
 - Java 完整基线 BUILD SUCCESS；Python 原有 480 用例通过。
 - S1 RAG fail-closed、S2 durable inbox、S3 共同预算、S5 退款回执均已提交并通过本地验证。
-- S6 Java/Python worker 实现和迁移已落地；MySQL 5 项、认证 2 项和 Python 504 项通过；独立 API退出/worker崩溃/接管/DAG验证通过。
+- S6 Java/Python worker 实现和迁移已落地；MySQL 5 项、认证 2 项和 Python 507 项通过；独立 API退出/worker崩溃/接管/DAG验证通过。
 
 ## 已修改文件
 
@@ -21,8 +21,8 @@
 
 ## 未完成
 
-- S6 已通过本地验证，发布与完整对抗复审归 S8。
-- S4 不可变契约版本；S7 流式 shadow。
+- S6/S7 已通过本地验证，发布与完整对抗复审归 S8。
+- S4 不可变契约版本。
 - S8 聚合回归、架构复审、文档及 Git 发布。
 
 ## 当前问题
@@ -32,13 +32,15 @@
 
 ## 下一步建议
 
-1. 按 DELIVERY_STATUS 完成 S6，再推进 S7；全部协议稳定后完成 S4。
+1. 协议已稳定；完成 S4 不可变契约门禁，继续 S8。
 2. 每切片核对兼容性、恢复语义、文档和差异，全部完成后按 producer→consumer 发布。
 
 ## 恢复 Prompt
 
 请读取 CODEX_PROGRESS.md 和规范 DELIVERY_PLAN/DELIVERY_STATUS，继续未完成切片。
 保护既有工作树变更，不重复全仓分析，不等待我输入继续，不执行生产部署。
+
+- S7 流式候选独立进程、主响应隔离、SDK终帧/HTTP关闭修复及真实JWT/SSE/TCP取消验证通过。
 
 ---
 

@@ -15,6 +15,7 @@ from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
 from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.infrastructure.agentscope.closing_model import ClosingOpenAIChatModel
 
 
 class ModelBudgetError(RuntimeError):
@@ -190,7 +191,7 @@ async def budgeted_call(
     return stream()
 
 
-class BudgetedOpenAIChatModel(OpenAIChatModel):
+class BudgetedOpenAIChatModel(ClosingOpenAIChatModel):
     """继承保持 AgentScope 模型接口兼容, 仅在实际调用最外层增加准入。"""
 
     budget_settings: Settings
