@@ -22,7 +22,7 @@ dependencies = [
     "pydantic-settings>=2.10,<3",
     "pyjwt[crypto]>=2.10,<3",
     "redis>=6.4,<7",
-    "structlog>=25.4,<26",
+    "structlog>=26.1.0,<27",
     "uvicorn[standard]>=0.35,<1",
 ]
 
