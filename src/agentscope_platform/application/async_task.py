@@ -1,4 +1,6 @@
 import asyncio
+import hashlib
+import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -13,7 +15,7 @@ from agentscope_platform.application.ports import (
     ProgressSink,
 )
 from agentscope_platform.core.config import Settings
-from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.domain.agent import ExecutionVersions, RunContext
 from agentscope_platform.domain.async_task import (
     AGENT_TASK_KINDS,
     AgentAsyncTask,
@@ -112,7 +114,9 @@ class AsyncTaskManager:
         gateway: AsyncTaskGateway,
         settings: Settings,
         metrics: AsyncTaskMetrics | None = None,
+        execution_versions: ExecutionVersions | None = None,
     ) -> None:
+        self.execution_versions = execution_versions
         self.gateway = gateway
         self.settings = settings
         service_id = settings.async_task_worker_id.strip() or "agentscope"
@@ -137,6 +141,26 @@ class AsyncTaskManager:
             raise AsyncTaskRejectedError("async task execution is disabled")
         if kind not in AGENT_TASK_KINDS:
             raise AsyncTaskRejectedError("unsupported async task kind")
+        if self.settings.async_task_role == "worker":
+            raise AsyncTaskRejectedError("worker does not accept submissions")
+        if self.settings.async_task_role == "api":
+            if context.confirmation_grants or self.execution_versions is None:
+                raise AsyncTaskRejectedError("durable execution requires read-only versioned input")
+            persisted = dict(input_data)
+            persisted["_runtimeRevision"] = self.settings.async_task_runtime_revision
+            persisted["_runtimeConfigDigest"] = runtime_config_digest(self.settings)
+            persisted["_executionVersions"] = self.execution_versions.model_dump(
+                by_alias=True, mode="json"
+            )
+            task = await self.gateway.create(
+                task_id=str(uuid4()),
+                kind=f"agent.readonly.{kind.removeprefix('agent.')}.v1",
+                input_data=persisted,
+                webhook_url=webhook_url,
+                context=context,
+            )
+            self._metrics.submitted(kind)
+            return AgentAsyncTask.from_central(task)
         self._validate_deadline(context)
         async with self._registry_lock:
             if len(self._handles) >= self.settings.async_task_max_inflight:
@@ -187,6 +211,34 @@ class AsyncTaskManager:
             self._metrics.submitted(kind)
             self._metrics.inflight(1, kind)
         return AgentAsyncTask.from_central(created)
+
+    @property
+    def free_slots(self) -> int:
+        return max(0, self.settings.async_task_max_concurrent - len(self._handles))
+
+    async def adopt(
+        self,
+        task: CentralAsyncTask,
+        context: RunContext,
+        execute: ExecuteAsyncTask,
+    ) -> None:
+        """接管持久化领取结果. 不再创建任务或领取第二次租约."""
+        self._validate_deadline(context)
+        async with self._registry_lock:
+            if self._closing or not self.free_slots or task.task_id in self._handles:
+                raise AsyncTaskRejectedError("worker capacity is exhausted")
+            if (
+                task.lease_owner_id != self.worker_id
+                or task.lease_epoch <= 0
+                or task.status.terminal
+            ):
+                raise AsyncTaskRejectedError("invalid durable task lease")
+            handle = ExecutionHandle(task.task_id, task.kind, context, task.lease_epoch)
+            self._handles[task.task_id] = handle
+            self._metrics.inflight(1, task.kind)
+            handle.work = asyncio.create_task(
+                self._run(handle, execute), name=f"durable-{task.task_id}"
+            )
 
     async def get(self, task_id: str, context: RunContext) -> AgentAsyncTask:
         task = await self.gateway.get(task_id, context)
@@ -378,3 +430,16 @@ class AsyncTaskManager:
         if isinstance(value, BaseModel):
             return value.model_dump(by_alias=True, mode="json")
         return value
+
+
+def runtime_config_digest(settings: Settings) -> str:
+    """固定影响工具/规划/模型行为的配置, 不将凭据或API/worker角色加入持久化输入."""
+    snapshot = settings.model_dump(mode="json")
+    governed = {
+        key: value
+        for key, value in snapshot.items()
+        if key.startswith(("agent_", "analytics_external_planner", "gateway_", "token_budget_"))
+        and not any(word in key for word in ("secret", "key", "password", "redis_url"))
+    }
+    data = json.dumps(governed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(data.encode()).hexdigest()

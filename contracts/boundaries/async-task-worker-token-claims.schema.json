@@ -6,7 +6,8 @@
       "enum": [
         "lease",
         "status",
-        "event"
+        "event",
+        "dispatch"
       ],
       "title": "Act",
       "type": "string"

@@ -7,12 +7,13 @@ import httpx
 from agentscope_platform.application.ports import AsyncTaskGateway
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.deadline import outbound_deadline_epoch_ms
-from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.domain.agent import RunContext, TenantIdentity
 from agentscope_platform.domain.async_task import (
     AsyncTaskEventAppend,
     AsyncTaskStatus,
     CentralAsyncTask,
     CentralAsyncTaskEvent,
+    ReadOnlyTaskClaimReply,
 )
 from agentscope_platform.infrastructure.http.resilience import (
     DependencyCallRejected,
@@ -54,6 +55,24 @@ class HttpAsyncTaskClient(AsyncTaskGateway):
         self._guard = (guards or DependencyGuardRegistry(settings)).for_dependency(
             "async-task-service"
         )
+
+    async def claim(self, worker_id: str) -> ReadOnlyTaskClaimReply | None:
+        # 专用控制面身份不携带用户JWT. Java只信任自身持久化的任务所有者和部门.
+        context = RunContext(TenantIdentity("_dispatch", "_dispatch"), None, "dispatch")
+        response = await self._request(
+            "POST",
+            "/async/tasks/dispatch/claim",
+            context,
+            worker_authorization=(worker_id, "dispatch", "readonly-dispatch"),
+            json={"workerId": worker_id},
+        )
+        assert response is not None
+        if response.status_code == 204:
+            return None
+        try:
+            return ReadOnlyTaskClaimReply.model_validate(response.json())
+        except ValueError as exc:
+            raise AsyncTaskGatewayError("async dispatch returned invalid JSON") from exc
 
     async def create(
         self,
@@ -276,7 +295,9 @@ class HttpAsyncTaskClient(AsyncTaskGateway):
         if allow_not_found and response.status_code == 404:
             return None
         if response.status_code >= 400:
-            mapped = response.status_code if response.status_code in {400, 404, 409, 413} else 503
+            mapped = (
+                response.status_code if response.status_code in {400, 404, 409, 413, 429} else 503
+            )
             raise AsyncTaskGatewayError("async task request failed", status_code=mapped)
         return response
 

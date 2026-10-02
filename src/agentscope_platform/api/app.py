@@ -210,7 +210,9 @@ def create_app(
         app_settings,
         guards=dependency_guards,
     )
-    task_manager = AsyncTaskManager(task_gateway, app_settings, AsyncTaskMetrics())
+    task_manager = AsyncTaskManager(
+        task_gateway, app_settings, AsyncTaskMetrics(), execution_versions
+    )
     session_store = build_agent_session_store(
         kind=app_settings.agent_session_store,
         redis_url=app_settings.agent_session_redis_url.get_secret_value(),

@@ -28,3 +28,15 @@ Java RAG 回填验签租户。Python 工具只接受与当前运行一致且非�
 发起请求结果未知时，仅按原用户、租户、幂等键和原诉求读取 `/workflow/refund/receipt`，
 不重放写操作。`refund_receipt` 是无确认消费的只读工具；未读到回执显示结果未确认，
 新发起仍需新有效确认。聚焦 9 项、全量 494 项通过，Java 真 MySQL Flowable 验证通过。
+
+## S6：独立只读 worker
+
+默认 inline；可选 api/worker 角色由 `compose.readonly-worker.yml` 启用。
+先执行 Java async-task V3 迁移并开启 dispatch。`ASYNC_TASK_WORKER_ID` 与
+Java `ASYNC_TASK_DISPATCH_SERVICE_ID` 一致；两进程使用相同不可变 runtime revision、配置和版本。
+生产要求 `ASYNC_TASK_RUNTIME_REVISION=git:<40hex>` 或 `sha256:<64hex>`。
+worker 入口 `python -m agentscope_platform.worker`，不监听HTTP；`--health` 检查成功领取轮询的时效。
+API 不执行 request 闭包；新 worker 按持久化输入重建，禁用所有外部/写工具，拒绝旧确认 grant。
+崩溃恢复可重复只读调用/模型费用；Java epoch 阻止旧写回，预算仍逐模型调用预留。
+完整 507 项、mypy/Ruff、真实 MySQL 和独立进程恢复/DAG/假OpenAI验证通过。
+完整设计、队列与租户配额、回滚及外部生产限制见 Java 规范 S6_DURABLE_WORKER.md。

@@ -2,6 +2,52 @@
 
 ## 任务目标
 
+按 Claude Engineering Skill 修复跨 Java/AgentScope 架构评估的七类可靠性问题。
+规范计划：`../langchain4j-platform/docs/delivery/cross-runtime-reliability/DELIVERY_PLAN.md`；唯一聚合状态：`../langchain4j-platform/docs/delivery/cross-runtime-reliability/DELIVERY_STATUS.md`。
+两仓任务分支：`fix/cross-runtime-reliability`。当前授权包含正常提交、合并、推送 main，不含生产部署。
+
+## 已完成
+
+- 两仓原有工作树及暂存区备份在 `.git/codex-cross-runtime-reliability-baseline/`。
+- Java 完整基线 BUILD SUCCESS；Python 原有 480 用例通过。
+- S1 RAG fail-closed、S2 durable inbox、S3 共同预算、S5 退款回执均已提交并通过本地验证。
+- S6 Java/Python worker 实现和迁移已落地；MySQL 5 项、认证 2 项和 Python 504 项通过；独立 API退出/worker崩溃/接管/DAG验证通过。
+
+## 已修改文件
+
+- AgentScope RAG 工具与边界测试。
+- Java 渠道 inbox V2、预算 RPC/模型边界、退款回执、只读调度 V3；Python 对应适配和独立 worker。
+- 计划、状态与本进度文档。完整路径按任务分支 diff 核对，保留原有无关改动。
+
+## 未完成
+
+- S6 已通过本地验证，发布与完整对抗复审归 S8。
+- S4 不可变契约版本；S7 流式 shadow。
+- S8 聚合回归、架构复审、文档及 Git 发布。
+
+## 当前问题
+
+- 生产 runbook 仍为 NO-GO，真实模型、目标环境和容量证据不在本地验收范围。
+- 原有 staged/unstaged 变更不得混入本任务提交。
+
+## 下一步建议
+
+1. 按 DELIVERY_STATUS 完成 S6，再推进 S7；全部协议稳定后完成 S4。
+2. 每切片核对兼容性、恢复语义、文档和差异，全部完成后按 producer→consumer 发布。
+
+## 恢复 Prompt
+
+请读取 CODEX_PROGRESS.md 和规范 DELIVERY_PLAN/DELIVERY_STATUS，继续未完成切片。
+保护既有工作树变更，不重复全仓分析，不等待我输入继续，不执行生产部署。
+
+---
+
+以下为历史任务记录，授权与当前状态以本文件上半部分和规范状态为准。
+
+# Codex Progress
+
+## 任务目标
+
 按批准的生产加固方案完成 AgentScope 与受影响 Java 平台模块的 AC-01～AC-16，并在每个实现切片后
 执行测试。工程交付完成后必须保持生产 NO-GO，直到目标环境的发布、IAM、恢复、容量、评测、
 canary、监控和回滚证据全部通过机器门禁。

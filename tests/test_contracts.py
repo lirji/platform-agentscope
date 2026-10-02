@@ -309,7 +309,7 @@ def test_async_worker_token_contract_binds_owner_worker_task_and_operation() -> 
     assert schema["additionalProperties"] is False
     assert {"tenant", "actor_uid", "worker_id", "task_id", "act"}.issubset(schema["required"])
     assert schema["properties"]["token_use"]["const"] == "async_task_worker"
-    assert set(schema["properties"]["act"]["enum"]) == {"lease", "status", "event"}
+    assert set(schema["properties"]["act"]["enum"]) == {"lease", "status", "event", "dispatch"}
     assert schema["properties"]["scopes"]["maxItems"] == 1
     assert {"internalToken", "confirmationGrant"}.isdisjoint(schema["properties"])
 

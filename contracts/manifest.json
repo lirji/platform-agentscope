@@ -4,7 +4,7 @@
     "boundaries/agent-session-checkpoint.schema.json": "sha256:330bc3f728b248471d28d6813020072605ec135b63e81207224ef63aebc0f43a",
     "boundaries/agent-trajectory.schema.json": "sha256:4f17c8b47fa37ee120096cd5ecdb6bf09e53d2a00ebd1acfc5cc821879dd0915",
     "boundaries/analytics-sql-plan.schema.json": "sha256:2a1db30fb27ee5061e6cbf21e25c86f8dcca941d36493837224e5b846d746856",
-    "boundaries/async-task-worker-token-claims.schema.json": "sha256:81effc0fdae99328bd883cde5d02deeeb93f9335cbf89b23854896dae16614cd",
+    "boundaries/async-task-worker-token-claims.schema.json": "sha256:d4f298fe14ffe5d35b4e6226d79a0b8ca182d3997ba621500b73cd72a1c68f47",
     "boundaries/browser-action-reply.schema.json": "sha256:bc848402a7ffbe850dc98ab9b44078000892ec4db4a0ebae2dd17a6b1ff274c6",
     "boundaries/browser-action-request.schema.json": "sha256:723b29890f093f2070c35f3a3999056c0793b8453b58c7ee692181538ca65c14",
     "boundaries/code-execution-reply.schema.json": "sha256:e472d0e0de7c993bdc755712f0a08e4a4c03b216b9753f26f787edab151be192",

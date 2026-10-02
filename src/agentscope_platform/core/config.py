@@ -213,6 +213,11 @@ class Settings(BaseSettings):
     agent_input_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
     agent_output_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
 
+    async_task_runtime_revision: str = Field(
+        default="local", pattern=r"^(local|git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
+    )
+    async_task_role: Literal["inline", "api", "worker"] = "inline"
+    async_task_poll_seconds: float = Field(default=1, ge=0.1, le=30)
     async_task_enabled: bool = False
     async_task_base_url: str = "http://localhost:8086"
     async_task_worker_id: str = ""
@@ -306,6 +311,20 @@ class Settings(BaseSettings):
             raise ValueError(
                 "AGENT_SESSION_REDIS_URL must use redis or rediss when session store is redis"
             )
+        if self.async_task_role != "inline":
+            if self.app_env == "production" and self.async_task_runtime_revision == "local":
+                raise ValueError("durable production requires ASYNC_TASK_RUNTIME_REVISION")
+            if not self.async_task_enabled:
+                raise ValueError("durable async roles require ASYNC_TASK_ENABLED=true")
+            if any(
+                (
+                    self.agent_refund_start_enabled,
+                    self.agent_mcp_enabled,
+                    self.agent_browser_enabled,
+                    self.agent_code_exec_enabled,
+                )
+            ):
+                raise ValueError("durable roles require external/write tools disabled")
         if self.async_task_enabled:
             worker_id = self.async_task_worker_id.strip()
             if (

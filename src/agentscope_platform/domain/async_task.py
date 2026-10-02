@@ -29,6 +29,9 @@ class AgentTaskKind(StrEnum):
     PROCESS = "agent.process"
 
 
+READONLY_TASK_KINDS = frozenset(
+    f"agent.readonly.{kind.value.removeprefix('agent.')}.v1" for kind in AgentTaskKind
+)
 AGENT_TASK_KINDS = frozenset(kind.value for kind in AgentTaskKind)
 
 
@@ -53,7 +56,7 @@ class CentralAsyncTask(BaseModel):
 
     @property
     def agent_kind(self) -> bool:
-        return self.kind in AGENT_TASK_KINDS
+        return self.kind in AGENT_TASK_KINDS or self.kind in READONLY_TASK_KINDS
 
 
 class AgentAsyncTask(BaseModel):
@@ -125,3 +128,11 @@ class CentralAsyncTaskEvent(BaseModel):
     data: Any
     created_at: datetime = Field(alias="createdAt")
     worker_id: str | None = Field(default=None, alias="workerId")
+
+
+class ReadOnlyTaskClaimReply(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    task: CentralAsyncTask
+    internal_token: str = Field(alias="internalToken", min_length=1, max_length=8192)
+    trace_id: str = Field(alias="traceId", min_length=1, max_length=128)

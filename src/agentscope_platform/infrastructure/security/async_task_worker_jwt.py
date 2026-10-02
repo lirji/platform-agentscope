@@ -8,7 +8,7 @@ from agentscope_platform.core.config import Settings
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.security import AsyncTaskWorkerTokenClaims
 
-AsyncTaskWorkerAction = Literal["lease", "status", "event"]
+AsyncTaskWorkerAction = Literal["lease", "status", "event", "dispatch"]
 
 
 class AsyncTaskWorkerTokenError(RuntimeError):
@@ -43,7 +43,7 @@ class AsyncTaskWorkerTokenIssuer:
             or (worker_id != self._worker_id and not worker_id.startswith(owner_prefix))
         ):
             raise AsyncTaskWorkerTokenError("async worker identity does not match service identity")
-        if action not in {"lease", "status", "event"}:
+        if action not in {"lease", "status", "event", "dispatch"}:
             raise AsyncTaskWorkerTokenError("async worker action is invalid")
         if not task_id or len(task_id) > 256:
             raise AsyncTaskWorkerTokenError("async worker task id is invalid")

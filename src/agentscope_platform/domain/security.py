@@ -45,7 +45,7 @@ class AsyncTaskWorkerTokenClaims(BaseModel):
     worker_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
     scopes: tuple[Literal["async.task.worker"], ...] = Field(min_length=1, max_length=1)
     token_use: Literal["async_task_worker"]
-    act: Literal["lease", "status", "event"]
+    act: Literal["lease", "status", "event", "dispatch"]
     task_id: str = Field(min_length=1, max_length=256)
     jti: str = Field(
         pattern=(
