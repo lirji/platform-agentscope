@@ -19,6 +19,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 WORKDIR /app
 
+# 补齐扫描发现的Bookworm PCRE2安全补丁; 只升级该已有包, 不忽略HIGH门禁.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libpcre2-8-0)" ge '10.42-1+deb12u1' \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN addgroup --system app && adduser --system --ingroup app app
 COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app src ./src
