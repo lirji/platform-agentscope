@@ -1,4 +1,5 @@
 import httpx
+import pytest
 from agentscope.message import TextBlock, ToolResultState
 
 from agentscope_platform.core.config import Settings
@@ -94,6 +95,29 @@ async def test_rag_search_rejects_mismatched_tenant() -> None:
 
     assert result.state == ToolResultState.ERROR
     assert "不一致的租户" in text(result)
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        {"query": "q", "hits": [{"displayName": "leak.md", "text": "globex secret"}]},
+        {"query": "q", "tenantId": None, "hits": [{"displayName": "leak.md", "text": "x"}]},
+        {"query": "q", "tenantId": "", "hits": [{"displayName": "leak.md", "text": "x"}]},
+    ],
+)
+async def test_rag_search_fails_closed_without_tenant(reply: dict[str, object]) -> None:
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=reply))
+    settings = Settings()
+    tools = ReadonlyToolset(settings, PlatformClient(settings, transport))
+    token = bind_run_context(context())
+    try:
+        result = await tools.rag_search("q")
+    finally:
+        reset_run_context(token)
+
+    assert result.state == ToolResultState.ERROR
+    assert "未返回租户标识" in text(result)
+    assert "leak.md" not in text(result)
 
 
 async def test_order_schema_and_analytics_preserve_legacy_observations() -> None:

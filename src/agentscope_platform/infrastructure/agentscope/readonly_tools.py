@@ -111,7 +111,11 @@ class ReadonlyToolset:
         except PlatformServiceError as exc:
             return self._error(f"查询失败：{exc}")
 
-        if reply.tenant_id and reply.tenant_id != context.identity.tenant_id:
+        # Java 会回填已验签的租户
+        # 缺少该字段时无法证明结果归属, 不能把片段交给模型
+        if not reply.tenant_id:
+            return self._error("查询失败：知识服务未返回租户标识。")
+        if reply.tenant_id != context.identity.tenant_id:
             return self._error("查询失败：知识服务返回了不一致的租户。")
 
         hits = [
