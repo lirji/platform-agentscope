@@ -4,7 +4,11 @@ from typing import TYPE_CHECKING, Any
 from agentscope_platform.application.async_task import runtime_config_digest
 from agentscope_platform.application.ports import ProgressSink
 from agentscope_platform.domain.agent import AgentRunRequest, RunContext
-from agentscope_platform.domain.async_task import READONLY_TASK_KINDS, AsyncTaskStatus
+from agentscope_platform.domain.async_task import (
+    READONLY_TASK_KINDS,
+    AgentTaskKind,
+    AsyncTaskStatus,
+)
 from agentscope_platform.domain.dag import AgentDagRunRequest, AgentPlanRunRequest, DagPlanKind
 from agentscope_platform.infrastructure.http.async_task_client import HttpAsyncTaskClient
 from agentscope_platform.infrastructure.security.internal_jwt import InternalJwtVerifier
@@ -70,28 +74,30 @@ class ReadOnlyTaskWorker:
             for key, value in task.input.items()
             if key not in {"_executionVersions", "_runtimeRevision", "_runtimeConfigDigest"}
         }
-        kind = task.kind.removeprefix("agent.readonly.").removesuffix(".v1")
+        kind = AgentTaskKind(
+            "agent." + task.kind.removeprefix("agent.readonly.").removesuffix(".v1")
+        )
 
         async def execute(progress: ProgressSink) -> Any:
-            if kind == "run":
+            if kind == AgentTaskKind.RUN:
                 return await self.container.agent_service.run_for_async(
                     AgentRunRequest.model_validate(payload),
                     context,
                 )
-            if kind == "dag":
+            if kind == AgentTaskKind.DAG:
                 return await self.container.dag_service.run(
                     AgentDagRunRequest.model_validate(payload),
                     context,
                     progress,
                 )
             plan_kind = {
-                "dag-plan": DagPlanKind.GENERAL,
-                "analyst": DagPlanKind.ANALYST,
-                "process": DagPlanKind.PROCESS,
+                AgentTaskKind.DAG_PLAN: DagPlanKind.GENERAL,
+                AgentTaskKind.ANALYST: DagPlanKind.ANALYST,
+                AgentTaskKind.PROCESS: DagPlanKind.PROCESS,
             }[kind]
             service = (
                 self.container.process_planning_service
-                if kind == "process"
+                if kind == AgentTaskKind.PROCESS
                 else self.container.planning_service
             )
             return await service.plan_and_run(

@@ -40,7 +40,8 @@ async def serve() -> None:
             try:
                 await asyncio.wait_for(stop.wait(), timeout=settings.async_task_poll_seconds)
             except TimeoutError:
-                pass
+                # 轮询间隔正常结束, 下一轮再次检查停止信号和中心队列.
+                continue
 
 
 HEALTH_FILE = Path("/tmp/agentscope-readonly-worker-health")

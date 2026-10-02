@@ -38,11 +38,13 @@ class ClosingOpenAIChatModel(OpenAIChatModel):
         token = _closers.set(resources)
 
         async def close() -> None:
-            try:
-                for closer in reversed(resources):
+            if resources:
+                closer = resources.pop()
+                try:
                     await closer()
-            finally:
-                resources.clear()
+                finally:
+                    # parser关闭异常也不能跳过HTTP响应关闭.
+                    await close()
 
         try:
             result = await super().__call__(
