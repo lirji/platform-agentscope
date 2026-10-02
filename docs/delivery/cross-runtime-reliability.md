@@ -65,16 +65,24 @@ CI检出该提交并重新校验export和Java DTO; 无源/无ref/漂移均失败
 
 Java配套实现本地1406tests/0fail, 真实MySQL/Redis/独立worker/SSE/TCP恢复与取消验证通过。
 Java远程SBOM另外发现85条HIGH/CRITICAL、31依赖坐标, 需Boot/Cloud及客户端兼容升级;
-当前两仓仅任务分支发布, main暂缓。升级提案与唯一聚合状态/QA/自复审/交付报告见
+用户2026-10-02接受已披露版本扫描例外; 两仓已正常快进合并/push main。升级提案与唯一聚合状态/QA/自复审/交付报告见
 `../langchain4j-platform/docs/delivery/cross-runtime-reliability/`。
 原有用户dirty文件/目录和历史治理状态保持; 原工作树新增未提交JWT测试旧decode预期
 与安全升级更早拒绝冲突, 未修改该用户测试。生产NO-GO保持。
 
 Java cutover修复Linux管道SIGPIPE误报后, [远程36980014838](https://github.com/lirji/langchain4j-platform/actions/runs/36980014838)
-SUCCESS (完整reactor、固定契约/SDK、Compose与Helm门禁)。剩余main交付阻塞仅为Java SBOM安全扫描。
+SUCCESS (完整reactor、固定契约/SDK、Compose与Helm门禁)。Java SBOM安全扫描仍FAIL, 用户本轮接受其合并例外。
 
 ## 本轮main合并例外
 
 2026-10-02用户明确接受已披露既有框架/依赖版本的扫描结果并要求合并main。
 本轮不新增框架升级; Java85条版本扫描记录仍FAIL, CI门禁和severity保持。
 按Python→Java正常合并/push main; 例外范围与执行事实见Java规范MERGE_EXCEPTION/DELIVERY_REPORT。
+
+## Git交付结果
+
+Python main c4fc90d→1a7ceec先推送, Java main e8f11cb→8bf6ad6后推送,
+均为正常快进, git ls-remote与任务提交祖先关系验证成功。后续仅本轮交付记录/进度闭合。
+合并后[Python CI36983232314](https://github.com/lirji/platform-agentscope/actions/runs/36983232314)
+运行中; 之前相同产品代码的quality成功。最终main文档提交会触发新CI, 不声称全绿。
+工程结论COMPLETED_WITH_ACCEPTED_FINDINGS; 原工作树用户dirty贡献与治理目录保留, 生产NO-GO保持。

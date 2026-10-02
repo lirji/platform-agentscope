@@ -13,6 +13,7 @@
 - 两仓Code Hygiene无blocking; 主Agent对抗自复审与QA报告已准备。
 - Python cryptography50.0.2/PyJWT2.15.1/urllib3 2.8.0审计0漏洞, runtime PCRE2补丁后远程CI36979153821 SUCCESS。
 - Java固定IAM SDK源码929e9ca安装, CI补ripgrep/隔离供应方目录; 固定契约producer6f43ddf。
+- S8: Python main1a7ceec先推送, Java main8bf6ad6后推送, git ls-remote和祖先关系核对成功; 最终文档HEAD以main为准。
 - 初始dirty和intent-to-add保留; Java19/Python6文件重建0偏差, 第三IAM仓只读。
 
 ## 已修改文件
@@ -23,11 +24,9 @@
 
 ## 未完成
 
-- S8正常main合并进行中; 用户2026-10-02明确接受已披露版本扫描例外并要求合并。
-- Python运行提交34df909, Java deba7bc; 后续只改交付文档。
-- Java cutover36978970189全测试过但Compose断言失败; 行号诊断定位Linux SIGPIPE, deba7bc完整消费输入; 本地与远程36980014838 SUCCESS。
-- Java supply-chain36978975220聚合SBOM85条HIGH/CRITICAL、31依赖坐标仍FAIL; 用户本轮接受合并例外, 不升级框架。
-- MERGE_EXCEPTION.md记录最新用户决定; SECURITY_MIGRATION_PROPOSAL仅作后续技术债。
+- 当前七项修复和S8正常main合并交付已完成, 无待实现事项。
+- Java85条既有版本记录仍FAIL, 用户2026-10-02已接受本次源码合并例外; 后续整改另行安排。
+- 合并后自动CI仍在运行, 不宣称最新main CI全绿; 运行链接见DELIVERY_REPORT。
 
 ## 当前问题
 
@@ -37,13 +36,13 @@
 
 ## 下一步建议
 
-1. 在既有干净验证worktree按producer→consumer正常快进合并/push main。
-2. 核对远程包含任务提交、保留原有dirty贡献; 同步最终交付状态。
-3. 原门禁继续扫描, 记录CI实际结果; 不实施框架迁移或生产部署。
+1. 本轮已交付; 如需查看后续CI结果, 读取DELIVERY_REPORT中的Actions链接及当前main SHA。
+2. 未来框架/客户端升级复用SECURITY_MIGRATION_PROPOSAL, 本轮不实施。
+3. 原有dirty任务贡献与verification worktree保留, 不清理/丢弃用户内容, 不执行生产部署。
 
 ## 恢复 Prompt
 
-请读取CODEX_PROGRESS与规范DELIVERY_STATUS/DELIVERY_REPORT, 继续未完成工作。
+请读取CODEX_PROGRESS与规范DELIVERY_STATUS/DELIVERY_REPORT; 当前七项修复和main交付已完成。
 保护既有dirty贡献; 不重复7项分析, 不降低CI门禁; 本轮已获版本扫描合并例外, 不执行生产部署。
 
 ---
