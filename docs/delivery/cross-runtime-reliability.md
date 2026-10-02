@@ -72,3 +72,9 @@ Java远程SBOM另外发现85条HIGH/CRITICAL、31依赖坐标, 需Boot/Cloud及�
 
 Java cutover修复Linux管道SIGPIPE误报后, [远程36980014838](https://github.com/lirji/langchain4j-platform/actions/runs/36980014838)
 SUCCESS (完整reactor、固定契约/SDK、Compose与Helm门禁)。剩余main交付阻塞仅为Java SBOM安全扫描。
+
+## 本轮main合并例外
+
+2026-10-02用户明确接受已披露既有框架/依赖版本的扫描结果并要求合并main。
+本轮不新增框架升级; Java85条版本扫描记录仍FAIL, CI门禁和severity保持。
+按Python→Java正常合并/push main; 例外范围与执行事实见Java规范MERGE_EXCEPTION/DELIVERY_REPORT。

@@ -23,27 +23,28 @@
 
 ## 未完成
 
-- S8 main交付阻塞; 两仓main均尚未合并。Python运行提交34df909, Java deba7bc。
+- S8正常main合并进行中; 用户2026-10-02明确接受已披露版本扫描例外并要求合并。
+- Python运行提交34df909, Java deba7bc; 后续只改交付文档。
 - Java cutover36978970189全测试过但Compose断言失败; 行号诊断定位Linux SIGPIPE, deba7bc完整消费输入; 本地与远程36980014838 SUCCESS。
-- Java supply-chain36978975220聚合SBOM85条HIGH/CRITICAL、31依赖坐标, 需框架/客户端升级切片。
-- 已准备SECURITY_MIGRATION_PROPOSAL.md, 向用户异步询问新增升级路线; 官方Cloud2025.0已EOL, 长期Boot4/Cloud2025.1或Boot3.5过渡需选择。
+- Java supply-chain36978975220聚合SBOM85条HIGH/CRITICAL、31依赖坐标仍FAIL; 用户本轮接受合并例外, 不升级框架。
+- MERGE_EXCEPTION.md记录最新用户决定; SECURITY_MIGRATION_PROPOSAL仅作后续技术债。
 
 ## 当前问题
 
-- 必要安全验证失败时不合并main, 不忽略漏洞/降低门禁。镜像扫描尚未进入。
+- 已披露版本扫描仅作为本次源码合并例外; CI保持原失败结论和门禁, Java镜像扫描尚未进入。
 - 原Python未提交新增测试有1个旧decode预期, 新PyJWT更早拒绝非规范JWT; 保留该测试, 不放宽安全验证。
 - 生产runbook仍NO-GO, 不伪造真实模型、容量、恢复或历史ESS成功。
 
 ## 下一步建议
 
-1. cutover远程已通过, 保持安全断言; 剩余SBOM安全门禁。
-2. 用户选择扩展后按SECURITY_MIGRATION_PROPOSAL新增切片; 若保持原范围, 闭合阻塞报告并暂缓合并。
-3. 全部必要门禁过后producer→consumer正常合并/push main, 核对远程包含任务提交。
+1. 在既有干净验证worktree按producer→consumer正常快进合并/push main。
+2. 核对远程包含任务提交、保留原有dirty贡献; 同步最终交付状态。
+3. 原门禁继续扫描, 记录CI实际结果; 不实施框架迁移或生产部署。
 
 ## 恢复 Prompt
 
 请读取CODEX_PROGRESS与规范DELIVERY_STATUS/DELIVERY_REPORT, 继续未完成工作。
-保护既有dirty贡献; 不重复7项分析, 不绕过CI, 不执行生产部署。
+保护既有dirty贡献; 不重复7项分析, 不降低CI门禁; 本轮已获版本扫描合并例外, 不执行生产部署。
 
 ---
 
