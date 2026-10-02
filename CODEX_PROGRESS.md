@@ -24,7 +24,7 @@
 ## 未完成
 
 - S8 main交付阻塞; 两仓main均尚未合并。Python运行提交34df909, Java deba7bc。
-- Java cutover36978970189全测试过但Compose断言失败; 行号诊断定位Linux SIGPIPE, deba7bc完整消费输入; 本地通过, 重跑36980014838。
+- Java cutover36978970189全测试过但Compose断言失败; 行号诊断定位Linux SIGPIPE, deba7bc完整消费输入; 本地与远程36980014838 SUCCESS。
 - Java supply-chain36978975220聚合SBOM85条HIGH/CRITICAL、31依赖坐标, 需框架/客户端升级切片。
 - 已准备SECURITY_MIGRATION_PROPOSAL.md, 向用户异步询问新增升级路线; 官方Cloud2025.0已EOL, 长期Boot4/Cloud2025.1或Boot3.5过渡需选择。
 
@@ -36,7 +36,7 @@
 
 ## 下一步建议
 
-1. 等待cutover修复远程重跑结果, 保持安全断言。
+1. cutover远程已通过, 保持安全断言; 剩余SBOM安全门禁。
 2. 用户选择扩展后按SECURITY_MIGRATION_PROPOSAL新增切片; 若保持原范围, 闭合阻塞报告并暂缓合并。
 3. 全部必要门禁过后producer→consumer正常合并/push main, 核对远程包含任务提交。
 

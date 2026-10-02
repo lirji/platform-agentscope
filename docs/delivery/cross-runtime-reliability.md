@@ -69,3 +69,6 @@ Java远程SBOM另外发现85条HIGH/CRITICAL、31依赖坐标, 需Boot/Cloud及�
 `../langchain4j-platform/docs/delivery/cross-runtime-reliability/`。
 原有用户dirty文件/目录和历史治理状态保持; 原工作树新增未提交JWT测试旧decode预期
 与安全升级更早拒绝冲突, 未修改该用户测试。生产NO-GO保持。
+
+Java cutover修复Linux管道SIGPIPE误报后, [远程36980014838](https://github.com/lirji/langchain4j-platform/actions/runs/36980014838)
+SUCCESS (完整reactor、固定契约/SDK、Compose与Helm门禁)。剩余main交付阻塞仅为Java SBOM安全扫描。
