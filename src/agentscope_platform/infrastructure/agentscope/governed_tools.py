@@ -31,6 +31,7 @@ from agentscope_platform.domain.tool import (
     ToolMetadata,
 )
 from agentscope_platform.infrastructure.agentscope.tools import GovernedFunctionTool
+from agentscope_platform.infrastructure.http.models import WorkflowStartReply
 from agentscope_platform.infrastructure.http.platform_client import (
     PlatformClient,
     PlatformServiceError,
@@ -85,7 +86,9 @@ class GovernedToolset:
             idempotency=IdempotencyStrategy.REQUEST_KEY,
             requiresConfirmation=ConfirmationRequirement.ALWAYS,
             requiredScopes=("agent",),
-            timeoutSeconds=settings.http_read_timeout_seconds,
+            # 为写请求的未知结果保留一次只读查询时间, 不扩大写重试次数。
+            timeoutSeconds=2 * settings.http_read_timeout_seconds
+            + settings.http_connect_timeout_seconds,
             retryPolicy=RetryPolicy.NONE,
         )
         self._browser_metadata = {
@@ -159,6 +162,19 @@ class GovernedToolset:
                         "只负责发起，绝不自动批准。message 填退款诉求原文。"
                     ),
                     confirmation_consumer=self._confirmation_consumer,
+                )
+            )
+            tools.append(
+                GovernedFunctionTool(
+                    self.refund_receipt,
+                    metadata=ToolMetadata.for_read_only(
+                        name="refund_receipt",
+                        required_scopes=("agent",),
+                        timeout_seconds=self._settings.http_read_timeout_seconds,
+                    ),
+                    description=(
+                        "查询原幂等键的退款提交回执。message 必须是原诉求; 不创建或批准退款。"
+                    ),
                 )
             )
         if self._settings.agent_mcp_enabled:
@@ -465,8 +481,54 @@ class GovernedToolset:
             )
         except PlatformServiceError as exc:
             record_tool_provider_failure("refund_start", "workflow_service")
-            return self._error(f"发起失败：{exc}")
+            if (
+                exc.status_code is not None
+                and 400 <= exc.status_code < 500
+                and exc.status_code != 408
+            ):
+                return self._error(f"发起失败：{exc}")
+            # 超时/5xx/无效成功报文都有可能发生在提交之后, 只查原回执, 绝不重发写请求。
+            try:
+                receipt = await self._client.refund_receipt(
+                    message=normalized,
+                    chat_id=f"agent:{context.identity.user_id}",
+                    dedupe_id=dedupe_id,
+                    context=context,
+                )
+            except PlatformServiceError:
+                receipt = None
+            if receipt is None:
+                return self._error(
+                    "退款结果未确认：请求可能已受理。请使用原幂等键和原诉求查询回执，不要换键或无确认重复发起。"
+                )
+            reply = receipt
 
+        return self._refund_reply(reply)
+
+    async def refund_receipt(self, message: str) -> ToolChunk:
+        """读取原请求结果, 已消费确认不妨碍只读恢复, 查询不消费新的授权。"""
+        context = current_run_context()
+        normalized = message.strip()
+        if (
+            not normalized
+            or len(normalized) > MAX_REFUND_MESSAGE_CHARS
+            or not context.idempotency_key
+        ):
+            return self._error("查询失败：需要原诉求和原幂等键。")
+        try:
+            reply = await self._client.refund_receipt(
+                message=normalized,
+                chat_id=f"agent:{context.identity.user_id}",
+                dedupe_id=context.idempotency_key,
+                context=context,
+            )
+        except PlatformServiceError:
+            return self._error("退款结果未确认：回执暂不可用，请保留原幂等键。")
+        if reply is None:
+            return self._error("退款结果未确认：尚无可读取的提交回执，不代表请求未受理。")
+        return self._refund_reply(reply)
+
+    def _refund_reply(self, reply: WorkflowStartReply) -> ToolChunk:
         lines = [f"instanceId: {reply.instance_id}", f"status: {reply.status}"]
         if reply.priority and reply.priority.strip():
             lines.append(f"priority: {reply.priority}")

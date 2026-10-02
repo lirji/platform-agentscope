@@ -57,8 +57,12 @@ def test_refund_start_metadata_declares_governance_contract() -> None:
     settings = enabled_settings()
     tools = GovernedToolset(settings, PlatformClient(settings)).tools()
 
-    assert len(tools) == 1
-    tool = tools[0]
+    assert {tool.name for tool in tools} == {"refund_start", "refund_receipt"}
+    receipt = next(tool for tool in tools if tool.name == "refund_receipt")
+    assert receipt.metadata.read_only is True
+    assert receipt.metadata.requires_confirmation is ConfirmationRequirement.NEVER
+    assert receipt.metadata.retry_policy is RetryPolicy.NONE
+    tool = next(tool for tool in tools if tool.name == "refund_start")
     assert isinstance(tool, GovernedFunctionTool)
     assert tool.name == "refund_start"
     assert tool.metadata.read_only is False
@@ -171,9 +175,9 @@ async def test_refund_start_provider_failure_is_sanitized_and_not_retried() -> N
     finally:
         reset_run_context(token)
 
-    assert calls == 1
+    assert calls == 2
     assert result.state == ToolResultState.ERROR
-    assert text(result) == "发起失败：workflow-service returned HTTP 503"
+    assert "退款结果未确认" in text(result)
     assert "password" not in text(result)
 
 
@@ -234,3 +238,48 @@ async def test_refund_start_uses_tenant_bound_tokens_not_model_identity_fields()
     assert [item[0] for item in seen] == ["token-acme", "token-globex"]
     assert [item[1] for item in seen] == ["trace-acme", "trace-globex"]
     assert all("tenantId" not in body and "userId" not in body for _, _, body in seen)
+
+
+async def test_refund_lost_response_reads_original_receipt_without_write_retry() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/start"):
+            raise httpx.ReadTimeout("response lost after commit", request=request)
+        return httpx.Response(
+            200,
+            json={"instanceId": "committed-42", "status": "WAITING_APPROVAL", "deduplicated": True},
+        )
+
+    settings = enabled_settings()
+    toolset = GovernedToolset(settings, PlatformClient(settings, httpx.MockTransport(handler)))
+    token = bind_run_context(context())
+    try:
+        result = await toolset.refund_start("退款")
+    finally:
+        reset_run_context(token)
+    assert [r.url.path for r in requests] == ["/workflow/refund/start", "/workflow/refund/receipt"]
+    assert json.loads(requests[0].content) == json.loads(requests[1].content)
+    assert "instanceId: committed-42" in text(result)
+    assert "尚未批准" in text(result)
+    assert result.state != ToolResultState.ERROR
+
+
+async def test_missing_receipt_does_not_prove_failure_and_read_tool_never_starts() -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        return httpx.Response(404)
+
+    settings = enabled_settings()
+    toolset = GovernedToolset(settings, PlatformClient(settings, httpx.MockTransport(handler)))
+    token = bind_run_context(context())
+    try:
+        result = await toolset.refund_receipt("退款")
+    finally:
+        reset_run_context(token)
+    assert paths == ["/workflow/refund/receipt"]
+    assert "不代表请求未受理" in text(result)
+    assert result.state == ToolResultState.ERROR

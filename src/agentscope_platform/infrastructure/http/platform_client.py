@@ -171,6 +171,23 @@ class PlatformClient:
                 return None
             raise
 
+    async def refund_receipt(
+        self, *, message: str, chat_id: str, dedupe_id: str, context: RunContext
+    ) -> WorkflowStartReply | None:
+        """只查询原请求的提交回执; 空结果不能证明原写操作未提交。"""
+        try:
+            return await self._post(
+                "workflow-service",
+                f"{self._settings.workflow_base_url.rstrip('/')}/workflow/refund/receipt",
+                {"message": message, "chatId": chat_id, "dedupeId": dedupe_id},
+                context,
+                WorkflowStartReply,
+            )
+        except PlatformServiceError as exc:
+            if exc.status_code == 404:
+                return None
+            raise
+
     async def start_refund(
         self,
         *,

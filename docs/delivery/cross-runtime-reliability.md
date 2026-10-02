@@ -22,3 +22,9 @@ Java RAG 回填验签租户。Python 工具只接受与当前运行一致且非�
 配置默认关闭，需要与 Java 同时启用并注入独立服务凭据；schema/HTTP 组合固定由后续契约门禁落实。
 细节、开启/回滚和本地验证见规范目录 S3_SHARED_BUDGET.md。
 聚焦 38 项、全量 492 项、ruff/format/mypy、Compose 静态校验通过；未调用真实模型。
+
+## S5：退款回执
+
+发起请求结果未知时，仅按原用户、租户、幂等键和原诉求读取 `/workflow/refund/receipt`，
+不重放写操作。`refund_receipt` 是无确认消费的只读工具；未读到回执显示结果未确认，
+新发起仍需新有效确认。聚焦 9 项、全量 494 项通过，Java 真 MySQL Flowable 验证通过。
