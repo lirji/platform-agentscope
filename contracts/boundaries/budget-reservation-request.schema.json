@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "operationId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Operationid",
+      "type": "string"
+    },
+    "tokens": {
+      "minimum": 1,
+      "title": "Tokens",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "operationId",
+    "tokens"
+  ],
+  "title": "BudgetReservationRequest",
+  "type": "object"
+}

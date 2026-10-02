@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "workerId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Workerid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workerId"
+  ],
+  "title": "ReadOnlyTaskClaimRequest",
+  "type": "object"
+}

@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "chatId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Chatid"
+    },
+    "dedupeId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dedupeid"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "webhookUrl": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Webhookurl"
+    }
+  },
+  "required": [
+    "message"
+  ],
+  "title": "RefundReceiptRequest",
+  "type": "object"
+}

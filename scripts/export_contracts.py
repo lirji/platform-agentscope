@@ -18,6 +18,8 @@ from agentscope_platform.domain.async_task import (
     AgentAsyncTask,
     AgentTaskProgress,
     CentralAsyncTaskEvent,
+    ReadOnlyTaskClaimReply,
+    ReadOnlyTaskClaimRequest,
 )
 from agentscope_platform.domain.confirmation import (
     ToolConfirmationReply,
@@ -31,6 +33,11 @@ from agentscope_platform.domain.dag import (
 )
 from agentscope_platform.domain.interop import capability_registry
 from agentscope_platform.domain.mcp import McpToolBinding
+from agentscope_platform.domain.metering import (
+    BudgetReservationReply,
+    BudgetReservationRequest,
+    BudgetSettlementRequest,
+)
 from agentscope_platform.domain.sandbox import (
     BrowserActionReply,
     BrowserActionRequest,
@@ -51,6 +58,7 @@ from agentscope_platform.domain.sibling import (
     VoteRequest,
 )
 from agentscope_platform.domain.tool import ToolMetadata
+from agentscope_platform.domain.workflow import RefundReceiptRequest
 from agentscope_platform.evaluation.models import (
     EvaluationDataset,
     GovernedToolCase,
@@ -68,7 +76,19 @@ MANIFEST_SCHEMA_VERSION = "1"
 def artifacts() -> dict[Path, dict[str, Any]]:
     settings = Settings(_env_file=None, internal_auth_required=False)  # type: ignore[call-arg]
     app = create_app(settings)
+    additional = {
+        "budget-reservation-request": BudgetReservationRequest,
+        "budget-reservation-reply": BudgetReservationReply,
+        "budget-settlement-request": BudgetSettlementRequest,
+        "refund-receipt-request": RefundReceiptRequest,
+        "readonly-task-claim-request": ReadOnlyTaskClaimRequest,
+        "readonly-task-claim-reply": ReadOnlyTaskClaimReply,
+    }
     return {
+        **{
+            CONTRACTS / "boundaries" / f"{name}.schema.json": model.model_json_schema(by_alias=True)
+            for name, model in additional.items()
+        },
         CONTRACTS / "legacy" / "agent-run-request.schema.json": AgentRunRequest.model_json_schema(
             by_alias=True
         ),

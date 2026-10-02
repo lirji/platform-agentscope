@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "day": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "title": "Day",
+      "type": "string"
+    },
+    "operationId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Operationid",
+      "type": "string"
+    },
+    "reservedTokens": {
+      "minimum": 1,
+      "title": "Reservedtokens",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "operationId",
+    "day",
+    "reservedTokens"
+  ],
+  "title": "BudgetReservationReply",
+  "type": "object"
+}

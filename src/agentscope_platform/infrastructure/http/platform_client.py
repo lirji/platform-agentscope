@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.deadline import outbound_deadline_epoch_ms
 from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.domain.workflow import RefundReceiptRequest
 from agentscope_platform.infrastructure.http.models import (
     AnalyticsSqlPlanReply,
     AnalyticsSqlReply,
@@ -179,7 +180,9 @@ class PlatformClient:
             return await self._post(
                 "workflow-service",
                 f"{self._settings.workflow_base_url.rstrip('/')}/workflow/refund/receipt",
-                {"message": message, "chatId": chat_id, "dedupeId": dedupe_id},
+                RefundReceiptRequest(
+                    message=message, chatId=chat_id, dedupeId=dedupe_id
+                ).model_dump(by_alias=True, exclude_none=True),
                 context,
                 WorkflowStartReply,
             )

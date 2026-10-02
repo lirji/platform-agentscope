@@ -1,0 +1,167 @@
+{
+  "$defs": {
+    "AsyncTaskStatus": {
+      "enum": [
+        "PENDING",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "AsyncTaskStatus",
+      "type": "string"
+    },
+    "CentralAsyncTask": {
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "title": "Createdat",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Finishedat"
+        },
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "leaseEpoch": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Leaseepoch",
+          "type": "integer"
+        },
+        "leaseExpiresAt": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leaseexpiresat"
+        },
+        "leaseOwnerId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Leaseownerid"
+        },
+        "result": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
+        "status": {
+          "$ref": "#/$defs/AsyncTaskStatus"
+        },
+        "taskId": {
+          "title": "Taskid",
+          "type": "string"
+        },
+        "tenantId": {
+          "title": "Tenantid",
+          "type": "string"
+        },
+        "updatedAt": {
+          "format": "date-time",
+          "title": "Updatedat",
+          "type": "string"
+        },
+        "userId": {
+          "title": "Userid",
+          "type": "string"
+        },
+        "webhookUrl": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Webhookurl"
+        }
+      },
+      "required": [
+        "taskId",
+        "tenantId",
+        "userId",
+        "kind",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ],
+      "title": "CentralAsyncTask",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "internalToken": {
+      "maxLength": 8192,
+      "minLength": 1,
+      "title": "Internaltoken",
+      "type": "string"
+    },
+    "task": {
+      "$ref": "#/$defs/CentralAsyncTask"
+    },
+    "traceId": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Traceid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "task",
+    "internalToken",
+    "traceId"
+  ],
+  "title": "ReadOnlyTaskClaimReply",
+  "type": "object"
+}

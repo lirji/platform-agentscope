@@ -15,6 +15,11 @@ from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import current_run_context
 from agentscope_platform.domain.agent import RunContext
+from agentscope_platform.domain.metering import (
+    BudgetReservationReply,
+    BudgetReservationRequest,
+    BudgetSettlementRequest,
+)
 from agentscope_platform.infrastructure.agentscope.closing_model import ClosingOpenAIChatModel
 
 
@@ -40,9 +45,14 @@ class BudgetAuthorityClient:
 
     async def reserve(self, context: RunContext, tokens: int) -> Reservation:
         operation = str(uuid4())
-        payload = {"operationId": operation, "tokens": tokens}
+        payload = BudgetReservationRequest(operationId=operation, tokens=tokens).model_dump(
+            by_alias=True
+        )
         response = await self._request(context, "reserve", payload)
-        body = response.json()
+        try:
+            body = BudgetReservationReply.model_validate(response.json()).model_dump(by_alias=True)
+        except ValueError as exc:
+            raise ModelBudgetError("budget reservation reply is invalid") from exc
         if (
             body.get("operationId") != operation
             or body.get("reservedTokens") != tokens
@@ -60,12 +70,12 @@ class BudgetAuthorityClient:
         await self._request(
             context,
             "settle",
-            {
-                "operationId": reservation.operation_id,
-                "day": reservation.day,
-                "reservedTokens": reservation.reserved_tokens,
-                "actualTokens": actual,
-            },
+            BudgetSettlementRequest(
+                operationId=reservation.operation_id,
+                day=reservation.day,
+                reservedTokens=reservation.reserved_tokens,
+                actualTokens=actual,
+            ).model_dump(by_alias=True),
         )
 
     async def _request(

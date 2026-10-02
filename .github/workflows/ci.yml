@@ -76,11 +76,15 @@ jobs:
       - name: Build package and CycloneDX SBOM
         run: |
           uv build
+          uv run python scripts/export_contract_bundle.py --output dist/contracts.zip
           uv --preview-features sbom-export export --quiet --frozen --no-dev \
             --format cyclonedx1.5 --output-file dist/agentscope-platform.cdx.json
 
       - name: Validate Compose
-        run: docker compose -f compose.yml config --quiet
+        run: |
+          docker compose -f compose.yml config --quiet
+          docker compose -f compose.yml -f compose.readonly-worker.yml config --quiet
+          docker compose -f compose.yml -f compose.conversation-shadow.yml config --quiet
 
       - name: Build runtime image
         run: docker build --tag agentscope-platform:ci-${{ github.sha }} .
@@ -105,6 +109,7 @@ jobs:
           path: |
             dist/*.whl
             dist/*.tar.gz
+            dist/contracts.zip
             dist/*.cdx.json
             dist/trivy-image.json
           if-no-files-found: error

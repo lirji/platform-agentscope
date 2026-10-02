@@ -47,3 +47,11 @@ API 不执行 request 闭包；新 worker 按持久化输入重建，禁用所�
 强制JWT/chat scope, 连续序号、单终态、有界输入输出/并发、背压/断连关闭。
 SDK完整终帧去重; 每调用显式关闭parser/HTTP资源。真实Java→独立Python→假OpenAI测试
 验证成功/错误/TCP取消; 默认关闭, 不访问真实模型。细节与限制见Java S7_STREAM_SHADOW.md。
+
+## S4：不可变契约组合
+
+46个producer契约文件由manifest固定摘要; 新预算/回执/领取模型同时供HTTP客户端使用。
+CI构建确定性ZIP制品带source Git SHA/manifest digest。Java固定producer完整提交与摘要,
+CI检出该提交并重新校验export和Java DTO; 无源/无ref/漂移均失败, 不再跳过成功。
+旧组合仍从其固定提交读取, 不受同级工作树或latest HEAD影响; 更新组合需显式review/pin。
+契约聚焦24项、HTTP/预算/worker组合42项、mypy/Ruff、export及供应链静态门禁通过。

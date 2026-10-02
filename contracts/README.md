@@ -29,3 +29,19 @@ uv run python scripts/export_contracts.py --check  # 验证/CI
 `platform-protocol/src/main/resources/contracts/agentscope/`，并用本目录 manifest 的 digest 固定；
 同步与漂移检查由该仓 `deploy/sync-agent-contracts.sh` 执行。本目录是唯一权威，消费方不得在
 自己仓库里修改契约语义。
+
+## Immutable cross-runtime combination
+
+`export_contracts.py --check` verifies generated models and the full file digest manifest.
+`export_contract_bundle.py --output dist/contracts.zip` reads committed Git blobs, emits the exact
+producer revision and manifest digest in `source.json`, and fixes ZIP ordering/timestamps.
+CI uploads this bundle under an artifact name containing the workflow Git SHA.
+The Java consumer lock pins a full producer SHA and manifest digest; its gate reads that exact
+commit instead of a sibling working tree or latest branch. CI checks out the same public revision
+and runs producer export verification plus native DTO conformance. Missing source/revision fails.
+
+Budget, refund receipt and read-only worker DTOs are exported from typed models used by their
+HTTP clients. Conversation generation retains the existing hand-written boundary with a model
+conformance check. Credentials are runtime headers/claim response data; no concrete secrets appear
+in schemas or artifacts. Updating a supported combination requires reviewing the producer commit,
+then `AGENTSCOPE_REPO=<repo> bash deploy/sync-agent-contracts.sh --write --revision <40hex>` in Java.

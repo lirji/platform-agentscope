@@ -459,3 +459,41 @@ def test_process_fixture_forbids_every_workflow_write_tool() -> None:
     assert all(
         {"refund_start", "workflow_complete"}.issubset(case["forbiddenTools"]) for case in cases
     )
+
+
+def test_new_shared_boundaries_export_typed_identity_free_requests() -> None:
+    names = {
+        "budget-reservation-request": {"operationId", "tokens"},
+        "budget-reservation-reply": {"operationId", "day", "reservedTokens"},
+        "budget-settlement-request": {"operationId", "day", "reservedTokens", "actualTokens"},
+        "refund-receipt-request": {"chatId", "message", "dedupeId", "webhookUrl"},
+        "readonly-task-claim-request": {"workerId"},
+        "readonly-task-claim-reply": {"task", "internalToken", "traceId"},
+    }
+    for name, fields in names.items():
+        schema = json.loads((CONTRACTS / "boundaries" / f"{name}.schema.json").read_text())
+        assert set(schema["properties"]) == fields
+        assert schema["additionalProperties"] is False
+        assert {"tenantId", "userId"}.isdisjoint(fields)
+
+
+def test_conversation_candidate_models_match_the_published_boundary() -> None:
+    from jsonschema import Draft202012Validator
+
+    from agentscope_platform.domain.conversation import ConversationGenerationRequest
+
+    document = json.loads(
+        (CONTRACTS / "boundaries/conversation-generation.schema.json").read_text()
+    )
+    model = ConversationGenerationRequest(
+        schema_version="1",
+        message="hello",
+        context="reference",
+        history=[],
+        style={"language": "English", "tone": "concise", "citation_policy": "cite", "extra": ""},
+    )
+    validator = Draft202012Validator({**document, "$ref": "#/$defs/request"})
+    validator.validate(model.model_dump(by_alias=True))
+    assert set(ConversationGenerationRequest.model_fields) == set(
+        document["$defs"]["request"]["properties"]
+    )

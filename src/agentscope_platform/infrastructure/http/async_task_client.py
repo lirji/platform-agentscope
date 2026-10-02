@@ -14,6 +14,7 @@ from agentscope_platform.domain.async_task import (
     CentralAsyncTask,
     CentralAsyncTaskEvent,
     ReadOnlyTaskClaimReply,
+    ReadOnlyTaskClaimRequest,
 )
 from agentscope_platform.infrastructure.http.resilience import (
     DependencyCallRejected,
@@ -64,7 +65,7 @@ class HttpAsyncTaskClient(AsyncTaskGateway):
             "/async/tasks/dispatch/claim",
             context,
             worker_authorization=(worker_id, "dispatch", "readonly-dispatch"),
-            json={"workerId": worker_id},
+            json=ReadOnlyTaskClaimRequest(workerId=worker_id).model_dump(by_alias=True),
         )
         assert response is not None
         if response.status_code == 204:

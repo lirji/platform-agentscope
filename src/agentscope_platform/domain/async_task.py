@@ -136,3 +136,8 @@ class ReadOnlyTaskClaimReply(BaseModel):
     task: CentralAsyncTask
     internal_token: str = Field(alias="internalToken", min_length=1, max_length=8192)
     trace_id: str = Field(alias="traceId", min_length=1, max_length=128)
+
+
+class ReadOnlyTaskClaimRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+    worker_id: str = Field(alias="workerId", min_length=1, max_length=128)
