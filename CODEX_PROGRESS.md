@@ -2,45 +2,48 @@
 
 ## 任务目标
 
-按 Claude Engineering Skill 修复跨 Java/AgentScope 架构评估的七类可靠性问题。
-规范计划：`../langchain4j-platform/docs/delivery/cross-runtime-reliability/DELIVERY_PLAN.md`；唯一聚合状态：`../langchain4j-platform/docs/delivery/cross-runtime-reliability/DELIVERY_STATUS.md`。
-两仓任务分支：`fix/cross-runtime-reliability`。当前授权包含正常提交、合并、推送 main，不含生产部署。
+按Claude Engineering Skill修复Java/AgentScope七类可靠性缺口, 完成验证与正常Git交付。
+规范状态: langchain4j-platform/docs/delivery/cross-runtime-reliability/DELIVERY_STATUS.md。
+两仓任务分支fix/cross-runtime-reliability; 用户持续授权正常合并/push main, 不含生产部署。
 
 ## 已完成
 
-- 两仓原有工作树及暂存区备份在 `.git/codex-cross-runtime-reliability-baseline/`。
-- Java 完整基线 BUILD SUCCESS；Python 原有 480 用例通过。
-- S1 RAG fail-closed、S2 durable inbox、S3 共同预算、S5 退款回执均已提交并通过本地验证。
-- S6 Java/Python worker 实现和迁移已落地；MySQL 5 项、认证 2 项和 Python 507 项通过；独立 API退出/worker崩溃/接管/DAG验证通过。
+- S1–S7全部实现并按逻辑单元提交/推送任务分支; 详见DELIVERY_REPORT和各切片文档。
+- 干净Java1406tests/0fail/0error/13skip, Python518pass/89.27%; 真实MySQL/Redis/独立worker/SSE/TCP验证PASS。
+- 两仓Code Hygiene无blocking; 主Agent对抗自复审与QA报告已准备。
+- Python cryptography50.0.2/PyJWT2.15.1/urllib3 2.8.0审计0漏洞, runtime PCRE2补丁后远程CI36979153821 SUCCESS。
+- Java固定IAM SDK源码929e9ca安装, CI补ripgrep/隔离供应方目录; 固定契约producer6f43ddf。
+- 初始dirty和intent-to-add保留; Java19/Python6文件重建0偏差, 第三IAM仓只读。
 
 ## 已修改文件
 
-- AgentScope RAG 工具与边界测试。
-- Java 渠道 inbox V2、预算 RPC/模型边界、退款回执、只读调度 V3；Python 对应适配和独立 worker。
-- 计划、状态与本进度文档。完整路径按任务分支 diff 核对，保留原有无关改动。
+- RAG/inbox/预算RPC和模型适配/退款回执/只读调度与worker/流式候选和取消/固定契约。
+- 相关迁移、聚焦测试、Compose overlays、CI、文档与进度; 完整路径见任务分支diff。
+- 原有用户贡献均未提交, 不以当前工作树干净作为验收要求。
 
 ## 未完成
 
-- S6/S7 已通过本地验证，发布与完整对抗复审归 S8。
-- S4 不可变契约版本。
-- S8 聚合回归、架构复审、文档及 Git 发布。
+- S8 main交付阻塞; 两仓main均尚未合并。Python运行提交34df909, Java53ee6f5。
+- Java cutover36978970189全测试过但Compose断言失败; 行号诊断重跑36979656590正在执行。
+- Java supply-chain36978975220聚合SBOM85条HIGH/CRITICAL、31依赖坐标, 需框架/客户端升级切片。
+- 已准备SECURITY_MIGRATION_PROPOSAL.md, 向用户异步询问是否扩展Boot3.5/Cloud2025.0兼容升级; 等技术范围选择。
 
 ## 当前问题
 
-- 生产 runbook 仍为 NO-GO，真实模型、目标环境和容量证据不在本地验收范围。
-- 原有 staged/unstaged 变更不得混入本任务提交。
+- 必要安全验证失败时不合并main, 不忽略漏洞/降低门禁。镜像扫描尚未进入。
+- 原Python未提交新增测试有1个旧decode预期, 新PyJWT更早拒绝非规范JWT; 保留该测试, 不放宽安全验证。
+- 生产runbook仍NO-GO, 不伪造真实模型、容量、恢复或历史ESS成功。
 
 ## 下一步建议
 
-1. 协议已稳定；完成 S4 不可变契约门禁，继续 S8。
-2. 每切片核对兼容性、恢复语义、文档和差异，全部完成后按 producer→consumer 发布。
+1. 取得cutover失败行号并有界修复, 保持安全断言。
+2. 用户选择扩展后按SECURITY_MIGRATION_PROPOSAL新增切片; 若保持原范围, 闭合阻塞报告并暂缓合并。
+3. 全部必要门禁过后producer→consumer正常合并/push main, 核对远程包含任务提交。
 
 ## 恢复 Prompt
 
-请读取 CODEX_PROGRESS.md 和规范 DELIVERY_PLAN/DELIVERY_STATUS，继续未完成切片。
-保护既有工作树变更，不重复全仓分析，不等待我输入继续，不执行生产部署。
-
-- S7 流式候选独立进程、主响应隔离、SDK终帧/HTTP关闭修复及真实JWT/SSE/TCP取消验证通过。
+请读取CODEX_PROGRESS与规范DELIVERY_STATUS/DELIVERY_REPORT, 继续未完成工作。
+保护既有dirty贡献; 不重复7项分析, 不绕过CI, 不执行生产部署。
 
 ---
 

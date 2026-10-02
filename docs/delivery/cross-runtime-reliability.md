@@ -55,3 +55,17 @@ CI构建确定性ZIP制品带source Git SHA/manifest digest。Java固定producer
 CI检出该提交并重新校验export和Java DTO; 无源/无ref/漂移均失败, 不再跳过成功。
 旧组合仍从其固定提交读取, 不受同级工作树或latest HEAD影响; 更新组合需显式review/pin。
 契约聚焦24项、HTTP/预算/worker组合42项、mypy/Ruff、export及供应链静态门禁通过。
+
+## S8：聚合验收与交付阻塞
+
+干净全量518pass/coverage89.27%, Ruff/format/mypy通过。
+运行提交34df909的[远程CI](https://github.com/lirji/platform-agentscope/actions/runs/36979153821)
+已成功, 包含依赖审计、契约、回归、构建和runtime镜像扫描。
+仅更新已有cryptography/PyJWT/urllib3安全版本和runtime PCRE2包, 未放宽扫描门禁。
+
+Java配套实现本地1406tests/0fail, 真实MySQL/Redis/独立worker/SSE/TCP恢复与取消验证通过。
+Java远程SBOM另外发现85条HIGH/CRITICAL、31依赖坐标, 需Boot/Cloud及客户端兼容升级;
+当前两仓仅任务分支发布, main暂缓。升级提案与唯一聚合状态/QA/自复审/交付报告见
+`../langchain4j-platform/docs/delivery/cross-runtime-reliability/`。
+原有用户dirty文件/目录和历史治理状态保持; 原工作树新增未提交JWT测试旧decode预期
+与安全升级更早拒绝冲突, 未修改该用户测试。生产NO-GO保持。
