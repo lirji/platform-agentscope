@@ -21,7 +21,7 @@
 - Java改动位于独立工作树：~/.local/share/git-worktrees/langchain4j-platform/dag-node-recovery；原目录知识ETL改动未触碰。
 
 ## 未完成
-- S4 实现与验证完成，待提交合入推送；未执行生产启用/部署。Java依赖SBOM扫描未通过，后续依赖整改单独处理，不宣称生产发布就绪。
+- S4 实现、验证和 Git 交付完成：源码580f7e0已正常推送任务分支及origin/main；远程CI未作为通过证据。未执行生产启用/部署。Java依赖SBOM扫描未通过，后续依赖整改单独处理，不宣称生产发布就绪。
 
 ## 当前问题
 - 无实现阻塞。PyPI临时超时后离线构建成功；Code Hygiene仅有formatter自动发现限制，无阻断。
@@ -29,7 +29,7 @@
 - 保留历史工作树、私有配置、测试缓存/日志；未清理用户数据或部署。
 
 ## 下一步建议
-1. 提交 S4，正常合入推送 origin/main 并记录实际提交；生产发布前仍须单独处理 Java 依赖安全扫描。
+1. 本轮已完成，无待实施步骤；后续发布前核对新 CI、中央 V5 和已有环境显式开关，并单独处理 Java 依赖安全扫描。
 
 ## 恢复 Prompt
-读取 docs/delivery/dag-recovery/DEFAULT_ENABLEMENT.md，从 S4 Git 交付继续。API/worker 默认开启恢复，inline 默认关闭；不要重复实现、部署或清理历史工作树/忽略文件。Java依赖安全扫描仍未通过。
+S4 已完成并推送 main；读取 docs/delivery/dag-recovery/DEFAULT_ENABLEMENT.md 核对交付证据。API/worker 默认开启恢复，inline 默认关闭；不要重复实现、部署或清理历史工作树/忽略文件。Java依赖安全扫描仍未通过。

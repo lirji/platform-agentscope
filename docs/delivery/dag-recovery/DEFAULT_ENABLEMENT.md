@@ -21,7 +21,7 @@
 
 ## 交付
 
-任务分支 feat/dag-recovery-defaults，目标 origin/main。提交/推送完成后补充实际提交标识。
+源码提交 `580f7e0`（feat(dag): 默认启用持久化角色的节点恢复）已推送 `origin/feat/dag-recovery-defaults`，并通过 fast-forward 正常合入、推送 `origin/main`；未强推。远程 CI 尚未作为本轮通过证据，以上验证均为本地实测。
 
 ## 回退与边界
 
