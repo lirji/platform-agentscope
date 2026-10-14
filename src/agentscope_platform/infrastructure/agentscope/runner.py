@@ -171,6 +171,9 @@ class AgentScopeRunner(AgentRunner):
                 steps=collector.steps(),
             )
         except asyncio.CancelledError:
+            # 优化 DAG 的外层负责取消/截止终态, 不吞掉取消后继续运行下游。
+            if context.allowed_tools is not None:
+                raise
             execution = AgentExecution(
                 final_answer=collector.best_effort_text or "Agent execution was cancelled.",
                 stop_reason="CANCELLED",

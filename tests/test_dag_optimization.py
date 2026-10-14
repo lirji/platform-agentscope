@@ -170,4 +170,3 @@ async def test_partial_dag_is_not_recorded_as_async_success():
     assert gateway.tasks[task.task_id].status is AsyncTaskStatus.FAILED
     assert gateway.tasks[task.task_id].result is None
     await manager.shutdown()
-

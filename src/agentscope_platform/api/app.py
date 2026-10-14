@@ -18,6 +18,7 @@ from agentscope_platform.application.dag import (
     DagReviewPolicy,
     DagValidationError,
 )
+from agentscope_platform.application.dag_scheduler import DagWorkerCapacity
 from agentscope_platform.application.observer import CompositeRunObserver
 from agentscope_platform.application.planning import AgentDagPlanningService
 from agentscope_platform.application.ports import (
@@ -183,10 +184,15 @@ def create_app(
     )
     app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     app_reviewer = reviewer or AgentScopeDagQualityReviewer(app_settings)
+    dag_capacity = DagWorkerCapacity(
+        app_settings.agent_dag_max_parallel_workers,
+        app_settings.agent_dag_tenant_max_workers,
+    )
     dag_service = AgentDagApplicationService(
         app_runner,
         max_tasks=app_settings.agent_dag_max_tasks,
         optimized=app_settings.agent_dag_optimization_enabled,
+        capacity=dag_capacity,
         synthesizer=app_text_generator,
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
         reviewer=app_reviewer,
@@ -205,6 +211,7 @@ def create_app(
         app_runner,
         max_tasks=min(app_settings.agent_dag_max_tasks, 4),
         optimized=app_settings.agent_dag_optimization_enabled,
+        capacity=dag_capacity,
         synthesizer=app_text_generator,
         allowed_tools=frozenset({"workflow_status", "workflow_tasks", "rag_search"})
         | (frozenset({"refund_start"}) if app_settings.agent_refund_start_enabled else frozenset()),

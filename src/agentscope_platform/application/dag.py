@@ -1,7 +1,9 @@
 import asyncio
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
+from agentscope_platform.application.dag_scheduler import DagWorkerCapacity, run_ready
 from agentscope_platform.application.ports import (
     AgentRunner,
     DagQualityReviewer,
@@ -81,12 +83,14 @@ class AgentDagApplicationService:
         optimized: bool = False,
         synthesizer: TextGenerator | None = None,
         allowed_tools: frozenset[str] = READONLY_DAG_TOOLS,
+        capacity: DagWorkerCapacity | None = None,
     ) -> None:
         self._runner = runner
         self._max_tasks = max(1, max_tasks)
         self._worker_slots = asyncio.Semaphore(max(1, max_parallel_workers))
         self._reviewer = reviewer
         self._review_policy = review_policy or DagReviewPolicy()
+        self._capacity = capacity or DagWorkerCapacity(max_parallel_workers, max_parallel_workers)
         self._optimized = optimized
         self._synthesizer = synthesizer
         self._allowed_tools = allowed_tools
@@ -212,41 +216,44 @@ class AgentDagApplicationService:
             },
         )
 
-        by_id: dict[str, AgentDagTaskResult] = {}
-        ordered: list[AgentDagTaskResult] = []
-        for index, level in enumerate(levels, start=1):
-            await self._emit(
-                progress,
-                "dag-level-start",
-                {"attempt": attempt, "level": index, "taskIds": [task.id for task in level]},
-            )
-            for result in await self._run_level(
-                goal,
-                level,
-                by_id,
-                context,
-                progress,
-                attempt,
-                index,
-            ):
-                by_id[result.task_id] = result
-                ordered.append(result)
+        if self._optimized:
+            ordered = await self._run_ready(goal, levels, context, progress, attempt)
+        else:
+            by_id: dict[str, AgentDagTaskResult] = {}
+            ordered = []
+            for index, level in enumerate(levels, start=1):
                 await self._emit(
                     progress,
-                    "dag-worker-result",
-                    {
-                        "attempt": attempt,
-                        "level": index,
-                        "taskId": result.task_id,
-                        "description": result.description,
-                        "result": result.result.model_dump(by_alias=True, mode="json"),
-                    },
+                    "dag-level-start",
+                    {"attempt": attempt, "level": index, "taskIds": [task.id for task in level]},
                 )
-            await self._emit(
-                progress,
-                "dag-level-complete",
-                {"attempt": attempt, "level": index},
-            )
+                for result in await self._run_level(
+                    goal,
+                    level,
+                    by_id,
+                    context,
+                    progress,
+                    attempt,
+                    index,
+                ):
+                    by_id[result.task_id] = result
+                    ordered.append(result)
+                    await self._emit(
+                        progress,
+                        "dag-worker-result",
+                        {
+                            "attempt": attempt,
+                            "level": index,
+                            "taskId": result.task_id,
+                            "description": result.description,
+                            "result": result.result.model_dump(by_alias=True, mode="json"),
+                        },
+                    )
+                await self._emit(
+                    progress,
+                    "dag-level-complete",
+                    {"attempt": attempt, "level": index},
+                )
 
         await self._emit(progress, "dag-synthesis-start", {"attempt": attempt})
         synthesis_goal = self._synthesis_goal(goal, ordered)
@@ -277,6 +284,68 @@ class AgentDagApplicationService:
             results=ordered,
             synthesis=synthesis,
         )
+
+    async def _run_ready(
+        self,
+        goal: str,
+        levels: list[list[_NormalizedTask]],
+        context: RunContext,
+        progress: ProgressSink | None,
+        attempt: int,
+    ) -> list[AgentDagTaskResult]:
+        """level 仅用于展示拓扑分组, 不再作为执行屏障。"""
+        tasks = {task.id: task for level in levels for task in level}
+        level_of = {task.id: n for n, level in enumerate(levels, 1) for task in level}
+        started: set[int] = set()
+        remaining = {n: len(level) for n, level in enumerate(levels, 1)}
+
+        async def execute(
+            task_id: str, upstream: Mapping[str, AgentDagTaskResult]
+        ) -> AgentDagTaskResult:
+            index = level_of[task_id]
+            if index not in started:
+                started.add(index)
+                await self._emit(
+                    progress,
+                    "dag-level-start",
+                    {
+                        "attempt": attempt,
+                        "level": index,
+                        "taskIds": [task.id for task in levels[index - 1]],
+                    },
+                )
+            result = await self._run_one(
+                goal,
+                tasks[task_id],
+                dict(upstream),
+                context,
+                progress,
+                attempt,
+                index,
+            )
+            await self._emit(
+                progress,
+                "dag-worker-result",
+                {
+                    "attempt": attempt,
+                    "level": index,
+                    "taskId": result.task_id,
+                    "description": result.description,
+                    "result": result.result.model_dump(by_alias=True, mode="json"),
+                },
+            )
+            remaining[index] -= 1
+            if remaining[index] == 0:
+                await self._emit(
+                    progress, "dag-level-complete", {"attempt": attempt, "level": index}
+                )
+            return result
+
+        results = await run_ready(
+            {task.id: frozenset(task.depends_on) for task in tasks.values()},
+            execute,
+        )
+        return [results[task_id] for task_id in tasks]
 
     @staticmethod
     def _to_reply(
@@ -410,17 +479,6 @@ class AgentDagApplicationService:
                     context,
                 ),
             )
-        await self._emit(
-            progress,
-            "dag-worker-start",
-            {
-                "attempt": attempt,
-                "level": level_index,
-                "taskId": task.id,
-                "description": task.description,
-                "dependsOn": list(task.depends_on),
-            },
-        )
         worker_goal = self._worker_goal(goal, task, upstream_results)
         if self._optimized:
             worker_goal = (
@@ -429,8 +487,43 @@ class AgentDagApplicationService:
                 + self._evidence(goal, [upstream_results[d] for d in task.depends_on])
                 + f"\nYour sub-task [{task.id}]:\n{task.description}\n"
             )
-        async with self._worker_slots:
-            execution = await self._runner.run(worker_goal, context)
+        if self._optimized:
+            await self._emit(
+                progress,
+                "dag-worker-queued",
+                {
+                    "attempt": attempt,
+                    "level": level_index,
+                    "taskId": task.id,
+                },
+            )
+            async with self._capacity.acquire(context.identity.tenant_id):
+                await self._emit(
+                    progress,
+                    "dag-worker-start",
+                    {
+                        "attempt": attempt,
+                        "level": level_index,
+                        "taskId": task.id,
+                        "description": task.description,
+                        "dependsOn": list(task.depends_on),
+                    },
+                )
+                execution = await self._runner.run(worker_goal, context)
+        else:
+            await self._emit(
+                progress,
+                "dag-worker-start",
+                {
+                    "attempt": attempt,
+                    "level": level_index,
+                    "taskId": task.id,
+                    "description": task.description,
+                    "dependsOn": list(task.depends_on),
+                },
+            )
+            async with self._worker_slots:
+                execution = await self._runner.run(worker_goal, context)
         return AgentDagTaskResult(
             taskId=task.id,
             description=task.description,

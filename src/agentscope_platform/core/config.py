@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     agent_dag_max_tasks: int = Field(default=6, ge=1, le=100)
     # 保留旧模式供双跑和回退, 优化模式仅在显式启用时改变执行语义。
     agent_dag_optimization_enabled: bool = False
+    agent_dag_tenant_max_workers: int = Field(default=2, ge=1, le=32)
     agent_dag_max_parallel_workers: int = Field(default=8, ge=1, le=32)
     agent_dag_replan_enabled: bool = True
     agent_dag_replan_max_replans: int = Field(default=1, ge=0, le=5)
