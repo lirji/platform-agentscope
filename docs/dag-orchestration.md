@@ -10,8 +10,9 @@
 4. 下游 worker 只接收其 `dependsOn` 中已经完成的直接上游结果。
 5. 全部任务完成后，单独运行 synthesis Agent 生成最终答案。
 
-每个 worker 和 synthesis 都使用入口验证后生成的同一不可变 `RunContext`。模型不能提供
-或覆盖 tenant、user、scope、department、内部 token 和 trace。
+每个 worker 和 synthesis 都使用入口验证后的身份上下文。兼容模式复用同一不可变
+`RunContext`；优化模式仅派生更窄的工具能力集合。模型不能提供或覆盖 tenant、user、scope、
+department、内部 token 和 trace。
 
 同步规划入口：
 

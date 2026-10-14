@@ -56,4 +56,8 @@
 
 ## Git 交付
 
-任务分支 `refactor/dag-orchestration`，基线 `4c5f673`。当前四个已验证逻辑提交：8545684、49a251d、36db8d6、4b506f8。最终队列限制/对照测试/文档批次待提交；main 推送及 CI 状态待核验。无生产部署。
+任务分支 `refactor/dag-orchestration`，基线 `4c5f673`。已验证逻辑提交：8545684、49a251d、36db8d6、4b506f8、82651a7，已正常快进合入并推送 origin/main。
+
+源码提交 `82651a79ec603d22e3cec30a05f763684769f0c5` 对应远程 [CI 38529981435](https://github.com/lirji/platform-agentscope/actions/runs/38529981435) SUCCESS，含依赖审计、测试、镜像构建与漏洞扫描。后续收尾文档不改变已验证源码。无生产部署。
+
+原目录无未提交产品改动；保留任务分支与既有 detached `cross-runtime-verification` 工作树。本轮没有新建工作树。`.workflow/`、`.engineering/remediation/` 按当前忽略规则保留；私有配置、`.venv`、缓存、dist/reports 不删除。构建缓存/本轮 dist 可按需清理，但没有执行清理；旧工作树是否可删除需先核对其私有文件和其他任务用途。
