@@ -6,7 +6,8 @@
 
 - 已完成五项Java依赖独立management base URL配置、readiness选择逻辑、Compose和环境示例。
 - 新测试在旧实现FAIL；修复后6项聚焦及全量530项PASS，覆盖率89.38%；Ruff/format/Mypy、契约、Shadow8样本、静态供应链和Compose验证通过。
-- 下一步：提交、正常合入推送main，固定提交构建本地镜像，Java仓Compose部署并核对readiness；统一运行证据见Java仓docs/delivery/rag-quality-loop/DEPLOYMENT_RESULT.md。
+- 已交付：22ba8db正常合入推送main；远程CI38511738475含镜像扫描SUCCESS。固定提交镜像已发布，本地readiness HTTP200/UP、五项Java依赖全部UP，整栈Compose等待成功。统一运行证据见Java仓docs/delivery/rag-quality-loop/DEPLOYMENT_RESULT.md。
+- 本次目标完成，无待实现或部署事项；后续文档提交不改变已部署源码。
 - 保留原有两项未跟踪目录和main所在工作树；不部署生产，不执行付费模型验证。
 - 详细变更与回退边界：docs/delivery/java-management-readiness.md。
 

@@ -21,3 +21,9 @@ Java actuator已移到独立管理端口，AgentScope原来仍从业务地址追
 两仓使用fix/java-management-readiness任务分支，先交付Python配置支持，再交付JavaCompose。部署使用提交固定镜像；本地健康证据由Java仓docs/delivery/rag-quality-loop/DEPLOYMENT_RESULT.md统一记录。
 回退本次配置可留空沿用原行为，但新Java管理端口分离时会重新出现readiness失败，不能标记为健康。没有数据库变化。
 原有未跟踪`.engineering/remediation/`和`.workflow/`及既有main工作树保留，不纳入本次提交。
+
+## 最终运行证据
+
+源码22ba8dbc483c10d39b2205b78952c52590b48623正常合入推送main。远程CI [38511738475](https://github.com/lirji/platform-agentscope/actions/runs/38511738475) SUCCESS，含全量回归、构建和镜像扫描。
+本地使用固定提交git archive构建，实际镜像sha256:330bef578f4b405374bb5ce862ff44f82da07c8635296a3b5192b1e35d0c6bd2；OCI revision已核对。Java整栈发布后readiness HTTP200/UP，所有五项Java依赖、模型网关及会话存储UP；Compose等待成功。local标签已指向已验证镜像，原镜像仍保留。
+本次不调用付费模型、不进行生产部署；最终文档提交不改变已部署应用源码。
