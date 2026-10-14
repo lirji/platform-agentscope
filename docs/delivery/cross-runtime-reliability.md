@@ -83,6 +83,10 @@ SUCCESS (完整reactor、固定契约/SDK、Compose与Helm门禁)。Java SBOM安
 
 Python main c4fc90d→1a7ceec先推送, Java main e8f11cb→8bf6ad6后推送,
 均为正常快进, git ls-remote与任务提交祖先关系验证成功。后续仅本轮交付记录/进度闭合。
-合并后[Python CI36983232314](https://github.com/lirji/platform-agentscope/actions/runs/36983232314)
-运行中; 之前相同产品代码的quality成功。最终main文档提交会触发新CI, 不声称全绿。
+2026-10-14 复核：首次 main 的 CI36983232314 后续被取消，最终文档提交 a7526db 的
+[Python CI36983375366](https://github.com/lirji/platform-agentscope/actions/runs/36983375366)
+已 SUCCESS。这只覆盖已提交版本，不覆盖上述历史未提交整改。
 工程结论COMPLETED_WITH_ACCEPTED_FINDINGS; 原工作树用户dirty贡献与治理目录保留, 生产NO-GO保持。
+
+2026-10-14 后续用户授权交付历史整改；本轮旧测试与工作区描述保留为历史事实，最新结果见
+[本地整改与依赖准备](pending-security-remediation.md)。历史 ESS run 不改写为成功。
