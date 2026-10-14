@@ -10,6 +10,7 @@ from agentscope_platform.application.dag_budget import (
     current_dag_budget,
     dag_execution_scope,
 )
+from agentscope_platform.application.dag_recovery import checkpoint_step, current_recovery
 from agentscope_platform.application.dag_reuse import DagResultReuse
 from agentscope_platform.application.dag_scheduler import DagWorkerCapacity, run_ready
 from agentscope_platform.application.ports import (
@@ -172,7 +173,20 @@ class AgentDagApplicationService:
         accepted = False
         max_replans = max(0, self._review_policy.max_replans)
         for attempt_number in range(1, max_replans + 2):
-            critique = await self._critique(goal, execution, context)
+
+            async def critique_current(current: _DagExecution = execution) -> AgentDagCritique:
+                return await self._critique(goal, current, context)
+
+            critique = (
+                await checkpoint_step(
+                    f"critique:{attempt_number}",
+                    self._review_evidence(goal, execution),
+                    critique_current,
+                    AgentDagCritique,
+                )
+                if current_recovery() is not None
+                else await self._critique(goal, execution, context)
+            )
             aggregate = self._aggregate(critique)
             await self._emit(
                 progress,
@@ -216,6 +230,7 @@ class AgentDagApplicationService:
                 execution,
                 critique,
                 context,
+                attempt_number,
             )
             await self._emit(
                 progress,
@@ -301,24 +316,22 @@ class AgentDagApplicationService:
                 )
 
         await self._emit(progress, "dag-synthesis-start", {"attempt": attempt})
-        synthesis_goal = self._synthesis_goal(goal, ordered)
-        if self._optimized:
-            assert self._synthesizer is not None
-            synthesis_goal = self._evidence(goal, ordered)
-            answer = await self._synthesizer.generate(
-                SYNTHESIS_PROMPT,
-                synthesis_goal,
-                replace(context, allowed_tools=frozenset()),
-            )
-            synthesis_execution = AgentExecution(
-                final_answer=answer,
-                stop_reason=(
-                    "DONE" if all(r.result.stop_reason == "DONE" for r in ordered) else "PARTIAL"
-                ),
-            )
-        else:
-            synthesis_execution = await self._runner.run(synthesis_goal, context)
-        synthesis = to_agent_reply(synthesis_goal, synthesis_execution, context)
+        recovery = current_recovery()
+        inputs = {
+            "goal": goal,
+            "results": [r.model_dump(by_alias=True, mode="json") for r in ordered],
+            "versions": [
+                recovery.state.operations[f"node:{attempt}:{r.task_id}"].version for r in ordered
+            ]
+            if recovery
+            else [],
+        }
+        synthesis = await checkpoint_step(
+            f"synthesis:{attempt}",
+            inputs,
+            lambda: self._synthesize(goal, ordered, context),
+            AgentRunReply,
+        )
         await self._emit(
             progress,
             "dag-synthesis-result",
@@ -329,6 +342,29 @@ class AgentDagApplicationService:
             results=ordered,
             synthesis=synthesis,
         )
+
+    async def _synthesize(
+        self, goal: str, results: list[AgentDagTaskResult], context: RunContext
+    ) -> AgentRunReply:
+        """汇总作为独立检查点操作, 节点版本变化时必须重新生成。"""
+        synthesis_goal = self._synthesis_goal(goal, results)
+        if self._optimized:
+            assert self._synthesizer is not None
+            synthesis_goal = self._evidence(goal, results)
+            answer = await self._synthesizer.generate(
+                SYNTHESIS_PROMPT,
+                synthesis_goal,
+                replace(context, allowed_tools=frozenset()),
+            )
+            synthesis_execution = AgentExecution(
+                final_answer=answer,
+                stop_reason=(
+                    "DONE" if all(r.result.stop_reason == "DONE" for r in results) else "PARTIAL"
+                ),
+            )
+        else:
+            synthesis_execution = await self._runner.run(synthesis_goal, context)
+        return to_agent_reply(synthesis_goal, synthesis_execution, context)
 
     async def _run_ready(
         self,
@@ -369,7 +405,43 @@ class AgentDagApplicationService:
                 [(d, versions[d]) for d in task.depends_on],
             )
             cached = reuse.get(task_id, fingerprint) if reuse is not None else None
-            if cached is not None:
+            recovery = current_recovery()
+            if recovery is not None:
+
+                async def invoke() -> AgentDagTaskResult:
+                    return await self._run_one(
+                        goal, task, dict(upstream), context, progress, attempt, index
+                    )
+
+                key = f"node:{attempt}:{task_id}"
+                previous = recovery.state.operations.get(key)
+                previous_version = previous.version if previous else None
+                result = await recovery.run(
+                    key,
+                    {"input": fingerprint, "capabilities": sorted(context.allowed_tools or ())},
+                    invoke,
+                    AgentDagTaskResult,
+                    lambda value: (
+                        value.result.stop_reason == "DONE"
+                        and not any(step.action for step in value.result.steps)
+                        and all(
+                            recovery.state.operations[f"node:{attempt}:{d}"].reusable
+                            for d in task.depends_on
+                        )
+                    ),
+                )
+                versions[task_id] = recovery.state.operations[key].version
+                if versions[task_id] == previous_version:
+                    await self._emit(
+                        progress,
+                        "dag-worker-reused",
+                        {
+                            "attempt": attempt,
+                            "level": index,
+                            "taskId": task_id,
+                        },
+                    )
+            elif cached is not None:
                 result, versions[task_id] = cached
                 await self._emit(
                     progress,
@@ -473,6 +545,7 @@ class AgentDagApplicationService:
         execution: _DagExecution,
         critique: AgentDagCritique,
         context: RunContext,
+        attempt: int = 1,
     ) -> list[_NormalizedTask]:
         if self._reviewer is None:
             raise RuntimeError("DAG reviewer is unavailable")
@@ -486,14 +559,25 @@ class AgentDagApplicationService:
                 for task in tasks
             ]
         )
-        revised = await self._reviewer.revise(
-            goal,
-            previous_plan,
+        evidence = (
             self._review_evidence(goal, execution)
             if self._optimized
-            else execution.synthesis.final_answer,
-            critique,
-            context,
+            else execution.synthesis.final_answer
+        )
+
+        async def revise() -> DagPlan:
+            assert self._reviewer is not None
+            return await self._reviewer.revise(goal, previous_plan, evidence, critique, context)
+
+        revised = await checkpoint_step(
+            f"replan:{attempt}",
+            {
+                "plan": previous_plan.model_dump(mode="json"),
+                "evidence": evidence,
+                "critique": critique.model_dump(mode="json"),
+            },
+            revise,
+            DagPlan,
         )
         if not revised.tasks:
             raise DagValidationError("replanner returned an empty plan")

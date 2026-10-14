@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "CheckpointOperation": {
+      "additionalProperties": false,
+      "description": "操作输入与结果版本显式关联, RUNNING 的未知结果不可冒充完成。",
+      "properties": {
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "result": {
+          "default": null,
+          "title": "Result"
+        },
+        "reusable": {
+          "default": false,
+          "title": "Reusable",
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/$defs/CheckpointStatus"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "version",
+        "status"
+      ],
+      "title": "CheckpointOperation",
+      "type": "object"
+    },
+    "CheckpointStatus": {
+      "description": "稳定持久化状态码, 只允许RUNNING提交后转为DONE。",
+      "enum": [
+        "RUNNING",
+        "DONE"
+      ],
+      "title": "CheckpointStatus",
+      "type": "string"
+    },
+    "DagCheckpointState": {
+      "additionalProperties": false,
+      "description": "固定截止时间和单调预算跨进程保留; 凭据只存在执行上下文。",
+      "properties": {
+        "binding": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Binding",
+          "type": "string"
+        },
+        "deadline": {
+          "exclusiveMinimum": 0,
+          "title": "Deadline",
+          "type": "integer"
+        },
+        "modelCalls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Modelcalls",
+          "type": "integer"
+        },
+        "operations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CheckpointOperation"
+          },
+          "maxProperties": 256,
+          "title": "Operations",
+          "type": "object"
+        },
+        "reservedTokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Reservedtokens",
+          "type": "integer"
+        },
+        "schemaVersion": {
+          "const": 1,
+          "default": 1,
+          "title": "Schemaversion",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "binding",
+        "deadline"
+      ],
+      "title": "DagCheckpointState",
+      "type": "object"
+    }
+  },
+  "description": "revision=0/state=null 表示尚未创建; 后续保存必须CAS。",
+  "properties": {
+    "revision": {
+      "minimum": 0,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "state": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DagCheckpointState"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "revision"
+  ],
+  "title": "DagCheckpoint",
+  "type": "object"
+}

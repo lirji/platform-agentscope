@@ -14,3 +14,5 @@ reports/
 .idea/
 .vscode/
 .DS_Store
+# pytest-cov multiprocessing fragments
+.coverage.*

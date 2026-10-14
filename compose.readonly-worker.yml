@@ -3,6 +3,7 @@
 services:
   orchestrator:
     environment:
+      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-false}
       ASYNC_TASK_ROLE: api
       ASYNC_TASK_ENABLED: "true"
       ASYNC_TASK_WORKER_ID: ${ASYNC_TASK_WORKER_ID:-agentscope-platform}
@@ -23,6 +24,7 @@ services:
       retries: 3
       start_period: 20s
     environment:
+      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-false}
       ASYNC_TASK_ROLE: worker
       ASYNC_TASK_ENABLED: "true"
       ASYNC_TASK_WORKER_ID: ${ASYNC_TASK_WORKER_ID:-agentscope-platform}

@@ -309,7 +309,13 @@ def test_async_worker_token_contract_binds_owner_worker_task_and_operation() -> 
     assert schema["additionalProperties"] is False
     assert {"tenant", "actor_uid", "worker_id", "task_id", "act"}.issubset(schema["required"])
     assert schema["properties"]["token_use"]["const"] == "async_task_worker"
-    assert set(schema["properties"]["act"]["enum"]) == {"lease", "status", "event", "dispatch"}
+    assert set(schema["properties"]["act"]["enum"]) == {
+        "lease",
+        "status",
+        "event",
+        "dispatch",
+        "checkpoint",
+    }
     assert schema["properties"]["scopes"]["maxItems"] == 1
     assert {"internalToken", "confirmationGrant"}.isdisjoint(schema["properties"])
 
@@ -467,7 +473,7 @@ def test_new_shared_boundaries_export_typed_identity_free_requests() -> None:
         "budget-reservation-reply": {"operationId", "day", "reservedTokens"},
         "budget-settlement-request": {"operationId", "day", "reservedTokens", "actualTokens"},
         "refund-receipt-request": {"chatId", "message", "dedupeId", "webhookUrl"},
-        "readonly-task-claim-request": {"workerId"},
+        "readonly-task-claim-request": {"workerId", "checkpointVersion"},
         "readonly-task-claim-reply": {"task", "internalToken", "traceId"},
     }
     for name, fields in names.items():

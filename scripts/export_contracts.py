@@ -31,6 +31,7 @@ from agentscope_platform.domain.dag import (
     AgentDagTask,
     AgentPlanRunRequest,
 )
+from agentscope_platform.domain.dag_checkpoint import DagCheckpoint, DagCheckpointRequest
 from agentscope_platform.domain.interop import capability_registry
 from agentscope_platform.domain.mcp import McpToolBinding
 from agentscope_platform.domain.metering import (
@@ -81,6 +82,8 @@ def artifacts() -> dict[Path, dict[str, Any]]:
         "budget-reservation-reply": BudgetReservationReply,
         "budget-settlement-request": BudgetSettlementRequest,
         "refund-receipt-request": RefundReceiptRequest,
+        "dag-checkpoint": DagCheckpoint,
+        "dag-checkpoint-request": DagCheckpointRequest,
         "readonly-task-claim-request": ReadOnlyTaskClaimRequest,
         "readonly-task-claim-reply": ReadOnlyTaskClaimReply,
     }

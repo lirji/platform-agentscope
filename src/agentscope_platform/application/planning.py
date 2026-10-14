@@ -4,6 +4,7 @@ from agentscope_platform.application.dag import (
     AgentDagApplicationService,
     DagValidationError,
 )
+from agentscope_platform.application.dag_recovery import checkpoint_step
 from agentscope_platform.application.ports import DagPlanner, DagPlanningError, ProgressSink
 from agentscope_platform.domain.agent import RunContext
 from agentscope_platform.domain.dag import (
@@ -70,6 +71,36 @@ class AgentDagPlanningService:
         if not goal:
             raise DagValidationError("goal is required")
 
+        resolved = await checkpoint_step(
+            "plan",
+            {"goal": goal, "kind": kind.value},
+            lambda: self._resolve_plan(goal, context, kind),
+            AgentDagRunRequest,
+        )
+        tasks = resolved.tasks or []
+        if progress is not None:
+            await progress.emit(
+                "dag-planned",
+                {
+                    "goal": goal,
+                    "kind": kind.value,
+                    "tasks": [task.model_dump(by_alias=True, mode="json") for task in tasks],
+                },
+            )
+        return await self._dag_service.run(
+            AgentDagRunRequest(
+                goal=goal,
+                tasks=tasks,
+                webhookUrl=request.webhook_url,
+            ),
+            context,
+            progress,
+        )
+
+    async def _resolve_plan(
+        self, goal: str, context: RunContext, kind: DagPlanKind
+    ) -> AgentDagRunRequest:
+        """将安全回退也视为已确定的计划, 避免恢复时重新规划改变已执行节点。"""
         refund_start_allowed = (
             kind is DagPlanKind.PROCESS
             and "refund_start" in self._process_write_tools
@@ -144,21 +175,4 @@ class AgentDagPlanningService:
                         f"当前候选服务不支持并不得声称成功。\n用户诉求：{goal}"
                     )
             tasks = [AgentDagTask(id="t1", description=description, dependsOn=[])]
-        if progress is not None:
-            await progress.emit(
-                "dag-planned",
-                {
-                    "goal": goal,
-                    "kind": kind.value,
-                    "tasks": [task.model_dump(by_alias=True, mode="json") for task in tasks],
-                },
-            )
-        return await self._dag_service.run(
-            AgentDagRunRequest(
-                goal=goal,
-                tasks=tasks,
-                webhookUrl=request.webhook_url,
-            ),
-            context,
-            progress,
-        )
+        return AgentDagRunRequest(goal=goal, tasks=tasks)

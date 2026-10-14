@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from agentscope_platform.application.dag_recovery import DagCheckpointUnavailable
 from agentscope_platform.application.ports import (
     AsyncTaskGateway,
     AsyncTaskMetrics,
@@ -153,9 +154,12 @@ class AsyncTaskManager:
             persisted["_executionVersions"] = self.execution_versions.model_dump(
                 by_alias=True, mode="json"
             )
+            version = (
+                2 if self.settings.async_task_dag_recovery_enabled and kind != "agent.run" else 1
+            )
             task = await self.gateway.create(
                 task_id=str(uuid4()),
-                kind=f"agent.readonly.{kind.removeprefix('agent.')}.v1",
+                kind=f"agent.readonly.{kind.removeprefix('agent.')}.v{version}",
                 input_data=persisted,
                 webhook_url=webhook_url,
                 context=context,
@@ -320,6 +324,9 @@ class AsyncTaskManager:
             self._metrics.completed(handle.kind, terminal.status.value)
         except asyncio.CancelledError:
             raise
+        except DagCheckpointUnavailable:
+            # 不把未知提交结果改成FAILED; 停止续租, 中央上限约束后续接管。
+            handle.stop.set()
         except TimeoutError:
             handle.stop.set()
             terminal = await self._complete_once(

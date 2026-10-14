@@ -1,6 +1,13 @@
 {
   "additionalProperties": false,
   "properties": {
+    "checkpointVersion": {
+      "default": 0,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Checkpointversion",
+      "type": "integer"
+    },
     "workerId": {
       "maxLength": 128,
       "minLength": 1,

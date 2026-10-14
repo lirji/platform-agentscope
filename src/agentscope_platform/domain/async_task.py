@@ -32,6 +32,11 @@ class AgentTaskKind(StrEnum):
 READONLY_TASK_KINDS = frozenset(
     f"agent.readonly.{kind.value.removeprefix('agent.')}.v1" for kind in AgentTaskKind
 )
+RECOVERABLE_TASK_KINDS = frozenset(
+    f"agent.readonly.{kind}.v2" for kind in ("dag", "dag-plan", "analyst", "process")
+)
+READONLY_TASK_KINDS = READONLY_TASK_KINDS | RECOVERABLE_TASK_KINDS
+
 AGENT_TASK_KINDS = frozenset(kind.value for kind in AgentTaskKind)
 
 
@@ -141,3 +146,5 @@ class ReadOnlyTaskClaimReply(BaseModel):
 class ReadOnlyTaskClaimRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
     worker_id: str = Field(alias="workerId", min_length=1, max_length=128)
+
+    checkpoint_version: int = Field(default=0, alias="checkpointVersion", ge=0, le=1)

@@ -16,6 +16,7 @@ from agentscope_platform.domain.async_task import (
     ReadOnlyTaskClaimReply,
     ReadOnlyTaskClaimRequest,
 )
+from agentscope_platform.domain.dag_checkpoint import DagCheckpoint, DagCheckpointState
 from agentscope_platform.infrastructure.http.resilience import (
     DependencyCallRejected,
     DependencyGuardRegistry,
@@ -65,7 +66,10 @@ class HttpAsyncTaskClient(AsyncTaskGateway):
             "/async/tasks/dispatch/claim",
             context,
             worker_authorization=(worker_id, "dispatch", "readonly-dispatch"),
-            json=ReadOnlyTaskClaimRequest(workerId=worker_id).model_dump(by_alias=True),
+            json=ReadOnlyTaskClaimRequest(
+                workerId=worker_id,
+                checkpointVersion=int(self._settings.async_task_dag_recovery_enabled),
+            ).model_dump(by_alias=True),
         )
         assert response is not None
         if response.status_code == 204:
@@ -74,6 +78,33 @@ class HttpAsyncTaskClient(AsyncTaskGateway):
             return ReadOnlyTaskClaimReply.model_validate(response.json())
         except ValueError as exc:
             raise AsyncTaskGatewayError("async dispatch returned invalid JSON") from exc
+
+    async def checkpoint(
+        self,
+        task_id: str,
+        worker_id: str,
+        lease_epoch: int,
+        context: RunContext,
+        revision: int | None = None,
+        state: DagCheckpointState | None = None,
+    ) -> DagCheckpoint:
+        """CAS失败/未知响应不盲重试; 由下一租约读取中央已提交版本。"""
+        response = await self._request(
+            "POST",
+            f"/async/tasks/{task_id}/checkpoint",
+            context,
+            worker_authorization=(worker_id, "checkpoint", task_id),
+            json={
+                "leaseEpoch": lease_epoch,
+                "expectedRevision": revision,
+                "state": state.model_dump(by_alias=True, mode="json") if state else None,
+            },
+        )
+        assert response is not None
+        try:
+            return DagCheckpoint.model_validate(response.json())
+        except ValueError as exc:
+            raise AsyncTaskGatewayError("invalid DAG checkpoint response") from exc
 
     async def create(
         self,

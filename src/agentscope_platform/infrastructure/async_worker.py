@@ -2,15 +2,26 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from agentscope_platform.application.async_task import runtime_config_digest
+from agentscope_platform.application.dag_recovery import (
+    DagCheckpointUnavailable,
+    DagRecovery,
+    fingerprint,
+    recovery_scope,
+)
 from agentscope_platform.application.ports import ProgressSink
 from agentscope_platform.domain.agent import AgentRunRequest, RunContext
 from agentscope_platform.domain.async_task import (
     READONLY_TASK_KINDS,
+    RECOVERABLE_TASK_KINDS,
     AgentTaskKind,
     AsyncTaskStatus,
 )
 from agentscope_platform.domain.dag import AgentDagRunRequest, AgentPlanRunRequest, DagPlanKind
-from agentscope_platform.infrastructure.http.async_task_client import HttpAsyncTaskClient
+from agentscope_platform.domain.dag_checkpoint import DagCheckpoint, DagCheckpointState
+from agentscope_platform.infrastructure.http.async_task_client import (
+    AsyncTaskGatewayError,
+    HttpAsyncTaskClient,
+)
 from agentscope_platform.infrastructure.security.internal_jwt import InternalJwtVerifier
 
 if TYPE_CHECKING:
@@ -75,10 +86,11 @@ class ReadOnlyTaskWorker:
             if key not in {"_executionVersions", "_runtimeRevision", "_runtimeConfigDigest"}
         }
         kind = AgentTaskKind(
-            "agent." + task.kind.removeprefix("agent.readonly.").removesuffix(".v1")
+            "agent."
+            + task.kind.removeprefix("agent.readonly.").removesuffix(".v1").removesuffix(".v2")
         )
 
-        async def execute(progress: ProgressSink) -> Any:
+        async def execute_body(progress: ProgressSink) -> Any:
             if kind == AgentTaskKind.RUN:
                 return await self.container.agent_service.run_for_async(
                     AgentRunRequest.model_validate(payload),
@@ -107,5 +119,71 @@ class ReadOnlyTaskWorker:
                 progress,
             )
 
+        async def execute(progress: ProgressSink) -> Any:
+            if task.kind not in RECOVERABLE_TASK_KINDS:
+                return await execute_body(progress)
+            settings = self.container.settings
+            if not settings.async_task_dag_recovery_enabled:
+                raise ValueError("DAG recovery capability unavailable")
+            checkpoint = _TaskCheckpoint(
+                self.gateway, task.task_id, self.manager.worker_id, task.lease_epoch, context
+            )
+            binding = fingerprint(
+                {
+                    "taskId": task.task_id,
+                    "kind": task.kind,
+                    "input": task.input,
+                    "tenant": context.identity.tenant_id,
+                    "user": context.identity.user_id,
+                    "department": context.identity.department,
+                    "scopes": sorted(context.identity.scopes),
+                }
+            )
+            recovery = await DagRecovery.open(
+                checkpoint,
+                binding,
+                min(settings.agent_dag_timeout_seconds, settings.async_task_max_runtime_seconds),
+            )
+            async with recovery_scope(recovery):
+                return await execute_body(progress)
+
         await self.manager.adopt(task, context, execute)
         return True
+
+
+class _TaskCheckpoint:
+    """HTTP适配器绑定当前任务身份/epoch, 应用层不能扩大访问范围。"""
+
+    def __init__(
+        self,
+        gateway: HttpAsyncTaskClient,
+        task_id: str,
+        worker_id: str,
+        epoch: int,
+        context: RunContext,
+    ) -> None:
+        self.gateway, self.task_id, self.worker_id, self.epoch, self.context = (
+            gateway,
+            task_id,
+            worker_id,
+            epoch,
+            context,
+        )
+
+    async def read(self) -> DagCheckpoint:
+        return await self._access()
+
+    async def save(self, revision: int, state: DagCheckpointState) -> DagCheckpoint:
+        return await self._access(revision, state)
+
+    async def _access(
+        self, revision: int | None = None, state: DagCheckpointState | None = None
+    ) -> DagCheckpoint:
+        try:
+            return await self.gateway.checkpoint(
+                self.task_id, self.worker_id, self.epoch, self.context, revision, state
+            )
+        except AsyncTaskGatewayError as exc:
+            if exc.status_code in {409, 503}:
+                raise DagCheckpointUnavailable("central checkpoint unavailable") from exc
+            raise

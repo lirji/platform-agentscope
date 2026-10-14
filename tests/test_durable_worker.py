@@ -248,3 +248,74 @@ def test_worker_health_requires_recent_successful_poll(tmp_path: Any, monkeypatc
     assert entry.healthy()
     path.write_text(str(time.time() - 91))
     assert not entry.healthy()
+
+
+async def test_checkpoint_http_binds_action_epoch_and_tenant_without_internal_token() -> None:
+    from agentscope_platform.domain.dag_checkpoint import DagCheckpointState
+
+    seen = []
+
+    def respond(request):
+        seen.append(request)
+        body = json.loads(request.content)
+        return httpx.Response(200, json={"revision": 1, "state": body["state"]})
+
+    configured = settings(
+        "worker", agent_dag_optimization_enabled=True, async_task_dag_recovery_enabled=True
+    )
+    state = DagCheckpointState(binding="a" * 64, deadline=9999999999999)
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(respond), base_url="http://central"
+    ) as http:
+        client = HttpAsyncTaskClient(configured, client=http)
+        reply = await client.checkpoint(
+            "task",
+            "agentscope-platform.one",
+            3,
+            RunContext(TenantIdentity("acme", "alice"), "never-forward", "trace"),
+            0,
+            state,
+        )
+    assert reply.state == state
+    assert "X-Internal-Token" not in seen[0].headers
+    claims = jwt.decode(
+        seen[0].headers["X-Async-Worker-Token"],
+        WORKER,
+        algorithms=["HS256"],
+        audience="async-task-worker",
+    )
+    assert (claims["act"], claims["task_id"], claims["tenant"], claims["actor_uid"]) == (
+        "checkpoint",
+        "task",
+        "acme",
+        "alice",
+    )
+    assert json.loads(seen[0].content)["leaseEpoch"] == 3
+
+
+async def test_recovery_flag_creates_v2_dag_but_keeps_run_v1() -> None:
+    central = FakeAsyncTaskGateway()
+    configured = settings(
+        "api", agent_dag_optimization_enabled=True, async_task_dag_recovery_enabled=True
+    )
+    app = create_app(configured, runner=Runner(), async_task_gateway=central)
+    container = cast(Container, app.state.container)
+    ctx = RunContext(TenantIdentity("acme", "alice"), identity_token(), "trace")
+
+    async def never(_):
+        raise AssertionError("API must not execute")
+
+    for kind in ("agent.dag", "agent.dag-plan", "agent.analyst", "agent.process", "agent.run"):
+        task = await container.async_task_manager.submit(
+            kind=kind, input_data={"goal": "test"}, webhook_url=None, context=ctx, execute=never
+        )
+        expected = ".v1" if kind == "agent.run" else ".v2"
+        assert central.tasks[task.task_id].kind.endswith(expected)
+    await container.async_task_manager.shutdown()
+
+
+def test_recovery_flag_rejects_inline_or_legacy_scheduler():
+    with pytest.raises(ValidationError, match="DAG recovery requires"):
+        settings("inline", async_task_dag_recovery_enabled=True)
+    with pytest.raises(ValidationError, match="DAG recovery requires"):
+        settings("worker", async_task_dag_recovery_enabled=True)

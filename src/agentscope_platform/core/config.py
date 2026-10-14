@@ -233,6 +233,7 @@ class Settings(BaseSettings):
         default="local", pattern=r"^(local|git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
     )
     async_task_role: Literal["inline", "api", "worker"] = "inline"
+    async_task_dag_recovery_enabled: bool = False
     async_task_poll_seconds: float = Field(default=1, ge=0.1, le=30)
     async_task_enabled: bool = False
     async_task_base_url: str = "http://localhost:8086"
@@ -337,6 +338,10 @@ class Settings(BaseSettings):
             raise ValueError(
                 "AGENT_SESSION_REDIS_URL must use redis or rediss when session store is redis"
             )
+        if self.async_task_dag_recovery_enabled and (
+            self.async_task_role == "inline" or not self.agent_dag_optimization_enabled
+        ):
+            raise ValueError("DAG recovery requires durable role and DAG optimization")
         if self.async_task_role != "inline":
             if self.app_env == "production" and self.async_task_runtime_revision == "local":
                 raise ValueError("durable production requires ASYNC_TASK_RUNTIME_REVISION")

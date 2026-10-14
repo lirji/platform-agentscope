@@ -33,6 +33,11 @@ def port() -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--java-repo", type=Path, required=True)
+    parser.add_argument(
+        "--dag-recovery",
+        action="store_true",
+        help="validate v2 node checkpoint recovery",
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     java = args.java_repo.resolve()
@@ -98,10 +103,20 @@ def main() -> int:
             "MIGRATION_SCHEMA": "async-task",
         }
     )
+    if args.dag_recovery:
+        env.update(
+            ASYNC_TASK_DAG_RECOVERY_ENABLED="true",
+            AGENT_DAG_OPTIMIZATION_ENABLED="true",
+            AGENT_DAG_REPLAN_ENABLED="false",
+            AGENT_PLANNER_MAX_RETRIES="0",
+            AGENT_DAG_MAX_RESERVED_TOKENS="1000000",
+        )
     env["MIGRATION_DB_URL"] = env["ASYNC_TASK_DB_URL"]
     log_dir = root / ".git" / "codex-cross-runtime-reliability-baseline"
+    log_dir.mkdir(parents=True, exist_ok=True)
     logs: list[object] = []
     processes: list[subprocess.Popen[bytes]] = []
+    started_at = time.monotonic()
     first_call = threading.Event()
     calls = [0]
 
@@ -112,7 +127,7 @@ def main() -> int:
         def do_POST(self) -> None:
             payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             calls[0] += 1
-            if calls[0] == 1:
+            if calls[0] == (2 if args.dag_recovery else 1):
                 first_call.set()
                 time.sleep(25)
             response = {
@@ -168,7 +183,7 @@ def main() -> int:
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
     def launch(name: str, command: list[str], role: str = "inline") -> subprocess.Popen[bytes]:
-        file = (log_dir / f"worker-process-{name}.log").open("wb")
+        file = (log_dir / f"dag-recovery-process-{name}.log").open("wb")
         logs.append(file)
         process = subprocess.Popen(
             command,
@@ -194,7 +209,7 @@ def main() -> int:
         raise TimeoutError("local process did not become healthy")
 
     try:
-        with (log_dir / "worker-process-build.log").open("w") as output:
+        with (log_dir / "dag-recovery-process-build.log").open("w") as output:
             subprocess.run(
                 ["mvn", "-o", "-B", "-pl", "async-task-service", "-am", "-DskipTests", "package"],
                 cwd=java,
@@ -257,21 +272,26 @@ def main() -> int:
             headers={"kid": "platform-internal-v1", "typ": "JWT"},
         )
         with httpx.Client(trust_env=False, timeout=10, headers={"X-Internal-Token": token}) as http:
-            accepted = http.post(
-                f"http://127.0.0.1:{api_port}/agent/run/async",
-                json={"goal": "answer without tools"},
-            )
+            endpoint = "/agent/dag/run/async" if args.dag_recovery else "/agent/run/async"
+            body = {"goal": "answer without tools"}
+            if args.dag_recovery:
+                body["tasks"] = [
+                    {"id": "one", "description": "answer without tools"},
+                    {"id": "two", "description": "answer without tools", "dependsOn": ["one"]},
+                ]
+            accepted = http.post(f"http://127.0.0.1:{api_port}" + endpoint, json=body)
             assert accepted.status_code == 202, "API submission was rejected"
             task_id = accepted.json()["taskId"]
-            dag = http.post(
-                f"http://127.0.0.1:{api_port}/agent/dag/run/async",
-                json={
-                    "goal": "readonly DAG",
-                    "tasks": [{"id": "one", "description": "answer without tools"}],
-                },
-            )
-            assert dag.status_code == 202, "DAG submission was rejected"
-            dag_id = dag.json()["taskId"]
+            if not args.dag_recovery:
+                dag = http.post(
+                    f"http://127.0.0.1:{api_port}/agent/dag/run/async",
+                    json={
+                        "goal": "readonly DAG",
+                        "tasks": [{"id": "one", "description": "answer without tools"}],
+                    },
+                )
+                assert dag.status_code == 202, "DAG submission was rejected"
+                dag_id = dag.json()["taskId"]
             api.terminate()
             api.wait(timeout=15)
             first = launch(
@@ -280,6 +300,7 @@ def main() -> int:
             assert first_call.wait(timeout=20), "worker did not call the local fake provider"
             url = f"http://127.0.0.1:{java_port}/async/tasks/{task_id}"
             old = http.get(url).json()
+            killed_at = time.monotonic()
             first.kill()
             first.wait(timeout=10)
             expiry = datetime.fromisoformat(old["leaseExpiresAt"].replace("Z", "+00:00"))
@@ -293,15 +314,36 @@ def main() -> int:
                     break
                 time.sleep(0.2)
             assert result["status"] == "SUCCEEDED", "recovered worker did not complete"
-            assert result["result"]["finalAnswer"] == "fake recovery answer"
+            answer = result["result"]["synthesis"] if args.dag_recovery else result["result"]
+            assert answer["finalAnswer"] == "fake recovery answer"
             assert result["leaseEpoch"] > old["leaseEpoch"]
-            dag_url = f"http://127.0.0.1:{java_port}/async/tasks/{dag_id}"
-            while time.monotonic() < deadline:
-                dag_result = http.get(dag_url).json()
-                if dag_result["status"] in {"SUCCEEDED", "FAILED", "CANCELLED"}:
-                    break
-                time.sleep(0.2)
-            assert dag_result["status"] == "SUCCEEDED", "durable DAG progress failed"
+            if args.dag_recovery:
+                assert result["kind"] == "agent.readonly.dag.v2"
+                # 首节点完成、次节点被kill、次节点恢复、汇总: 共四次调用。
+                assert calls[0] == 4, f"completed node was replayed: calls={calls[0]}"
+                query = (
+                    f"SELECT STATE_JSON FROM {database}.ASYNC_TASK_DAG_CHECKPOINT "
+                    f"WHERE TASK_ID='{task_id}';"
+                )
+                stored = subprocess.run(
+                    [*mysql[:-1], mysql[-1] + " -N -B --raw"],
+                    input=query,
+                    text=True,
+                    check=True,
+                    capture_output=True,
+                )
+                state = json.loads(stored.stdout)
+                assert state["modelCalls"] == 4, "durable model reservations reset after crash"
+                assert state["operations"]["node:1:one"]["status"] == "DONE"
+                assert state["operations"]["node:1:two"]["status"] == "DONE"
+            if not args.dag_recovery:
+                dag_url = f"http://127.0.0.1:{java_port}/async/tasks/{dag_id}"
+                while time.monotonic() < deadline:
+                    dag_result = http.get(dag_url).json()
+                    if dag_result["status"] in {"SUCCEEDED", "FAILED", "CANCELLED"}:
+                        break
+                    time.sleep(0.2)
+                assert dag_result["status"] == "SUCCEEDED", "durable DAG progress failed"
             # 对已终态status接口允许幂等返回当前结果; 事件追加始终检查旧epoch并拒绝.
             proof = AsyncTaskWorkerTokenIssuer(
                 Settings(
@@ -329,7 +371,9 @@ def main() -> int:
             assert stale.status_code == 409, "old process fencing failed"
             print(
                 "PASS: API exit, worker crash, second process recovery, "
-                "epoch fencing, fake provider only"
+                f"epoch fencing, fake provider only; v2={args.dag_recovery}, calls={calls[0]}, "
+                f"recovery_seconds={time.monotonic() - killed_at:.2f}, "
+                f"total_seconds={time.monotonic() - started_at:.2f}"
             )
             return 0
     finally:
