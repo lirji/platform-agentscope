@@ -90,3 +90,8 @@ gh attestation verify "oci://${IMAGE}" \
 的引用泄漏。aiohttp 已有 `multidict>=4.5,<7` 约束兼容，许可证仍为 Apache-2.0，
 未升级其他包或增加直接依赖。`uv audit --locked --no-dev` 审计 105 包未发现已知漏洞，
 更新后全量 526 测试通过。该结果有时间与锁文件边界，不能替代候选镜像和目标环境门禁。
+
+首次 main CI 38507980722 的 runtime 扫描另发现 `perl-base 5.36.0-7+deb12u3` 的 7 条
+HIGH/CRITICAL 记录。按 [Debian 公告](https://security-tracker.debian.org/tracker/CVE-2026-13221)
+将其加入已有包定向安全升级，并在构建中断言至少 `5.36.0-7+deb12u4`。保留 Bookworm 和
+原 PCRE2 补丁，不改变扫描严重度、忽略规则或发布条件。

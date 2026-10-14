@@ -19,10 +19,11 @@ ENV PATH="/app/.venv/bin:$PATH" \
 
 WORKDIR /app
 
-# 补齐扫描发现的Bookworm PCRE2安全补丁; 只升级该已有包, 不忽略HIGH门禁.
+# 补齐扫描发现的 Bookworm PCRE2/Perl 安全补丁; 仅升级已有包, 保持原扫描门禁。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 \
+    && apt-get install -y --no-install-recommends --only-upgrade libpcre2-8-0 perl-base \
     && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libpcre2-8-0)" ge '10.42-1+deb12u1' \
+    && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' perl-base)" ge '5.36.0-7+deb12u4' \
     && rm -rf /var/lib/apt/lists/*
 
 RUN addgroup --system app && adduser --system --ingroup app app

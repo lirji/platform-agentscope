@@ -19,14 +19,14 @@
 
 - `src/agentscope_platform/core/config.py`
 - `tests/test_config.py`、`tests/test_tool_confirmation.py`、`tests/test_shadow_cli.py`
-- `uv.lock`、`README.md`、`docs/architecture.md`、`docs/async-orchestration.md`
+- `Dockerfile`、`docs/software-supply-chain.md`、`uv.lock`、`README.md`、`docs/architecture.md`、`docs/async-orchestration.md`
 - `docs/current-system-map.md`、`docs/migration-plan.md`、`docs/delivery/cross-runtime-reliability.md`
 - `docs/delivery/pending-security-remediation.md`、`docs/delivery/dependency-remediation-readiness.md`
 - `docs/delivery/dependency-remediation-scan-2026-10-14.json`、历史进度快照、本文件。
 
 ## 未完成
 
-- 最终回归与自复审已通过；分批 Git 提交、main 合并推送及远程 CI 待完成。
+- 最终回归与自复审通过；前三批已提交并正常推送 main 9abcc5d。首轮 CI 镜像扫描发现 Perl 漏洞，L4 本地系统补丁通过，ARM64 应用 wheel 下载超时；转任务分支远程构建/扫描复验。
 - 真实模型、MCP/Sandbox、运行中旧服务 OpenAPI、生产 19 项证据等待外部环境，不在本轮执行范围。
 - Java 依赖升级等待后续版本组合设计与评审；本轮只交付准备材料。
 
@@ -39,8 +39,8 @@
 
 ## 下一步建议
 
-1. 当前代码及锁文件最终验证已通过，按指纹核对交付范围。
-2. 按 L1/L2/L3 逻辑提交，正常合并推送 main，核查新 CI；保留历史治理文件与工作树。
+1. 提交并推送 L4；任务分支 workflow_dispatch 验证远程构建/扫描。
+2. 正常合并推送 main，核查修复后的新 CI；保留历史治理文件与工作树。
 3. 后续 Java 工作按 `docs/delivery/dependency-remediation-readiness.md` 从 D1 开始。
 
 ## 恢复 Prompt

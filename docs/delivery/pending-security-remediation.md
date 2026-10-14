@@ -19,7 +19,8 @@
 | L2 | multidict 6.7.1 → 6.9.1 安全补丁 | 审计与依赖变更后全量复验通过，提交 07af2d8 |
 | L3 | 同步迁移/运行/CI 文档，整理历史状态 | 完成，待 Git 交付 |
 | D0 | Java 最新 SBOM 与兼容路线准备 | 完成；未执行 Java 升级 |
-| G1 | 分批提交、main 合并推送、远程 CI | 待执行 |
+| L4 | runtime Perl 安全补丁 | 本地系统包升级通过；应用 wheel 下载超时，转远程验证 |
+| G1 | 分批提交、main 合并推送、远程 CI | main 已推送 9abcc5d，首轮镜像扫描失败待复验 |
 
 ## 实现与验证证据
 
@@ -72,6 +73,17 @@
 - Java 安全整改准备见 [准备报告](dependency-remediation-readiness.md)。没有更改其 POM 或锁定契约。
 - 本轮无需数据库或外部 API 迁移；回退测试/文档不会改变业务协议。鉴权保护和安全补丁不得
   通过关闭生产鉴权或退回已知漏洞版本规避；部署回退需仍满足相同安全不变量。
+
+## 镜像扫描补充整改
+
+首次 main [CI 38507980722](https://github.com/lirji/platform-agentscope/actions/runs/38507980722)
+的 Linux 测试、依赖审计、契约、构建均通过，runtime 扫描发现 perl-base 的 7 条记录
+（3 CRITICAL、4 HIGH），原版本 `5.36.0-7+deb12u3`、修复下限 `5.36.0-7+deb12u4`。
+完整扫描来自制品 11868059757，保存在本地 `python-ci/trivy-image.json`。
+L4 只在原 Dockerfile 的定向更新增加 `perl-base` 和最低版本断言，不改变 base generation、
+业务源码、CI 严重度或豁免规则。本地 runtime 的包升级与版本断言通过；ARM64 builder 下载 multidict wheel 在三次重试后超时，
+不是测试失败。未获得最终镜像，因此本地隔离网络 smoke 未执行。使用 GitHub Linux 任务分支
+CI 验证精确 Dockerfile 的构建与扫描，通过后再合并 main。
 
 ## Git 交付
 
