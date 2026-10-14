@@ -2,7 +2,7 @@
 
 ## 已迁能力
 
-新服务提供同步 `POST /agent/dag/run`。默认兼容模式执行如下：
+新服务提供同步 `POST /agent/dag/run`。inline 默认兼容模式执行如下：
 
 1. 校验目标、任务、任务上限、重复 ID 和循环依赖。
 2. 按输入顺序生成稳定的拓扑层。
@@ -66,7 +66,7 @@ worker 的 AgentScope max steps、timeout、token budget 和 loop 策略继续�
 
 ## 可选优化模式
 
-通过 `AGENT_DAG_OPTIMIZATION_ENABLED=true` 显式启用；默认 false 保留旧执行路径。HTTP/JSON 字段不变，但以下语义有意变化：
+通过 `AGENT_DAG_OPTIMIZATION_ENABLED=true` 显式启用；inline 默认 false 保留旧执行路径，API/worker 默认 true 以支持节点持久恢复。HTTP/JSON 字段不变，但以下语义有意变化：
 
 - 未知依赖返回 400；失败/超时节点的下游为 `stopReason=SKIPPED`，不运行模型。综合结果为 `PARTIAL`，`acceptedByThreshold=false`，异步写中央 FAILED。
 - 依赖完成即可启动后继，无整层屏障；响应仍按稳定拓扑顺序。`dag-worker-queued` 表示等待，`dag-worker-start` 表示已获得槽位，`dag-worker-result` 立即报告完成。level 事件是拓扑分组，组之间可重叠。
@@ -78,7 +78,7 @@ worker 的 AgentScope max steps、timeout、token budget 和 loop 策略继续�
 
 | 优化配置 | 默认值 | 作用 |
 |---|---:|---|
-| `AGENT_DAG_OPTIMIZATION_ENABLED` | false | 显式启用新语义 |
+| `AGENT_DAG_OPTIMIZATION_ENABLED` | inline=false；api/worker=true | 可显式覆盖；节点恢复要求 true |
 | `AGENT_DAG_TENANT_MAX_WORKERS` | 2 | 每进程每租户 worker 上限 |
 | `AGENT_DAG_MAX_INFLIGHT_WORKERS` | 128 | 全部运行及等待 worker 上限 |
 | `AGENT_DAG_TENANT_MAX_INFLIGHT_WORKERS` | 32 | 单租户运行及等待 worker 上限 |

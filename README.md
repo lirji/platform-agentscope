@@ -113,7 +113,7 @@ Java 服务分离管理端口时，为 `ASYNC_TASK`、`KNOWLEDGE`、`ANALYTICS`�
 同步 DAG 入口为 `/agent/dag/run`，与 `/agent/run` 一样强制校验内部 JWT。请求格式、
 兼容行为与限制见 [DAG 编排指南](docs/dag-orchestration.md)。
 可选 `AGENT_DAG_OPTIMIZATION_ENABLED=true` 启用失败依赖跳过、就绪调度、无工具汇总、
-整体预算和有条件结果复用；默认关闭，保持旧路径。
+整体预算和有条件结果复用；inline 默认关闭，API/worker 默认开启并启用[节点持久恢复](docs/dag-recovery.md)。
 
 `/agent/dag/plan-run` 会先生成通用 DAG；`/agent/analyst/run` 使用“先探表后取数”的
 只读数据分析 Planner。两者都复用相同 DAG 引擎。

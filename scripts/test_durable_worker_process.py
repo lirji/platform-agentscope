@@ -111,6 +111,11 @@ def main() -> int:
             AGENT_PLANNER_MAX_RETRIES="0",
             AGENT_DAG_MAX_RESERVED_TOKENS="1000000",
         )
+    else:
+        env.update(
+            ASYNC_TASK_DAG_RECOVERY_ENABLED="false",
+            AGENT_DAG_OPTIMIZATION_ENABLED="false",
+        )
     env["MIGRATION_DB_URL"] = env["ASYNC_TASK_DB_URL"]
     log_dir = root / ".git" / "codex-cross-runtime-reliability-baseline"
     log_dir.mkdir(parents=True, exist_ok=True)

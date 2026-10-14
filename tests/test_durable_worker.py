@@ -197,20 +197,24 @@ async def test_adopt_does_not_exceed_local_running_capacity() -> None:
     await manager.shutdown()
 
 
-async def test_claim_http_uses_separate_task_bound_dispatch_token() -> None:
+@pytest.mark.parametrize("enabled", [None, False])
+async def test_claim_http_uses_separate_task_bound_dispatch_token(enabled) -> None:
     seen: list[httpx.Request] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         seen.append(request)
         return httpx.Response(204)
 
-    configured = settings("worker")
+    configured = settings(
+        "worker", **({} if enabled is None else {"async_task_dag_recovery_enabled": enabled})
+    )
     async with httpx.AsyncClient(
         base_url="http://central.test", transport=httpx.MockTransport(handle)
     ) as raw:
         client = HttpAsyncTaskClient(configured, raw)
         assert await client.claim("agentscope-platform.one") is None
     assert seen[0].url.path == "/async/tasks/dispatch/claim"
+    assert json.loads(seen[0].content)["checkpointVersion"] == (0 if enabled is False else 1)
     assert "X-Internal-Token" not in seen[0].headers
     claims = jwt.decode(
         seen[0].headers["X-Async-Worker-Token"],
@@ -293,10 +297,11 @@ async def test_checkpoint_http_binds_action_epoch_and_tenant_without_internal_to
     assert json.loads(seen[0].content)["leaseEpoch"] == 3
 
 
-async def test_recovery_flag_creates_v2_dag_but_keeps_run_v1() -> None:
+@pytest.mark.parametrize("enabled", [None, False])
+async def test_default_recovery_creates_v2_dag_and_explicit_off_keeps_v1(enabled) -> None:
     central = FakeAsyncTaskGateway()
     configured = settings(
-        "api", agent_dag_optimization_enabled=True, async_task_dag_recovery_enabled=True
+        "api", **({} if enabled is None else {"async_task_dag_recovery_enabled": enabled})
     )
     app = create_app(configured, runner=Runner(), async_task_gateway=central)
     container = cast(Container, app.state.container)
@@ -309,7 +314,7 @@ async def test_recovery_flag_creates_v2_dag_but_keeps_run_v1() -> None:
         task = await container.async_task_manager.submit(
             kind=kind, input_data={"goal": "test"}, webhook_url=None, context=ctx, execute=never
         )
-        expected = ".v1" if kind == "agent.run" else ".v2"
+        expected = ".v1" if kind == "agent.run" or enabled is False else ".v2"
         assert central.tasks[task.task_id].kind.endswith(expected)
     await container.async_task_manager.shutdown()
 
@@ -318,4 +323,18 @@ def test_recovery_flag_rejects_inline_or_legacy_scheduler():
     with pytest.raises(ValidationError, match="DAG recovery requires"):
         settings("inline", async_task_dag_recovery_enabled=True)
     with pytest.raises(ValidationError, match="DAG recovery requires"):
-        settings("worker", async_task_dag_recovery_enabled=True)
+        settings("worker", agent_dag_optimization_enabled=False)
+
+
+@pytest.mark.parametrize("role", ["inline", "api", "worker"])
+def test_recovery_defaults_follow_role_and_explicit_environment_wins(role, monkeypatch):
+    for key in ("AGENT_DAG_OPTIMIZATION_ENABLED", "ASYNC_TASK_DAG_RECOVERY_ENABLED"):
+        monkeypatch.delenv(key, raising=False)
+    configured = settings(role)
+    assert configured.async_task_dag_recovery_enabled is (role != "inline")
+    assert configured.agent_dag_optimization_enabled is (role != "inline")
+    monkeypatch.setenv("ASYNC_TASK_DAG_RECOVERY_ENABLED", "false")
+    monkeypatch.setenv("AGENT_DAG_OPTIMIZATION_ENABLED", "false")
+    configured = settings(role)
+    assert not configured.async_task_dag_recovery_enabled
+    assert not configured.agent_dag_optimization_enabled

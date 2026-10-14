@@ -1,9 +1,10 @@
-# 可选只读API/worker分离. Java先迁移V3并开启ASYNC_TASK_DISPATCH_ENABLED.
+# 可选只读API/worker分离. Java先迁移V5并开启ASYNC_TASK_DISPATCH_ENABLED.
 # 使用 docker compose -f compose.yml -f compose.readonly-worker.yml up -d.
 services:
   orchestrator:
     environment:
-      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-false}
+      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-true}
+      AGENT_DAG_OPTIMIZATION_ENABLED: ${AGENT_DAG_OPTIMIZATION_ENABLED:-true}
       ASYNC_TASK_ROLE: api
       ASYNC_TASK_ENABLED: "true"
       ASYNC_TASK_WORKER_ID: ${ASYNC_TASK_WORKER_ID:-agentscope-platform}
@@ -24,7 +25,8 @@ services:
       retries: 3
       start_period: 20s
     environment:
-      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-false}
+      ASYNC_TASK_DAG_RECOVERY_ENABLED: ${ASYNC_TASK_DAG_RECOVERY_ENABLED:-true}
+      AGENT_DAG_OPTIMIZATION_ENABLED: ${AGENT_DAG_OPTIMIZATION_ENABLED:-true}
       ASYNC_TASK_ROLE: worker
       ASYNC_TASK_ENABLED: "true"
       ASYNC_TASK_WORKER_ID: ${ASYNC_TASK_WORKER_ID:-agentscope-platform}

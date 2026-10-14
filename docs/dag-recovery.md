@@ -1,12 +1,14 @@
 # 只读 DAG 节点持久恢复
 
-节点恢复已实现，默认关闭。中央 Java async-task-service 持久化检查点，Python worker 读取并继续执行；inline 和 `agent.readonly.*.v1` 保持原行为。
+节点恢复已实现，在 `ASYNC_TASK_ROLE=api/worker` 下默认开启，依赖的 DAG 优化调度也默认开启。中央 Java async-task-service 持久化检查点，Python worker 读取并继续执行；inline 和 `agent.readonly.*.v1` 保持原行为。
 
 ## 启用顺序
 
 1. 先应用中央 `V5__dag_checkpoint.sql`，升级所有参与分发的 Java 实例。保留既有V1–V4迁移，不改历史校验和。
-2. API 与 worker 使用相同不可变运行版本和配置。设置 `ASYNC_TASK_DAG_RECOVERY_ENABLED=true`、`AGENT_DAG_OPTIMIZATION_ENABLED=true`、`AGENT_MODEL_MAX_RETRIES=0`、`AGENT_PLANNER_MAX_RETRIES=0`。只用于 `ASYNC_TASK_ROLE=api/worker`。
-3. 先上线支持 checkpointVersion=1 的 worker，再启用 API v2 入队。`compose.readonly-worker.yml` 已传递恢复开关，其他凭据/readonly限制沿用异步编排说明。
+2. API 与 worker 使用相同不可变运行版本和配置。默认生效值为 `ASYNC_TASK_DAG_RECOVERY_ENABLED=true`、`AGENT_DAG_OPTIMIZATION_ENABLED=true`、`AGENT_MODEL_MAX_RETRIES=0`、`AGENT_PLANNER_MAX_RETRIES=0`。只用于 `ASYNC_TASK_ROLE=api/worker`。
+3. 先上线支持 checkpointVersion=1 的 worker，再启用 API v2 入队。`compose.readonly-worker.yml` 默认开启恢复和优化开关，其他凭据/readonly限制沿用异步编排说明。
+
+未设置开关时，inline 保持恢复/优化关闭；API/worker 默认开启。已有环境显式配置的 `false` 优先于默认值，升级时需核对两项配置；恢复开启但优化显式关闭会拒绝启动。`.env.example` 将两项开关注释，保留按角色选择默认值。回退旧 v1 调度时显式设置两项为 `false`。
 
 DAG、dag-plan、Analyst、Process 入队为 `.v2`；单 Agent run 仍为 `.v1`。所有 v2 都只读，没有确认grant或写工具恢复。
 

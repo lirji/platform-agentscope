@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     agent_rag_category: str | None = None
     agent_v2_enabled: bool = False
     agent_dag_max_tasks: int = Field(default=6, ge=1, le=100)
-    # 保留旧模式供双跑和回退, 优化模式仅在显式启用时改变执行语义。
+    # inline 保留旧模式; 持久化角色在校验时默认启用优化, 显式配置优先。
     agent_dag_optimization_enabled: bool = False
     agent_dag_tenant_max_workers: int = Field(default=2, ge=1, le=32)
     agent_dag_max_inflight_workers: int = Field(default=128, ge=1, le=1024)
@@ -233,6 +233,7 @@ class Settings(BaseSettings):
         default="local", pattern=r"^(local|git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"
     )
     async_task_role: Literal["inline", "api", "worker"] = "inline"
+    # 持久化角色默认开启; inline 没有中央租约, 不能启用节点恢复。
     async_task_dag_recovery_enabled: bool = False
     async_task_poll_seconds: float = Field(default=1, ge=0.1, le=30)
     async_task_enabled: bool = False
@@ -299,6 +300,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_orchestrator_limits(self) -> "Settings":
+        """按角色解析缺省开关, 再校验依赖; 显式关闭不会被默认值覆盖。"""
+        if self.async_task_role != "inline":
+            if "async_task_dag_recovery_enabled" not in self.model_fields_set:
+                self.async_task_dag_recovery_enabled = True
+            if "agent_dag_optimization_enabled" not in self.model_fields_set:
+                self.agent_dag_optimization_enabled = True
         if self.agent_dag_optimization_enabled and (
             self.agent_dag_max_inflight_workers < self.agent_dag_max_parallel_workers
             or self.agent_dag_tenant_max_inflight_workers < self.agent_dag_tenant_max_workers

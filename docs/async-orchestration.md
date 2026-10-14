@@ -137,4 +137,4 @@ Python reader 按进程保存指标；多 worker 或多 pod 部署必须逐实�
 
 ## 节点级持久恢复（v2）
 
-中央 V5 与 Python 检查点恢复已实现，默认关闭。DAG/规划/Analyst/Process 可使用 `agent.readonly.*.v2`；纯计算节点可恢复，工具节点和依赖链重跑。启用顺序、预算及回滚见 [节点恢复指南](dag-recovery.md)。v1 仍为整任务只读重做。
+中央 V5 与 Python 检查点恢复已实现，API/worker 角色默认开启（依赖的 DAG 优化同样默认开启），inline 保持关闭。显式 `false` 配置仍优先。DAG/规划/Analyst/Process 可使用 `agent.readonly.*.v2`；纯计算节点可恢复，工具节点和依赖链重跑。启用顺序、预算及回滚见 [节点恢复指南](dag-recovery.md)。v1 仍为整任务只读重做。
