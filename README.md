@@ -181,6 +181,7 @@ DAG 结构兼容双跑使用 `agentscope-dag-shadow-eval`，只在报告中保�
 
 ## 文档入口
 
+- [项目优势、不足与业务接入评估（2026-10-14）](docs/assessments/project-business-assessment-20261014.md)
 - [目标架构](docs/architecture.md)
 - [现状与迁移边界](docs/current-system-map.md)
 - [重构路线图](docs/migration-plan.md)
