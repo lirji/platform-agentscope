@@ -40,3 +40,20 @@
 - 指纹绑定目标、任务描述、依赖执行版本；上游重跑即使得到同样文本也使下游失效。复用返回深拷贝。
 - 红灯：重复根节点调用和失败被模型评分两项暴露旧行为；绿灯覆盖 TTL、禁用、跨请求/租户、工具扩大拒绝及依赖失效。
 - 相关 50 项 PASS；全量 566 passed；Ruff/format/Mypy/contract snapshots/diff check PASS。
+
+## S5：最终验证与独立交付范围
+
+- 审查补充等待队列全局/租户上限，超过容量立即拒绝并收敛同一 DAG 的在途工作；红灯后验证通过。
+- 真实 GovernedFunctionTool 适配器测试证明能力不匹配时工具函数不被调用。
+- 新只读双跑 suite 3 个场景；本地两个实际 ASGI 应用分别启用旧/优化模式，Shadow 共 6 样本 PASS。没有把 Python 旧模式当作运行中 Java 服务。
+- 最终 `uv run pytest --cov=agentscope_platform --cov-report=term --cov-fail-under=80`：569 passed，覆盖率 89.66%。
+- `uv run ruff check .`、`uv run ruff format --check .`、`uv run mypy src` PASS。
+- 契约快照 check PASS，HTTP/JSON/OpenAPI 快照未变；离线通用 Shadow 8 样本 PASS。
+- 静态供应链、生产运行手册、对抗评测数据集校验、`uv build`、基础和 readonly-worker Compose config PASS。
+- Code Hygiene Gate：IMPLEMENTATION_COMPLETE_WITH_LIMITATIONS。工具没有自动识别 Ruff formatter（FORMAT_TOOL_NOT_AVAILABLE），实际仓库 `uv run ruff format --check .` 已独立运行通过；未伪造自动发现结果。
+- 架构复核：AgentScope 类型仍仅在基础设施；domain 新字段为语言中立能力集合；无数据库/消息/依赖变更。
+- S6 条件设计已写 `RECOVERY_DESIGN.md`，没有实现或声称节点持久恢复。
+
+## Git 交付
+
+任务分支 `refactor/dag-orchestration`，基线 `4c5f673`。当前四个已验证逻辑提交：8545684、49a251d、36db8d6、4b506f8。最终队列限制/对照测试/文档批次待提交；main 推送及 CI 状态待核验。无生产部署。

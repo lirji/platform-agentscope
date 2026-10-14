@@ -23,7 +23,7 @@ from agentscope_platform.application.dag_budget import (
     DagDeadlineExceeded,
     DagRunLimits,
 )
-from agentscope_platform.application.dag_scheduler import DagWorkerCapacity
+from agentscope_platform.application.dag_scheduler import DagCapacityExceeded, DagWorkerCapacity
 from agentscope_platform.application.observer import CompositeRunObserver
 from agentscope_platform.application.planning import AgentDagPlanningService
 from agentscope_platform.application.ports import (
@@ -198,6 +198,8 @@ def create_app(
     dag_capacity = DagWorkerCapacity(
         app_settings.agent_dag_max_parallel_workers,
         app_settings.agent_dag_tenant_max_workers,
+        max_inflight=app_settings.agent_dag_max_inflight_workers,
+        max_tenant_inflight=app_settings.agent_dag_tenant_max_inflight_workers,
     )
     dag_service = AgentDagApplicationService(
         app_runner,
@@ -350,6 +352,17 @@ def create_app(
             status_code=503,
             content={
                 "error": "agent model is not configured",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(DagCapacityExceeded)
+    async def dag_capacity_exceeded(request: Request, exc: DagCapacityExceeded) -> JSONResponse:
+        """排队容量满立即返回, 不占用无限等待协程。"""
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "AGENT_DAG_CAPACITY_EXCEEDED",
                 "traceId": request.state.trace_id,
             },
         )

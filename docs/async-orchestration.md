@@ -67,6 +67,7 @@ bulkhead 槽，超时、5xx 和传输失败会计入该依赖熔断，4xx 不会
 - `agent.run` 的 runner 返回 `stopReason=ERROR`：同步 `/agent/run` 为兼容旧契约仍返回
   该业务响应；异步入口必须写中央 `FAILED`、`result=null` 和
   `ASYNC_TASK_EXECUTION_FAILED`，禁止记录为伪成功。
+- DAG 综合 `stopReason` 非 DONE（包含优化模式 PARTIAL）：中央写 FAILED，不能将调度结束当作业务成功。
 - Python 崩溃：token 随进程消失；中央 reaper 只把五种 Agent kind 的 stale
   PENDING/RUNNING 标记为 `FAILED/ASYNC_TASK_ORPHANED`。
 - Python 收到正常停止信号：先停止接收新任务，并在 `ASYNC_TASK_DRAIN_TIMEOUT_SECONDS`（默认 30 秒）

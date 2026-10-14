@@ -184,3 +184,20 @@ async def test_infrastructure_error_cancels_other_roots():
         )
     assert slow_stopped.is_set()
     assert not synthesis.inputs
+
+
+async def test_overloaded_tenant_is_rejected_without_blocking_other_tenant():
+    import asyncio
+
+    import pytest
+
+    from agentscope_platform.application.dag_scheduler import DagCapacityExceeded, DagWorkerCapacity
+
+    capacity = DagWorkerCapacity(2, 1, max_inflight=3, max_tenant_inflight=1)
+    async with capacity.acquire("a"):
+        with pytest.raises(DagCapacityExceeded):
+            async with capacity.acquire("a"):
+                raise AssertionError("overloaded tenant entered")
+        async with asyncio.timeout(0.5), capacity.acquire("b"):
+            pass
+    assert not capacity._tenants

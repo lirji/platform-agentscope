@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     # 保留旧模式供双跑和回退, 优化模式仅在显式启用时改变执行语义。
     agent_dag_optimization_enabled: bool = False
     agent_dag_tenant_max_workers: int = Field(default=2, ge=1, le=32)
+    agent_dag_max_inflight_workers: int = Field(default=128, ge=1, le=1024)
+    agent_dag_tenant_max_inflight_workers: int = Field(default=32, ge=1, le=1024)
     agent_dag_timeout_seconds: float = Field(default=300, gt=0, le=3600)
     agent_dag_result_reuse_ttl_seconds: float = Field(default=30, ge=0, le=300)
     agent_dag_max_model_calls: int = Field(default=64, ge=1, le=1000)
@@ -296,6 +298,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_orchestrator_limits(self) -> "Settings":
+        if self.agent_dag_optimization_enabled and (
+            self.agent_dag_max_inflight_workers < self.agent_dag_max_parallel_workers
+            or self.agent_dag_tenant_max_inflight_workers < self.agent_dag_tenant_max_workers
+            or self.agent_dag_tenant_max_inflight_workers > self.agent_dag_max_inflight_workers
+        ):
+            raise ValueError("DAG inflight capacity must cover workers and bound tenant capacity")
         if self.agent_dag_optimization_enabled and (
             self.agent_model_max_retries or self.agent_planner_max_retries
         ):

@@ -170,3 +170,25 @@ async def test_partial_dag_is_not_recorded_as_async_success():
     assert gateway.tasks[task.task_id].status is AsyncTaskStatus.FAILED
     assert gateway.tasks[task.task_id].result is None
     await manager.shutdown()
+
+
+async def test_real_tool_adapter_rejects_outside_capability_before_invocation():
+    from agentscope.message import ToolResultState
+
+    from agentscope_platform.core.context import run_context
+    from agentscope_platform.infrastructure.agentscope.tools import GovernedFunctionTool
+
+    invoked = False
+
+    async def tool():
+        nonlocal invoked
+        invoked = True
+        return "data"
+
+    adapter = GovernedFunctionTool(
+        tool, metadata=ToolMetadata.for_read_only(name="order_query", required_scopes=())
+    )
+    with run_context(replace(context(), allowed_tools=frozenset({"rag_search"}))):
+        result = await adapter.call()
+    assert result.state is ToolResultState.ERROR
+    assert not invoked

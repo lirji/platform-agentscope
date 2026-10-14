@@ -21,13 +21,16 @@
 
 ## 已修改文件
 
-- `CODEX_PROGRESS.md`
-- `docs/delivery/dag-optimization/PLAN.md`
-- `docs/delivery/history/progress-before-dag-optimization.md`
+- `src/agentscope_platform/application/{dag,dag_budget,dag_scheduler,dag_reuse,planning,async_task}.py`
+- `src/agentscope_platform/domain/{agent,tool}.py`、`core/config.py`、`api/app.py`
+- `src/agentscope_platform/infrastructure/agentscope/{runner,planner,reviewer,text_generator,closing_model,budget_model,dag_budget_model}.py`
+- `tests/test_dag_{optimization,scheduling,budget,reuse,optimization_shadow}.py`
+- `.env.example`、`compose.yml`、`README.md`、`docs/{dag-orchestration,async-orchestration}.md`
+- `eval/baseline/dag-optimization-cases.jsonl`、`docs/delivery/dag-optimization/`、历史进度快照。
 
 ## 未完成
 
-- S5 全量验证、契约/双跑用例、文档和 Git 交付。
+- S5 本地验证完成：569 passed / 89.66%，静态、契约、离线 Shadow、构建与 Compose PASS；剩余最终批次提交、main 推送及 CI 核验。
 - S6 节点持久恢复为条件阶段：依赖 Java 中央任务服务新增持久化契约与真实恢复验收，不在本仓伪造实现。
 
 ## 当前问题
@@ -37,8 +40,8 @@
 
 ## 下一步建议
 
-1. 先写行为测试并确认在旧实现失败，再逐片实现和验证。
-2. 每个已验证逻辑单元独立提交，最终正常合入推送 main，检查远程 CI。
+1. 提交最终队列限制、对照测试和文档批次，正常合入并推送 main。
+2. 核验远程 CI，写入交付结果；保留既有工作树和私有/忽略文件。
 
 ## 恢复 Prompt
 

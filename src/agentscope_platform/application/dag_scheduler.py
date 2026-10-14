@@ -6,6 +6,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 
+class DagCapacityExceeded(RuntimeError):
+    """等待者也计入容量, 拒绝过载而不是无限积累协程。"""
+
+
 @dataclass
 class _TenantSlots:
     semaphore: asyncio.Semaphore
@@ -15,23 +19,40 @@ class _TenantSlots:
 class DagWorkerCapacity:
     """同一进程的 DAG 共享总槽位, 租户先取自身槽位以免阻塞其他租户。"""
 
-    def __init__(self, total: int, per_tenant: int) -> None:
+    def __init__(
+        self,
+        total: int,
+        per_tenant: int,
+        *,
+        max_inflight: int = 128,
+        max_tenant_inflight: int = 32,
+    ) -> None:
         self._global = asyncio.Semaphore(max(1, total))
         self._per_tenant = max(1, min(per_tenant, total))
         self._tenants: dict[str, _TenantSlots] = {}
+        self._max_inflight = max_inflight
+        self._max_tenant_inflight = max_tenant_inflight
+        self._inflight = 0
 
     @asynccontextmanager
     async def acquire(self, tenant_id: str) -> AsyncIterator[None]:
         """租户槽位在最后一个持有者/等待者退出后清理, 避免身份字典持续增长。"""
+        existing = self._tenants.get(tenant_id)
+        if self._inflight >= self._max_inflight or (
+            existing is not None and existing.users >= self._max_tenant_inflight
+        ):
+            raise DagCapacityExceeded("DAG worker capacity is exhausted")
         slots = self._tenants.setdefault(
             tenant_id, _TenantSlots(asyncio.Semaphore(self._per_tenant))
         )
         slots.users += 1
+        self._inflight += 1
         try:
             async with slots.semaphore, self._global:
                 yield
         finally:
             slots.users -= 1
+            self._inflight -= 1
             if slots.users == 0:
                 del self._tenants[tenant_id]
 
