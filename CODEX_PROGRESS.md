@@ -14,6 +14,10 @@
 - 审计发现 multidict 漏洞并升级唯一锁版本 6.7.1 → 6.9.1；105 个生产包审计无已知漏洞。
 - Java 最新扫描提取完成：88 条 HIGH/CRITICAL 记录、31 个包坐标；兼容路线及 MyBatis 新约束已整理。
 - 迁移路线图、README、异步运行手册、能力边界和历史 CI 状态已同步。
+- 修复首次远程镜像扫描的 Perl 漏洞，Dockerfile 断言至少 5.36.0-7+deb12u4。
+- 07af2d8 / 16f8deb / 9abcc5d / fd3a44b 已正常合并并推送 main。
+- fd3a44b 的 CI 38508544838 SUCCESS，包含全量回归、构建和镜像扫描；后续仅交付文档收尾。
+  证据：https://github.com/lirji/platform-agentscope/actions/runs/38508544838
 
 ## 已修改文件
 
@@ -26,7 +30,7 @@
 
 ## 未完成
 
-- 最终回归与自复审通过；前三批已提交并正常推送 main 9abcc5d。首轮 CI 镜像扫描发现 Perl 漏洞，L4 本地系统补丁通过，ARM64 应用 wheel 下载超时；转任务分支远程构建/扫描复验。
+- 本轮本地整改和依赖准备已完成；后续 Java 实施及外部验收如下。
 - 真实模型、MCP/Sandbox、运行中旧服务 OpenAPI、生产 19 项证据等待外部环境，不在本轮执行范围。
 - Java 依赖升级等待后续版本组合设计与评审；本轮只交付准备材料。
 
@@ -35,16 +39,17 @@
 - Java 最新 SBOM 仍 FAIL，镜像扫描未执行；不得沿用旧 85 条记录的合并例外声称本次安全通过。
 - 历史 ESS `.workflow/` 与 `.engineering/remediation/` 保留未跟踪状态，历史阻塞/审批不改写。
 - main 当前检出在既有 `~/.local/share/git-worktrees/agentscope-platform/cross-runtime-verification`。
+- 本地 ARM64 镜像构建曾因 wheel 下载超时中断，未完成本机容器 smoke；远程 Linux 构建和扫描已通过。
 - 生产仍 NO-GO，未修改生产目标或执行任何部署。
 
 ## 下一步建议
 
-1. 提交并推送 L4；任务分支 workflow_dispatch 验证远程构建/扫描。
-2. 正常合并推送 main，核查修复后的新 CI；保留历史治理文件与工作树。
-3. 后续 Java 工作按 `docs/delivery/dependency-remediation-readiness.md` 从 D1 开始。
+1. 后续 Java 工作按 `docs/delivery/dependency-remediation-readiness.md` 从 D1 组合设计开始，不直接批量改 POM。
+2. 环境可用后补真实模型/MCP/Sandbox、运行中旧服务契约比较及生产证据；保持 NO-GO。
+3. 保留历史治理记录、worktree 和私有配置；后续 CI 状态查 Actions，不重复已通过源码验证。
 
 ## 恢复 Prompt
 
-读取 CODEX_PROGRESS.md 和 docs/delivery/pending-security-remediation.md，从未完成项继续。
+读取 CODEX_PROGRESS.md 和 docs/delivery/pending-security-remediation.md。本轮整改与准备已交付，不重复实施。
 用户已授权正常 Git 交付；无需重复询问。暂无真实测试环境，本轮不升级 Java 或部署生产。
 历史进度完整保留在 docs/delivery/history/progress-before-pending-security-remediation.md，勿重复已完成能力。

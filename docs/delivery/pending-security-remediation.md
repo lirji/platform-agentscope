@@ -15,12 +15,12 @@
 
 | ID | 范围 | 状态 |
 |---|---|---|
-| L1 | 交付生产鉴权保护、JWT 与回环测试修复 | 本地验证通过，提交 16f8deb |
-| L2 | multidict 6.7.1 → 6.9.1 安全补丁 | 审计与依赖变更后全量复验通过，提交 07af2d8 |
-| L3 | 同步迁移/运行/CI 文档，整理历史状态 | 完成，待 Git 交付 |
+| L1 | 交付生产鉴权保护、JWT 与回环测试修复 | DONE；16f8deb 已合并 main |
+| L2 | multidict 6.7.1 → 6.9.1 安全补丁 | DONE；07af2d8 已合并 main |
+| L3 | 同步迁移/运行/CI 文档，整理历史状态 | DONE；9abcc5d 已合并 main |
 | D0 | Java 最新 SBOM 与兼容路线准备 | 完成；未执行 Java 升级 |
-| L4 | runtime Perl 安全补丁 | 本地系统包升级通过；应用 wheel 下载超时，转远程验证 |
-| G1 | 分批提交、main 合并推送、远程 CI | main 已推送 9abcc5d，首轮镜像扫描失败待复验 |
+| L4 | runtime Perl 安全补丁 | DONE；fd3a44b 远程构建及镜像扫描 PASS，已合并 main |
+| G1 | 分批提交、main 合并推送、远程 CI | DONE；修复后源码 fd3a44b CI SUCCESS，main 推送成功 |
 
 ## 实现与验证证据
 
@@ -83,9 +83,32 @@
 L4 只在原 Dockerfile 的定向更新增加 `perl-base` 和最低版本断言，不改变 base generation、
 业务源码、CI 严重度或豁免规则。本地 runtime 的包升级与版本断言通过；ARM64 builder 下载 multidict wheel 在三次重试后超时，
 不是测试失败。未获得最终镜像，因此本地隔离网络 smoke 未执行。使用 GitHub Linux 任务分支
-CI 验证精确 Dockerfile 的构建与扫描，通过后再合并 main。
+CI 验证精确 Dockerfile 的构建与扫描。
+
+[补丁 CI 38508544838](https://github.com/lirji/platform-agentscope/actions/runs/38508544838)
+对应 `fd3a44b5a3936df8fc26c385db62fa055bb2b221`，结论 **SUCCESS**：锁定安装/审计、
+契约、Ruff/format/Mypy、全量测试、Shadow、SBOM/包构建、Compose、runtime 构建及扫描全通过。
+只执行 quality，tag-only release 被跳过。首次失败记录保留，不解释为测试失败或伪造生产发布。
 
 ## Git 交付
 
-L2 提交 07af2d8，L1 与功能文档提交 16f8deb；L3/D0 为本次记录提交。
-原 main 在既有 verification worktree，已核对其无未提交/未跟踪冲突，随后正常快进。未获清理授权，不删除历史工作树、治理目录或缓存。
+任务分支 `fix/pending-security-remediation`，依次提交：
+
+- `07af2d8`：multidict 安全升级及供应链说明。
+- `16f8deb`：生产鉴权保护、JWT/回环测试与功能运行文档。
+- `9abcc5d`：进度同步、历史快照与 Java 依赖整改准备。
+- `fd3a44b`：镜像 Perl 安全补丁及首次 CI 失败记录。
+
+已在原有 verification worktree 正常快进 main：`a7526db → 9abcc5d → fd3a44b`，推送成功。
+后续仅本报告和根进度收尾；完整 HEAD 以远程 main 为准，源码 CI 证据固定到 fd3a44b。
+每次 main 推送按现有工作流再次运行，[最新运行列表](https://github.com/lirji/platform-agentscope/actions/workflows/ci.yml)
+用于查询后续文档提交的 CI，不把旧 run 冒充新 SHA 的执行结果。
+
+最终源码和锁文件与 526 项本地验证指纹一致；Dockerfile 由上述远程 CI 单独验证。
+Java 仓仍为 `0b8267340129a46407e649caae6badd51acf017f` 且干净，本轮没有 Java 变更。
+本仓 tracked 改动均已交付；`.engineering/remediation/`、`.workflow/` 是保留的历史未跟踪
+记录。既有 verification worktree 没有未提交/未跟踪改动，但有忽略的覆盖率/测试缓存。
+原目录 `.env`、`.venv`、IDE 配置、reports、dist 与缓存保留，未复制其秘密到 Git。
+`.pytest_cache/.ruff_cache/.mypy_cache/__pycache__`、构建 dist 和 verification worktree
+可在另行清理授权后评估清理；历史治理证据、环境配置及本次 `.git/` 验证日志应先妥善保存。
+本轮未新建工作树、未清理用户目录，也未执行生产部署或 tag/release。
