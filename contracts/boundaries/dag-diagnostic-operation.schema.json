@@ -41,6 +41,18 @@
       "title": "Attempt",
       "type": "integer"
     },
+    "centralTaskId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Centraltaskid"
+    },
     "durationMs": {
       "minimum": 0,
       "title": "Durationms",
@@ -60,6 +72,19 @@
       "default": "operation",
       "title": "Kind",
       "type": "string"
+    },
+    "leaseEpoch": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leaseepoch"
     },
     "nodeId": {
       "anyOf": [

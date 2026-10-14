@@ -9,7 +9,7 @@
 - S1/S2：五角色模型 usage/费用归因、节点排队与执行耗时、复用/恢复原因、关键路径、日志/指标/中央事件/SSE；旧响应和预算结算不变。
 - 诊断后台队列有界，故障不替代业务结论；接管历史缺口、未知usage/价格显式标记。
 - Java中央事件允许列表兼容扩展，身份/租户/租约/幂等约束保留；独立工作树隔离原部署任务。
-- S3：Python613项/90.20%，Ruff/format/Mypy/契约、离线shadow8样本、离线构建、Compose检查通过。Java模块及依赖199项通过。Code Hygiene通过并记录工具发现限制。
+- S3：Python616项/90.23%，Ruff/format/Mypy/契约、离线shadow8样本、离线构建、Compose检查通过。Java模块及依赖199项通过。Code Hygiene通过并记录工具发现限制。
 - 详细技术决策、自审和验证见docs/delivery/dag-diagnostics/ENTERPRISE_FEATURE_REPORT.md；使用见docs/dag-diagnostics.md。
 
 ## 已修改文件
@@ -19,7 +19,8 @@
 
 ## 未完成
 
-- 源码与文档尚待提交、两仓main合入推送及远程CI状态核查。
+- 首批Python63db408和Javae7410ed已进入两仓远程main；Python远程CI38576775738通过。
+- v1接管关联与观测配置摘要修补已完成验证，待本批提交与推送；Java远程CI尚在运行。
 
 ## 当前问题
 
@@ -29,7 +30,7 @@
 
 ## 下一步建议
 
-1. 按task-git-delivery显式暂存本次文件，完成Java兼容扩展及Python功能Git交付。
+1. 交付本批兼容性修补并更新最终Git/CI记录。
 2. 补充DELIVERY_RESULT和远程CI实际状态；保留原部署、私有配置、缓存及历史工作树。
 
 ## 恢复 Prompt

@@ -47,6 +47,8 @@ class DiagnosticBase(BaseModel):
     execution_id: str
     trace_id: str
     tenant_id: str
+    central_task_id: str | None = None
+    lease_epoch: int | None = Field(default=None, ge=1)
 
 
 class OperationIdentity(DiagnosticBase):

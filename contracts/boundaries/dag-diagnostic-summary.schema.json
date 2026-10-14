@@ -49,6 +49,18 @@
       "default": null,
       "title": "Acceptedbythreshold"
     },
+    "centralTaskId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Centraltaskid"
+    },
     "criticalPaths": {
       "items": {
         "$ref": "#/$defs/DagCriticalPath"
@@ -124,6 +136,19 @@
       "minimum": 0,
       "title": "Knownoutputtokens",
       "type": "integer"
+    },
+    "leaseEpoch": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Leaseepoch"
     },
     "observedModelCalls": {
       "minimum": 0,

@@ -540,3 +540,71 @@ async def test_diagnostic_events_survive_existing_sse_projection():
     for name, _ in sink.events:
         assert f"event: {name}\n" in frames
     assert '"schemaVersion":1' in frames.replace(" ", "")
+
+
+async def test_v1_reclaimed_task_has_unknown_history_without_checkpoint():
+    import time
+
+    from agentscope_platform.application.dag_diagnostics import diagnostic_task_scope
+
+    observer = Observer()
+    with diagnostic_task_scope("central-1", 2, time.time() + 30):
+        async with diagnostic_scope(context(), observer, None):
+            async with diagnostic_operation(DagRole.WORKER) as operation:
+                operation.model_finished("m", "DONE", 0, 10, 5, Decimal(1), Decimal(2))
+    summary = observer.events[-1]
+    assert summary.central_task_id == "central-1" and summary.lease_epoch == 2
+    assert summary.resumed and not summary.history_complete
+    assert summary.known_estimated_cost_usd == Decimal("0.00002")
+    assert summary.estimated_cost_usd is None
+    async with diagnostic_scope(context(), observer, None):
+        pass
+    assert observer.events[-1].central_task_id is None
+    assert not observer.events[-1].resumed
+
+
+def test_diagnostic_flags_do_not_invalidate_queued_task_execution_digest():
+    from agentscope_platform.application.async_task import runtime_config_digest
+    from test_api import settings
+
+    enabled = settings(agent_dag_diagnostics_enabled=True, agent_dag_cost_rates_configured=True)
+    disabled = settings(agent_dag_diagnostics_enabled=False, agent_dag_cost_rates_configured=False)
+    assert runtime_config_digest(enabled) == runtime_config_digest(disabled)
+    # 真正改变模型行为的配置仍必须失配, 不因排除观测配置而弱化恢复绑定。
+    assert runtime_config_digest(enabled) != runtime_config_digest(
+        settings(gateway_temperature=0.8)
+    )
+
+
+async def test_task_manager_attaches_authoritative_task_identity_to_diagnostics():
+    from agentscope_platform.application.async_task import AsyncTaskManager
+    from agentscope_platform.application.dag import AgentDagApplicationService
+    from test_async_task_manager import FakeAsyncTaskGateway, settings, wait_terminal
+    from test_async_task_manager import context as owner_context
+    from test_dag_optimization import Synthesis, request
+    from test_dag_service import RecordingRunner
+
+    observer = Observer()
+    service = AgentDagApplicationService(
+        RecordingRunner(),
+        optimized=True,
+        synthesizer=Synthesis(),
+        diagnostics_enabled=True,
+        diagnostic_observer=observer,
+    )
+    gateway = FakeAsyncTaskGateway()
+    manager = AsyncTaskManager(gateway, settings())
+    owner = owner_context()
+    task = await manager.submit(
+        kind="agent.dag",
+        input_data={"goal": "investigate"},
+        webhook_url=None,
+        context=owner,
+        execute=lambda sink: service.run(request(), owner, sink),
+    )
+    await wait_terminal(gateway, task.task_id)
+    summary = observer.events[-1]
+    assert summary.central_task_id == task.task_id
+    assert summary.lease_epoch == gateway.tasks[task.task_id].lease_epoch
+    assert summary.history_complete
+    await manager.shutdown()

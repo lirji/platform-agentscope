@@ -10,6 +10,7 @@ from contextlib import (
     contextmanager,
 )
 from contextvars import ContextVar
+from dataclasses import dataclass
 from decimal import Decimal
 from time import monotonic, time
 from typing import Literal, Protocol, TypedDict
@@ -37,6 +38,30 @@ class _Identity(TypedDict):
     execution_id: str
     trace_id: str
     tenant_id: str
+    central_task_id: str | None
+    lease_epoch: int | None
+
+
+@dataclass(frozen=True)
+class _TaskMetadata:
+    """中央租约显式传入, v1整任务接管也不能冒充完整消费历史。"""
+
+    task_id: str
+    lease_epoch: int
+    deadline: float
+
+
+_task_metadata: ContextVar[_TaskMetadata | None] = ContextVar("dag_diagnostic_task", default=None)
+
+
+@contextmanager
+def diagnostic_task_scope(task_id: str, lease_epoch: int, deadline: float) -> Iterator[None]:
+    """异步任务管理器提供权威关联信息, 模型和业务输入不能覆盖。"""
+    token = _task_metadata.set(_TaskMetadata(task_id, lease_epoch, deadline))
+    try:
+        yield
+    finally:
+        _task_metadata.reset(token)
 
 
 class DagDiagnosticObserver(Protocol):
@@ -56,16 +81,25 @@ class DiagnosticSession:
         resumed: bool,
         deadline: float | None = None,
     ) -> None:
+        task = _task_metadata.get()
         self.identity: _Identity = {
             "execution_id": uuid4().hex,
             "trace_id": context.trace_id,
             "tenant_id": context.identity.tenant_id,
+            "central_task_id": task.task_id if task else None,
+            "lease_epoch": task.lease_epoch if task else None,
         }
         self.observer = observer
         self.owner = (context.identity.tenant_id, context.identity.user_id, context.trace_id)
         self.progress = progress
-        self.resumed = resumed
-        self.deadline = deadline
+        self.resumed = resumed or (task is not None and task.lease_epoch > 1)
+        self.deadline = (
+            min(deadline, task.deadline)
+            if deadline is not None and task is not None
+            else task.deadline
+            if task is not None
+            else deadline
+        )
         self.started = monotonic()
         self.status = "DONE"
         self.accepted_by_threshold: bool | None = None
@@ -305,10 +339,12 @@ async def diagnostic_scope(
 ) -> AsyncIterator[DiagnosticSession]:
     """规划与执行复用同一会话; finally 保证上下文不泄漏到后续请求。"""
     existing = _session.get()
-    if existing is not None and existing.owner == (
-        context.identity.tenant_id,
-        context.identity.user_id,
-        context.trace_id,
+    metadata = _task_metadata.get()
+    if (
+        existing is not None
+        and existing.owner
+        == (context.identity.tenant_id, context.identity.user_id, context.trace_id)
+        and existing.identity["central_task_id"] == (metadata.task_id if metadata else None)
     ):
         yield existing
         return

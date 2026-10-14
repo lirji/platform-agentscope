@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -9,6 +10,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel
 
+from agentscope_platform.application.dag_diagnostics import diagnostic_task_scope
 from agentscope_platform.application.dag_recovery import DagCheckpointUnavailable
 from agentscope_platform.application.ports import (
     AsyncTaskGateway,
@@ -306,13 +308,16 @@ class AsyncTaskManager:
         try:
             self._metrics.backlog(1, handle.kind)
             heartbeat = asyncio.create_task(self._heartbeat(handle))
-            async with asyncio.timeout(self._runtime_seconds(handle.context)):
+            runtime_seconds = self._runtime_seconds(handle.context)
+            deadline = time.time() + runtime_seconds
+            async with asyncio.timeout(runtime_seconds):
                 async with self._semaphore:
                     self._metrics.backlog(-1, handle.kind)
                     queued = False
                     self._metrics.running(1, handle.kind)
                     running = True
-                    result = await execute(sink)
+                    with diagnostic_task_scope(handle.task_id, handle.lease_epoch, deadline):
+                        result = await execute(sink)
             if handle.stop.is_set():
                 return
             terminal = await self._complete_once(
@@ -451,6 +456,8 @@ def runtime_config_digest(settings: Settings) -> str:
         for key, value in snapshot.items()
         if key.startswith(("agent_", "analytics_external_planner", "gateway_", "token_budget_"))
         and not any(word in key for word in ("secret", "key", "password", "redis_url"))
+        # 新增观测开关不改变执行语义, 也不能使升级前排队任务的摘要失配。
+        and key not in {"agent_dag_diagnostics_enabled", "agent_dag_cost_rates_configured"}
     }
     data = json.dumps(governed, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return "sha256:" + hashlib.sha256(data.encode()).hexdigest()

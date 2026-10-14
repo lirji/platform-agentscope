@@ -9,7 +9,7 @@
 - 先升级中央 async-task-service 的三个事件名允许列表，再升级 Python；旧中央会拒绝这些事件，Python记录投递故障，业务执行继续。没有数据库迁移。
 - 任务查询/事件重放继续沿用原身份隔离、租约和保留策略。未启用异步 progress 时只输出日志/指标。
 
-`executionId` 是一次进程执行片段；同一异步任务接管后产生新 executionId。`operationId` 关联角色、轮次和节点，`callId` 标识一个实际 SDK 模型调用。使用事件重放时按 callId 去重，不能重复累加相同事件。
+`executionId` 是一次进程执行片段；同一异步任务接管后产生新 executionId。异步管理器提供 `centralTaskId / leaseEpoch`，同步请求这两项为 null。`operationId` 关联角色、轮次和节点，`callId` 标识一个实际 SDK 模型调用。使用事件重放时按 callId 去重，不能重复累加相同事件。
 
 诊断不包含 goal、提示词、答案、工具参数/结果、凭据或异常正文。日志含 trace/tenant/node 等关联标识，应沿用项目日志访问与保留控制。
 
@@ -45,7 +45,7 @@ AGENT_OUTPUT_COST_USD_PER_MILLION_TOKENS=<当前模型输出单价>
 
 摘要的 `knownInputTokens / knownOutputTokens / knownEstimatedCostUsd` 仅累计有证据的部分；同时检查 `unknownUsageCalls / unpricedCalls`。任一未知时 `estimatedCostUsd=null`，不可展示成完整总费用。
 
-恢复片段设置 `resumed=true / historyComplete=false`，总费用保持 null。崩溃可能发生于提供商计费之后、日志/事件记录之前；已有检查点不能补齐这一未知费用。跨片段重做的模型调用是新调用，可能产生新费用。任务总恢复次数可依据已收到摘要中的 resumed 片段统计，但缺失片段时只能视为已观测次数。
+恢复片段设置 `resumed=true / historyComplete=false`，总费用保持 null。该规则同时覆盖v2检查点恢复和v1整任务重新领取（中央leaseEpoch>1）。崩溃可能发生于提供商计费之后、日志/事件记录之前；已有检查点不能补齐这一未知费用。跨片段重做的模型调用是新调用，可能产生新费用。任务总恢复次数可依据已收到摘要中的 resumed 片段统计，但缺失片段时只能视为已观测次数。
 
 ## 指标与故障边界
 
@@ -65,6 +65,6 @@ AGENT_OUTPUT_COST_USD_PER_MILLION_TOKENS=<当前模型输出单价>
 
 ## 回滚与验证
 
-设置 `AGENT_DAG_DIAGNOSTICS_ENABLED=false`；无需删除事件或改数据库。中央允许列表扩展可以保留。若回滚中央到旧版本，应先停用 Python 诊断，避免拒绝事件告警。
+设置 `AGENT_DAG_DIAGNOSTICS_ENABLED=false`；无需删除事件或改数据库。新增的诊断开关和价格确认标志不参与任务执行配置摘要，切换这些标志不使原排队任务失效；真正影响模型/工具行为的配置继续受版本校验保护。中央允许列表扩展可以保留。若回滚中央到旧版本，应先停用 Python 诊断，避免拒绝事件告警。
 
 测试与交付记录见 [实施计划](delivery/dag-diagnostics/PLAN.md)。离线模型适配器测试验证用量归因和行为兼容，不表示真实模型质量、账单或生产容量已经验收。
