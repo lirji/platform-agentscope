@@ -32,6 +32,11 @@ from agentscope_platform.domain.dag import (
     AgentPlanRunRequest,
 )
 from agentscope_platform.domain.dag_checkpoint import DagCheckpoint, DagCheckpointRequest
+from agentscope_platform.domain.dag_diagnostics import (
+    DagDiagnosticSummary,
+    DagModelDiagnostic,
+    DagOperationDiagnostic,
+)
 from agentscope_platform.domain.interop import capability_registry
 from agentscope_platform.domain.mcp import McpToolBinding
 from agentscope_platform.domain.metering import (
@@ -78,6 +83,9 @@ def artifacts() -> dict[Path, dict[str, Any]]:
     settings = Settings(_env_file=None, internal_auth_required=False)  # type: ignore[call-arg]
     app = create_app(settings)
     additional = {
+        "dag-diagnostic-model": DagModelDiagnostic,
+        "dag-diagnostic-operation": DagOperationDiagnostic,
+        "dag-diagnostic-summary": DagDiagnosticSummary,
         "budget-reservation-request": BudgetReservationRequest,
         "budget-reservation-reply": BudgetReservationReply,
         "budget-settlement-request": BudgetSettlementRequest,

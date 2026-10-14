@@ -226,8 +226,11 @@ class Settings(BaseSettings):
     workflow_management_base_url: str = ""
     order_management_base_url: str = ""
 
-    agent_input_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
-    agent_output_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
+    agent_input_cost_usd_per_million_tokens: float = Field(default=0, ge=0, allow_inf_nan=False)
+    agent_output_cost_usd_per_million_tokens: float = Field(default=0, ge=0, allow_inf_nan=False)
+    # 默认零费率可能代表未配置; 显式启用后才把零当作已知免费价格。
+    agent_dag_cost_rates_configured: bool = False
+    agent_dag_diagnostics_enabled: bool = True
 
     async_task_runtime_revision: str = Field(
         default="local", pattern=r"^(local|git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$"

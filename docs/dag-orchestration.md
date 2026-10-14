@@ -1,5 +1,7 @@
 # DAG 多 Agent 编排
 
+节点耗时、关键路径、复用/恢复原因及各模型角色费用估算见 [DAG 运行诊断](dag-diagnostics.md)。
+
 ## 已迁能力
 
 新服务提供同步 `POST /agent/dag/run`。inline 默认兼容模式执行如下：

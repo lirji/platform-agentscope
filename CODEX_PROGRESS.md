@@ -1,35 +1,37 @@
 # Codex Progress
 
 ## 任务目标
-节点级持久恢复已完成；本轮 S4 按用户要求默认启用并正常提交、合入推送 Python origin/main，不部署。
+
+完成用户已确认的 DAG 运行诊断与成本归因；正常提交、合入推送两仓 main，不部署。
 
 ## 已完成
-- S1：中央V5检查点、专用JWT、父任务行锁/租约epoch/CAS、同事务事件和逻辑删除；v1/v2领取隔离。
-- S2：计划（含安全回退）、节点、汇总、评审/重规划持久化；输入身份版本绑定；跨重启预算和deadline；最初交付默认关闭，现由 S4 调整为 API/worker 默认开启。
-- S3：Python584项/89.71%，Ruff/format/Mypy/契约/Shadow/离线构建/Compose通过；Java全量1524项/0失败/22条件跳过；隔离MySQL通过。
-- 真实跨进程SIGKILL恢复通过：首节点不重做，未知次节点重做，累计4次模型预留，旧epoch被拒；本地恢复16.00秒，不承诺生产RTO。
-- 计划、报告、验证和问答同步在docs/delivery/dag-recovery/及docs/dag-recovery.md；之前进度保留PREVIOUS_PROGRESS.md。
 
-- Python源码c5b6cef、Java源码555c1d2及门禁修复8f50ad6已正常合入推送两仓main，未强推；并发ETL提交完整保留。
-- Python CI38538810884、Java Cutover38540055512及Tax AI通过；Java供应链38540055244在依赖SBOM扫描失败。详情见DELIVERY_RESULT.md。
-
-- S4：API/worker 默认恢复和优化开启，inline 保持关闭，显式配置优先；Compose/模板/指南已同步。589项测试、89.71%覆盖率、Ruff/format/Mypy/契约/Compose通过。证据见 DEFAULT_ENABLEMENT.md。
+- S1/S2：五角色模型 usage/费用归因、节点排队与执行耗时、复用/恢复原因、关键路径、日志/指标/中央事件/SSE；旧响应和预算结算不变。
+- 诊断后台队列有界，故障不替代业务结论；接管历史缺口、未知usage/价格显式标记。
+- Java中央事件允许列表兼容扩展，身份/租户/租约/幂等约束保留；独立工作树隔离原部署任务。
+- S3：Python613项/90.20%，Ruff/format/Mypy/契约、离线shadow8样本、离线构建、Compose检查通过。Java模块及依赖199项通过。Code Hygiene通过并记录工具发现限制。
+- 详细技术决策、自审和验证见docs/delivery/dag-diagnostics/ENTERPRISE_FEATURE_REPORT.md；使用见docs/dag-diagnostics.md。
 
 ## 已修改文件
-- Python application/dag_recovery及dag/planning/async_task、domain检查点协议、worker/HTTP/模型预算适配、配置和契约。
-- 对应行为/契约测试、跨进程演练脚本、README/指南/问答/交付文档。
-- Java改动位于独立工作树：~/.local/share/git-worktrees/langchain4j-platform/dag-node-recovery；原目录知识ETL改动未触碰。
+
+- Python application/dag_diagnostics及dag/planning/recovery/reuse、domain诊断DTO、模型与观测适配器、配置、契约、测试和手册。
+- Java独立工作树 ~/.local/share/git-worktrees/langchain4j-platform/dag-diagnostics：AsyncTaskController允许列表、参数化测试和交付文档。
 
 ## 未完成
-- S4 实现、验证和 Git 交付完成：源码580f7e0已正常推送任务分支及origin/main；远程CI未作为通过证据。未执行生产启用/部署。Java依赖SBOM扫描未通过，后续依赖整改单独处理，不宣称生产发布就绪。
+
+- 源码与文档尚待提交、两仓main合入推送及远程CI状态核查。
 
 ## 当前问题
-- 无实现阻塞。PyPI临时超时后离线构建成功；Code Hygiene仅有formatter自动发现限制，无阻断。
-- 工具节点及依赖链跨接管重做；写节点恢复、真实付费模型双跑、生产启用和灾备承诺不在本次交付。
-- 保留历史工作树、私有配置、测试缓存/日志；未清理用户数据或部署。
+
+- 无实现阻塞；生产部署、真实付费模型质量/账单校验不在本次范围。
+- Java基线a23cc6c远程38575411792在既有依赖SBOM扫描失败；不宣称生产门禁通过。
+- 既有节点恢复交付仍以docs/dag-recovery.md及docs/delivery/dag-recovery/为准；原进度可在Git69de7e9查看。
 
 ## 下一步建议
-1. 本轮已完成，无待实施步骤；后续发布前核对新 CI、中央 V5 和已有环境显式开关，并单独处理 Java 依赖安全扫描。
+
+1. 按task-git-delivery显式暂存本次文件，完成Java兼容扩展及Python功能Git交付。
+2. 补充DELIVERY_RESULT和远程CI实际状态；保留原部署、私有配置、缓存及历史工作树。
 
 ## 恢复 Prompt
-S4 已完成并推送 main；读取 docs/delivery/dag-recovery/DEFAULT_ENABLEMENT.md 核对交付证据。API/worker 默认开启恢复，inline 默认关闭；不要重复实现、部署或清理历史工作树/忽略文件。Java依赖安全扫描仍未通过。
+
+读取本文件及docs/delivery/dag-diagnostics/，继续Git交付与CI核查；不要重复实现或部署。Python分支feat/dag-diagnostics，Java同名分支位于上述独立工作树。仅处理本任务改动，不覆盖原部署任务。

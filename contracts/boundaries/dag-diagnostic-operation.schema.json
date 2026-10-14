@@ -1,0 +1,131 @@
+{
+  "$defs": {
+    "DagDiagnosticReason": {
+      "description": "封闭原因码同时约束事件契约和指标标签基数。",
+      "enum": [
+        "executed",
+        "replan_reused",
+        "checkpoint_reused",
+        "reuse_input_changed",
+        "reuse_expired",
+        "previous_failed",
+        "non_reusable_tools",
+        "reuse_disabled",
+        "no_reusable_result",
+        "checkpoint_incomplete",
+        "checkpoint_not_reusable",
+        "checkpoint_input_changed",
+        "upstream_failed"
+      ],
+      "title": "DagDiagnosticReason",
+      "type": "string"
+    },
+    "DagRole": {
+      "description": "角色由编排器指定, 不接受模型输出覆盖。",
+      "enum": [
+        "planner",
+        "worker",
+        "synthesis",
+        "critic",
+        "replanner"
+      ],
+      "title": "DagRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "执行耗时与排队分开; duration 包括检查点及操作编排开销。",
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "durationMs": {
+      "minimum": 0,
+      "title": "Durationms",
+      "type": "number"
+    },
+    "executionId": {
+      "title": "Executionid",
+      "type": "string"
+    },
+    "executionMs": {
+      "minimum": 0,
+      "title": "Executionms",
+      "type": "number"
+    },
+    "kind": {
+      "const": "operation",
+      "default": "operation",
+      "title": "Kind",
+      "type": "string"
+    },
+    "nodeId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Nodeid"
+    },
+    "observedModelCalls": {
+      "minimum": 0,
+      "title": "Observedmodelcalls",
+      "type": "integer"
+    },
+    "operationId": {
+      "title": "Operationid",
+      "type": "string"
+    },
+    "queueMs": {
+      "minimum": 0,
+      "title": "Queuems",
+      "type": "number"
+    },
+    "reason": {
+      "$ref": "#/$defs/DagDiagnosticReason"
+    },
+    "role": {
+      "$ref": "#/$defs/DagRole"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "traceId": {
+      "title": "Traceid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "executionId",
+    "traceId",
+    "tenantId",
+    "operationId",
+    "role",
+    "attempt",
+    "status",
+    "reason",
+    "durationMs",
+    "queueMs",
+    "executionMs",
+    "observedModelCalls"
+  ],
+  "title": "DagOperationDiagnostic",
+  "type": "object"
+}

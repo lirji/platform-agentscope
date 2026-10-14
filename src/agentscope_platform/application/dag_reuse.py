@@ -26,6 +26,7 @@ class DagResultReuse:
     def __init__(self, ttl_seconds: float) -> None:
         self._ttl = ttl_seconds
         self._entries: dict[str, _Entry] = {}
+        self._ineligible: dict[str, str] = {}
 
     @staticmethod
     def fingerprint(
@@ -45,6 +46,19 @@ class DagResultReuse:
             return None
         return entry.result.model_copy(deep=True), entry.version
 
+    def reason(self, task_id: str, fingerprint: str) -> str:
+        """复用诊断不改变缓存决策, 不暴露输入摘要或业务内容。"""
+        entry = self._entries.get(task_id)
+        if self._ttl <= 0:
+            return "reuse_disabled"
+        if entry is None:
+            return self._ineligible.get(task_id, "no_reusable_result")
+        if entry.fingerprint != fingerprint:
+            return "reuse_input_changed"
+        if monotonic() >= entry.expires_at:
+            return "reuse_expired"
+        return "replan_reused"
+
     def record(self, task_id: str, fingerprint: str, result: AgentDagTaskResult) -> str:
         """失败、实时读取、未知工具或 TTL=0 均不复用; 执行版本仍用于失效下游。"""
         version = uuid4().hex
@@ -57,6 +71,7 @@ class DagResultReuse:
                 if step.action
             )
         ):
+            self._ineligible.pop(task_id, None)
             self._entries[task_id] = _Entry(
                 fingerprint,
                 version,
@@ -64,5 +79,12 @@ class DagResultReuse:
                 result.model_copy(deep=True),
             )
         else:
+            self._ineligible[task_id] = (
+                "previous_failed"
+                if result.result.stop_reason != "DONE"
+                else "non_reusable_tools"
+                if self._ttl > 0
+                else "reuse_disabled"
+            )
             self._entries.pop(task_id, None)
         return version

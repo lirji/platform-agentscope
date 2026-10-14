@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager, nullcontext
 from dataclasses import dataclass, field, replace
 
 from agentscope_platform.application.dag_budget import (
@@ -9,6 +9,14 @@ from agentscope_platform.application.dag_budget import (
     DagRunLimits,
     current_dag_budget,
     dag_execution_scope,
+)
+from agentscope_platform.application.dag_diagnostics import (
+    DagDiagnosticObserver,
+    current_diagnostics,
+    current_operation,
+    diagnostic_operation,
+    diagnostic_scope,
+    diagnostic_worker_slot,
 )
 from agentscope_platform.application.dag_recovery import checkpoint_step, current_recovery
 from agentscope_platform.application.dag_reuse import DagResultReuse
@@ -32,6 +40,7 @@ from agentscope_platform.domain.dag import (
     DagPlan,
     DagPlanTask,
 )
+from agentscope_platform.domain.dag_diagnostics import DagRole
 
 # 可复用结果的能力集合由服务端固定, 不接受模型声明只读或扩大权限。
 READONLY_DAG_TOOLS = frozenset(
@@ -95,7 +104,11 @@ class AgentDagApplicationService:
         capacity: DagWorkerCapacity | None = None,
         limits: DagRunLimits | None = None,
         reuse_ttl_seconds: float = 30,
+        diagnostics_enabled: bool = False,
+        diagnostic_observer: DagDiagnosticObserver | None = None,
     ) -> None:
+        self._diagnostics_enabled = diagnostics_enabled
+        self._diagnostic_observer = diagnostic_observer
         self._runner = runner
         self._max_tasks = max(1, max_tasks)
         self._worker_slots = asyncio.Semaphore(max(1, max_parallel_workers))
@@ -125,16 +138,28 @@ class AgentDagApplicationService:
         progress: ProgressSink | None = None,
     ) -> AgentDagRunReply:
         """从入口起绑定一次预算, 不因评审或重规划重置。"""
-        async with self.execution_scope(context):
+        async with self.execution_scope(context, progress):
             return await self._run(request, context, progress)
 
     @asynccontextmanager
-    async def execution_scope(self, context: RunContext) -> AsyncIterator[None]:
-        """供 Planner 在第一次模型调用前进入同一执行范围。"""
-        if self._optimized:
-            async with dag_execution_scope(self._limits, context):
-                yield
-        else:
+    async def execution_scope(
+        self, context: RunContext, progress: ProgressSink | None = None
+    ) -> AsyncIterator[None]:
+        """Planner 与 DAG 共用片段; 预算先退出以便诊断识别真实超时异常。"""
+        async with AsyncExitStack() as stack:
+            if self._diagnostics_enabled:
+                recovery = current_recovery()
+                await stack.enter_async_context(
+                    diagnostic_scope(
+                        context,
+                        self._diagnostic_observer,
+                        progress,
+                        resumed=recovery.resumed if recovery is not None else False,
+                        deadline=recovery.state.deadline / 1000 if recovery is not None else None,
+                    )
+                )
+            if self._optimized:
+                await stack.enter_async_context(dag_execution_scope(self._limits, context))
             yield
 
     async def _run(
@@ -177,15 +202,11 @@ class AgentDagApplicationService:
             async def critique_current(current: _DagExecution = execution) -> AgentDagCritique:
                 return await self._critique(goal, current, context)
 
-            critique = (
-                await checkpoint_step(
-                    f"critique:{attempt_number}",
-                    self._review_evidence(goal, execution),
-                    critique_current,
-                    AgentDagCritique,
-                )
-                if current_recovery() is not None
-                else await self._critique(goal, execution, context)
+            critique = await checkpoint_step(
+                f"critique:{attempt_number}",
+                self._review_evidence(goal, execution) if current_recovery() is not None else None,
+                critique_current,
+                AgentDagCritique,
             )
             aggregate = self._aggregate(critique)
             await self._emit(
@@ -267,6 +288,11 @@ class AgentDagApplicationService:
         reuse: DagResultReuse | None = None,
     ) -> _DagExecution:
         levels = self._topological_levels(tasks)
+        diagnostics = current_diagnostics()
+        if diagnostics is not None:
+            diagnostics.register_graph(
+                attempt, {task.id: task.depends_on for level in levels for task in level}
+            )
         await self._emit(
             progress,
             "dag-levels",
@@ -382,7 +408,7 @@ class AgentDagApplicationService:
         started: set[int] = set()
         remaining = {n: len(level) for n, level in enumerate(levels, 1)}
 
-        async def execute(
+        async def execute_node(
             task_id: str, upstream: Mapping[str, AgentDagTaskResult]
         ) -> AgentDagTaskResult:
             index = level_of[task_id]
@@ -405,6 +431,15 @@ class AgentDagApplicationService:
                 [(d, versions[d]) for d in task.depends_on],
             )
             cached = reuse.get(task_id, fingerprint) if reuse is not None else None
+            operation = current_operation()
+            if operation is not None:
+                operation.reason = (
+                    "replan_reused"
+                    if cached is not None
+                    else reuse.reason(task_id, fingerprint)
+                    if reuse is not None
+                    else "reuse_disabled"
+                )
             recovery = current_recovery()
             if recovery is not None:
 
@@ -479,6 +514,14 @@ class AgentDagApplicationService:
                 )
             return result
 
+        async def execute(
+            task_id: str, upstream: Mapping[str, AgentDagTaskResult]
+        ) -> AgentDagTaskResult:
+            async with diagnostic_operation(DagRole.WORKER, attempt, task_id) as operation:
+                result = await execute_node(task_id, upstream)
+                operation.status = result.result.stop_reason
+                return result
+
         results = await run_ready(
             {task.id: frozenset(task.depends_on) for task in tasks.values()},
             execute,
@@ -493,6 +536,11 @@ class AgentDagApplicationService:
         attempts: list[AgentDagAttempt],
         accepted: bool,
     ) -> AgentDagRunReply:
+        diagnostics = current_diagnostics()
+        if diagnostics is not None:
+            # 最终业务结果可以在重规划后成功, 不能用早期失败替代最终状态。
+            diagnostics.status = execution.synthesis.stop_reason
+            diagnostics.accepted_by_threshold = accepted
         return AgentDagRunReply(
             goal=goal,
             levels=[[task.id for task in level] for level in execution.levels],
@@ -605,20 +653,15 @@ class AgentDagApplicationService:
         attempt: int = 1,
         level_index: int = 1,
     ) -> list[AgentDagTaskResult]:
-        pending = [
-            asyncio.create_task(
-                self._run_one(
-                    goal,
-                    task,
-                    upstream_results,
-                    context,
-                    progress,
-                    attempt,
-                    level_index,
+        async def execute(task: _NormalizedTask) -> AgentDagTaskResult:
+            async with diagnostic_operation(DagRole.WORKER, attempt, task.id) as operation:
+                result = await self._run_one(
+                    goal, task, upstream_results, context, progress, attempt, level_index
                 )
-            )
-            for task in level
-        ]
+                operation.status = result.result.stop_reason
+                return result
+
+        pending = [asyncio.create_task(execute(task)) for task in level]
         try:
             return list(await asyncio.gather(*pending))
         except BaseException:
@@ -637,10 +680,13 @@ class AgentDagApplicationService:
         attempt: int = 1,
         level_index: int = 1,
     ) -> AgentDagTaskResult:
+        operation = current_operation()
         if self._optimized and any(
             upstream_results[dependency].result.stop_reason != "DONE"
             for dependency in task.depends_on
         ):
+            if operation is not None:
+                operation.reason = "upstream_failed"
             # 不把失败时的残余文本作为下游证据, 跳过可沿依赖传递。
             return AgentDagTaskResult(
                 taskId=task.id,
@@ -670,7 +716,7 @@ class AgentDagApplicationService:
                     "taskId": task.id,
                 },
             )
-            async with self._capacity.acquire(context.identity.tenant_id):
+            async with diagnostic_worker_slot(self._capacity.acquire(context.identity.tenant_id)):
                 await self._emit(
                     progress,
                     "dag-worker-start",
@@ -682,7 +728,8 @@ class AgentDagApplicationService:
                         "dependsOn": list(task.depends_on),
                     },
                 )
-                execution = await self._runner.run(worker_goal, context)
+                with operation.executing() if operation is not None else nullcontext():
+                    execution = await self._runner.run(worker_goal, context)
                 budget = current_dag_budget()
                 if budget is not None:
                     budget.ensure_available()
@@ -698,8 +745,15 @@ class AgentDagApplicationService:
                     "dependsOn": list(task.depends_on),
                 },
             )
-            async with self._worker_slots:
-                execution = await self._runner.run(worker_goal, context)
+
+            @asynccontextmanager
+            async def legacy_slot() -> AsyncIterator[None]:
+                async with self._worker_slots:
+                    yield
+
+            async with diagnostic_worker_slot(legacy_slot()):
+                with operation.executing() if operation is not None else nullcontext():
+                    execution = await self._runner.run(worker_goal, context)
         return AgentDagTaskResult(
             taskId=task.id,
             description=task.description,

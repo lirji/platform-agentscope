@@ -1,0 +1,192 @@
+{
+  "$defs": {
+    "DagCriticalPath": {
+      "additionalProperties": false,
+      "description": "本轮已观测节点执行耗时加权的最长依赖路径, 不含排队和模型其他角色。",
+      "properties": {
+        "attempt": {
+          "title": "Attempt",
+          "type": "integer"
+        },
+        "complete": {
+          "title": "Complete",
+          "type": "boolean"
+        },
+        "executionMs": {
+          "title": "Executionms",
+          "type": "number"
+        },
+        "nodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Nodeids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "attempt",
+        "nodeIds",
+        "executionMs",
+        "complete"
+      ],
+      "title": "DagCriticalPath",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "片段汇总; 历史缺口及观测缺口必须显式展示。",
+  "properties": {
+    "acceptedByThreshold": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Acceptedbythreshold"
+    },
+    "criticalPaths": {
+      "items": {
+        "$ref": "#/$defs/DagCriticalPath"
+      },
+      "title": "Criticalpaths",
+      "type": "array"
+    },
+    "deliveryFailures": {
+      "minimum": 0,
+      "title": "Deliveryfailures",
+      "type": "integer"
+    },
+    "droppedRecords": {
+      "minimum": 0,
+      "title": "Droppedrecords",
+      "type": "integer"
+    },
+    "durationMs": {
+      "minimum": 0,
+      "title": "Durationms",
+      "type": "number"
+    },
+    "estimatedCostUsd": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimatedcostusd"
+    },
+    "executionId": {
+      "title": "Executionid",
+      "type": "string"
+    },
+    "historyComplete": {
+      "title": "Historycomplete",
+      "type": "boolean"
+    },
+    "kind": {
+      "const": "summary",
+      "default": "summary",
+      "title": "Kind",
+      "type": "string"
+    },
+    "knownEstimatedCostUsd": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Knownestimatedcostusd"
+    },
+    "knownInputTokens": {
+      "minimum": 0,
+      "title": "Knowninputtokens",
+      "type": "integer"
+    },
+    "knownOutputTokens": {
+      "minimum": 0,
+      "title": "Knownoutputtokens",
+      "type": "integer"
+    },
+    "observedModelCalls": {
+      "minimum": 0,
+      "title": "Observedmodelcalls",
+      "type": "integer"
+    },
+    "resumed": {
+      "title": "Resumed",
+      "type": "boolean"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "scope": {
+      "const": "execution_segment",
+      "default": "execution_segment",
+      "title": "Scope",
+      "type": "string"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "traceId": {
+      "title": "Traceid",
+      "type": "string"
+    },
+    "unknownUsageCalls": {
+      "minimum": 0,
+      "title": "Unknownusagecalls",
+      "type": "integer"
+    },
+    "unpricedCalls": {
+      "minimum": 0,
+      "title": "Unpricedcalls",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "executionId",
+    "traceId",
+    "tenantId",
+    "status",
+    "durationMs",
+    "resumed",
+    "historyComplete",
+    "observedModelCalls",
+    "knownInputTokens",
+    "knownOutputTokens",
+    "unknownUsageCalls",
+    "unpricedCalls",
+    "knownEstimatedCostUsd",
+    "deliveryFailures",
+    "droppedRecords",
+    "criticalPaths"
+  ],
+  "title": "DagDiagnosticSummary",
+  "type": "object"
+}

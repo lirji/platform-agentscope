@@ -57,7 +57,7 @@ class AgentDagPlanningService:
         progress: ProgressSink | None = None,
     ) -> AgentDagRunReply:
         """规划与 DAG 执行共享预算, 防止规划耗时游离于总时限。"""
-        async with self._dag_service.execution_scope(context):
+        async with self._dag_service.execution_scope(context, progress):
             return await self._plan_and_run(request, context, kind, progress)
 
     async def _plan_and_run(

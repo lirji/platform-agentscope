@@ -3,12 +3,14 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextvars import ContextVar
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, cast
 
 from agentscope.message import Msg
 from agentscope.model import ChatResponse, OpenAIChatModel
 
 from agentscope_platform.infrastructure.agentscope.dag_budget_model import dag_budgeted_call
+from agentscope_platform.infrastructure.agentscope.diagnostic_model import observed_model_call
 
 _closers: ContextVar[list[Callable[[], Awaitable[None]]] | None] = ContextVar(
     "openai_stream_closers", default=None
@@ -17,6 +19,9 @@ _closers: ContextVar[list[Callable[[], Awaitable[None]]] | None] = ContextVar(
 
 class ClosingOpenAIChatModel(OpenAIChatModel):
     """逐调用保存资源, 同一模型并发时不共享连接/关闭回调."""
+
+    diagnostic_input_rate: Decimal | None = None
+    diagnostic_output_rate: Decimal | None = None
 
     def _parse_stream_response(
         self, start_datetime: datetime, response: Any
@@ -67,8 +72,15 @@ class ClosingOpenAIChatModel(OpenAIChatModel):
                     await close()
 
         try:
-            result = await super().__call__(
-                messages, tools=tools, tool_choice=tool_choice, **kwargs
+            result = await observed_model_call(
+                super().__call__,
+                model=self.model,
+                input_rate=self.diagnostic_input_rate,
+                output_rate=self.diagnostic_output_rate,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
             )
         except BaseException:
             await close()

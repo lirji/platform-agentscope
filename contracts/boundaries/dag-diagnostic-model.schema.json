@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "DagRole": {
+      "description": "角色由编排器指定, 不接受模型输出覆盖。",
+      "enum": [
+        "planner",
+        "worker",
+        "synthesis",
+        "critic",
+        "replanner"
+      ],
+      "title": "DagRole",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "实际 usage 与部署费率估算; null 表示未知, 不代表免费。",
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "callId": {
+      "title": "Callid",
+      "type": "string"
+    },
+    "durationMs": {
+      "minimum": 0,
+      "title": "Durationms",
+      "type": "number"
+    },
+    "estimatedCostUsd": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimatedcostusd"
+    },
+    "executionId": {
+      "title": "Executionid",
+      "type": "string"
+    },
+    "inputRatePerMillion": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Inputratepermillion"
+    },
+    "inputTokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Inputtokens"
+    },
+    "kind": {
+      "const": "model",
+      "default": "model",
+      "title": "Kind",
+      "type": "string"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "nodeId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Nodeid"
+    },
+    "operationId": {
+      "title": "Operationid",
+      "type": "string"
+    },
+    "outputRatePerMillion": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outputratepermillion"
+    },
+    "outputTokens": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Outputtokens"
+    },
+    "role": {
+      "$ref": "#/$defs/DagRole"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "DONE",
+        "ERROR",
+        "CANCELLED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "tenantId": {
+      "title": "Tenantid",
+      "type": "string"
+    },
+    "traceId": {
+      "title": "Traceid",
+      "type": "string"
+    }
+  },
+  "required": [
+    "executionId",
+    "traceId",
+    "tenantId",
+    "operationId",
+    "role",
+    "attempt",
+    "callId",
+    "model",
+    "status",
+    "durationMs"
+  ],
+  "title": "DagModelDiagnostic",
+  "type": "object"
+}

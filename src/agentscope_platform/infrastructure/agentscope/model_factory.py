@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from agentscope.credential import OpenAICredential
 from agentscope.model import OpenAIChatModel
 from pydantic import SecretStr
@@ -43,4 +45,9 @@ def build_openai_chat_model(
     )
     if isinstance(model, BudgetedOpenAIChatModel):
         model.budget_settings = settings
+    if settings.agent_dag_cost_rates_configured:
+        model.diagnostic_input_rate = Decimal(str(settings.agent_input_cost_usd_per_million_tokens))
+        model.diagnostic_output_rate = Decimal(
+            str(settings.agent_output_cost_usd_per_million_tokens)
+        )
     return model

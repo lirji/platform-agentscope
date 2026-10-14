@@ -13,12 +13,14 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from agentscope_platform.application.dag_budget import DagBudgetExceeded, DagDeadlineExceeded
+from agentscope_platform.application.dag_diagnostics import current_operation, diagnostic_operation
 from agentscope_platform.domain.dag_checkpoint import (
     CheckpointOperation,
     CheckpointStatus,
     DagCheckpoint,
     DagCheckpointState,
 )
+from agentscope_platform.domain.dag_diagnostics import DagRole
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -54,11 +56,13 @@ class DagRecovery:
         self.lock = asyncio.Lock()
         self.failed = False
         self.failure: BaseException | None = None
+        self.resumed = False
 
     @classmethod
     async def open(cls, gateway: CheckpointGateway, binding: str, seconds: float) -> "DagRecovery":
         """新任务固定期限; 恢复不得刷新期限或替换输入/身份摘要。"""
         checkpoint = await gateway.read()
+        resumed = checkpoint.state is not None
         if checkpoint.state is None:
             checkpoint = await gateway.save(
                 0, DagCheckpointState(binding=binding, deadline=int((time.time() + seconds) * 1000))
@@ -66,6 +70,7 @@ class DagRecovery:
         if checkpoint.state is None or checkpoint.state.binding != binding:
             raise ValueError("DAG checkpoint execution binding mismatch")
         recovery = cls(gateway, checkpoint)
+        recovery.resumed = resumed
         recovery.ensure_active()
         return recovery
 
@@ -117,13 +122,24 @@ class DagRecovery:
         async with self.lock:
             self.ensure_active()
             old = self.state.operations.get(key)
+            operation = current_operation()
             if (
                 old
                 and old.fingerprint == digest
                 and old.status is CheckpointStatus.DONE
                 and old.reusable
             ):
+                if operation is not None:
+                    operation.reason = "checkpoint_reused"
                 return result_type.model_validate(old.result)
+            if operation is not None and old is not None:
+                operation.reason = (
+                    "checkpoint_input_changed"
+                    if old.fingerprint != digest
+                    else "checkpoint_incomplete"
+                    if old.status is CheckpointStatus.RUNNING
+                    else "checkpoint_not_reusable"
+                )
             if key not in self.state.operations and len(self.state.operations) >= 256:
                 raise DagBudgetExceeded("DAG checkpoint operation capacity exceeded")
             entry = CheckpointOperation(
@@ -168,9 +184,19 @@ async def checkpoint_step[T: BaseModel](
     reusable: Callable[[T], bool] = lambda result: True,
 ) -> T:
     """普通同步/v1调用保持原行为, v2走持久检查点。"""
-    recovery = current_recovery()
-    return (
-        await invoke()
-        if recovery is None
-        else await recovery.run(key, inputs, invoke, result_type, reusable)
-    )
+    role, _, number = key.partition(":")
+    roles = {
+        "plan": DagRole.PLANNER,
+        "synthesis": DagRole.SYNTHESIS,
+        "critique": DagRole.CRITIC,
+        "replan": DagRole.REPLANNER,
+    }
+    async with diagnostic_operation(roles[role], int(number) if number else 1) as operation:
+        recovery = current_recovery()
+        result = (
+            await invoke()
+            if recovery is None
+            else await recovery.run(key, inputs, invoke, result_type, reusable)
+        )
+        operation.status = getattr(result, "stop_reason", "DONE")
+        return result

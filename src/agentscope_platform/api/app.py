@@ -87,6 +87,7 @@ from agentscope_platform.infrastructure.mcp.client import StreamableHttpMcpGatew
 from agentscope_platform.infrastructure.observability.async_task_metrics import (
     AsyncTaskMetrics,
 )
+from agentscope_platform.infrastructure.observability.dag_diagnostics import DagDiagnosticsObserver
 from agentscope_platform.infrastructure.observability.logging_observer import (
     LoggingRunObserver,
 )
@@ -203,6 +204,8 @@ def create_app(
     )
     dag_service = AgentDagApplicationService(
         app_runner,
+        diagnostics_enabled=app_settings.agent_dag_diagnostics_enabled,
+        diagnostic_observer=DagDiagnosticsObserver(),
         max_tasks=app_settings.agent_dag_max_tasks,
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
@@ -224,6 +227,8 @@ def create_app(
     )
     process_dag_service = AgentDagApplicationService(
         app_runner,
+        diagnostics_enabled=app_settings.agent_dag_diagnostics_enabled,
+        diagnostic_observer=DagDiagnosticsObserver(),
         max_tasks=min(app_settings.agent_dag_max_tasks, 4),
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
