@@ -209,6 +209,12 @@ class Settings(BaseSettings):
     http_circuit_failure_threshold: int = Field(default=5, ge=1, le=100)
     http_circuit_recovery_seconds: float = Field(default=15, gt=0, le=300)
     readiness_probe_timeout_seconds: float = Field(default=2, gt=0, le=10)
+    # Java管理端口可与业务端口分离; 留空兼容既有未拆端口的部署。
+    async_task_management_base_url: str = ""
+    knowledge_management_base_url: str = ""
+    analytics_management_base_url: str = ""
+    workflow_management_base_url: str = ""
+    order_management_base_url: str = ""
 
     agent_input_cost_usd_per_million_tokens: float = Field(default=0, ge=0)
     agent_output_cost_usd_per_million_tokens: float = Field(default=0, ge=0)

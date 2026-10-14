@@ -1,5 +1,20 @@
 # Codex Progress
 
+## 当前任务：Java 管理端口兼容与本地发布
+
+用户2026-10-14确认允许修复本独立仓库并发布AgentScope，以完成langchain4j-platform整栈Docker启动。分支fix/java-management-readiness，基线9ae29ce。
+
+- 已完成五项Java依赖独立management base URL配置、readiness选择逻辑、Compose和环境示例。
+- 新测试在旧实现FAIL；修复后6项聚焦及全量530项PASS，覆盖率89.38%；Ruff/format/Mypy、契约、Shadow8样本、静态供应链和Compose验证通过。
+- 下一步：提交、正常合入推送main，固定提交构建本地镜像，Java仓Compose部署并核对readiness；统一运行证据见Java仓docs/delivery/rag-quality-loop/DEPLOYMENT_RESULT.md。
+- 保留原有两项未跟踪目录和main所在工作树；不部署生产，不执行付费模型验证。
+- 详细变更与回退边界：docs/delivery/java-management-readiness.md。
+
+---
+以下为之前任务记录：
+
+# Codex Progress
+
 ## 任务目标
 
 交付本仓历史安全整改、适配新版 PyJWT 的测试、同步过期文档，并完成 Java 依赖整改准备。

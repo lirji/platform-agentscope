@@ -56,7 +56,11 @@ class HttpDependencyReadinessProbe:
             targets.append(
                 _HttpTarget(
                     "asyncTask",
-                    _base_url(self._settings.async_task_base_url, "/actuator/health/readiness"),
+                    _base_url(
+                        self._settings.async_task_management_base_url
+                        or self._settings.async_task_base_url,
+                        "/actuator/health/readiness",
+                    ),
                     True,
                 )
             )
@@ -92,22 +96,37 @@ class HttpDependencyReadinessProbe:
             (
                 _HttpTarget(
                     "knowledgeService",
-                    _base_url(self._settings.knowledge_base_url, "/actuator/health/readiness"),
+                    _base_url(
+                        self._settings.knowledge_management_base_url
+                        or self._settings.knowledge_base_url,
+                        "/actuator/health/readiness",
+                    ),
                     False,
                 ),
                 _HttpTarget(
                     "analyticsService",
-                    _base_url(self._settings.analytics_base_url, "/actuator/health/readiness"),
+                    _base_url(
+                        self._settings.analytics_management_base_url
+                        or self._settings.analytics_base_url,
+                        "/actuator/health/readiness",
+                    ),
                     False,
                 ),
                 _HttpTarget(
                     "workflowService",
-                    _base_url(self._settings.workflow_base_url, "/actuator/health/readiness"),
+                    _base_url(
+                        self._settings.workflow_management_base_url
+                        or self._settings.workflow_base_url,
+                        "/actuator/health/readiness",
+                    ),
                     False,
                 ),
                 _HttpTarget(
                     "orderService",
-                    _base_url(self._settings.order_base_url, "/actuator/health/readiness"),
+                    _base_url(
+                        self._settings.order_management_base_url or self._settings.order_base_url,
+                        "/actuator/health/readiness",
+                    ),
                     False,
                 ),
             )

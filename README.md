@@ -101,6 +101,8 @@ curl http://localhost:8085/metrics
 Workflow、Order 会显示状态，但降级不阻止只依赖模型的请求进入。响应只包含稳定的
 `UP`/`DOWN`/`DISABLED`，不会泄露地址或上游错误正文。
 
+Java 服务分离管理端口时，为 `ASYNC_TASK`、`KNOWLEDGE`、`ANALYTICS`、`WORKFLOW`、`ORDER` 设置对应的 `<名称>_MANAGEMENT_BASE_URL`。探针在该地址追加 `/actuator/health/readiness`，不改变业务请求地址；留空沿用业务地址，兼容旧部署。独立 Compose 使用 `DOCKER_<名称>_MANAGEMENT_BASE_URL`，须确保管理端口从容器可达。Java 整栈 Compose 已配置内部的 9086/9084/9083/9082/9093 端口。已配置管理地址返回失败时保持 DOWN，不自动回退业务地址。
+
 运行指标包含 Agent 延迟直方图、inflight、token、估算成本和终止原因。生产环境应按模型价格配置
 `AGENT_INPUT_COST_USD_PER_MILLION_TOKENS` 与
 `AGENT_OUTPUT_COST_USD_PER_MILLION_TOKENS`；默认 0 只保留 token 事实，不产生非零成本估算。

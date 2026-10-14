@@ -97,3 +97,72 @@ async def test_probe_maps_transport_failures_to_sanitized_down_status() -> None:
     assert checks["asyncTask"].status == "DISABLED"
     assert {check.status for check in checks.values()} <= {"UP", "DOWN", "DISABLED"}
     await client.aclose()
+
+
+@pytest.mark.anyio
+async def test_management_endpoints_are_independent_from_business_urls() -> None:
+    settings = _settings(
+        async_task_management_base_url="http://async.management:9086",
+        knowledge_management_base_url="http://knowledge.management:9084",
+        analytics_management_base_url="http://analytics.management:9083",
+        workflow_management_base_url="http://workflow.management:9082",
+        order_management_base_url="http://order.management:9093",
+    )
+    seen: set[str] = set()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.add(str(request.url))
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        probe = HttpDependencyReadinessProbe(settings, _confirmation_service(settings), client)
+        checks = {check.name: check for check in await probe.check()}
+
+    assert seen == {
+        "http://model.internal/health/liveliness",
+        "http://async.management:9086/actuator/health/readiness",
+        "http://knowledge.management:9084/actuator/health/readiness",
+        "http://analytics.management:9083/actuator/health/readiness",
+        "http://workflow.management:9082/actuator/health/readiness",
+        "http://order.management:9093/actuator/health/readiness",
+    }
+    assert checks["asyncTask"].status == "UP"
+    assert settings.async_task_base_url == "http://async.internal"
+    assert settings.knowledge_base_url == "http://knowledge.internal"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("status", [404, 503])
+async def test_management_failure_never_falls_back_to_healthy_business_port(status: int) -> None:
+    settings = _settings(async_task_management_base_url="http://async.management:9086/")
+    seen: set[str] = set()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.add(str(request.url))
+        return httpx.Response(status if request.url.host == "async.management" else 200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        probe = HttpDependencyReadinessProbe(settings, _confirmation_service(settings), client)
+        checks = {check.name: check for check in await probe.check()}
+
+    assert checks["asyncTask"].status == "DOWN"
+    assert checks["asyncTask"].required is True
+    assert "http://async.management:9086/actuator/health/readiness" in seen
+    assert "http://async.internal/actuator/health/readiness" not in seen
+
+
+@pytest.mark.anyio
+async def test_disabled_async_dependency_ignores_management_endpoint() -> None:
+    settings = _settings(
+        async_task_enabled=False,
+        async_task_management_base_url="http://async.management:9086",
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host != "async.management"
+        return httpx.Response(200)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        probe = HttpDependencyReadinessProbe(settings, _confirmation_service(settings), client)
+        checks = {check.name: check for check in await probe.check()}
+    assert checks["asyncTask"].status == "DISABLED"
