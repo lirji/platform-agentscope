@@ -82,3 +82,11 @@ gh attestation verify "oci://${IMAGE}" \
 本地验证不能替代以下证据：真实 GitHub Actions `v*` run、GHCR digest 推送、Cosign/Rekor
 验证、GitHub provenance 与 SBOM attestation、registry/admission 拒绝未签名 digest 的测试，
 以及从前一可信 digest 回滚的演练记录。缺少任一项时不得宣称生产供应链门禁已闭环。
+
+## 2026-10-14 依赖补丁
+
+锁文件将传递依赖 `multidict` 从 6.7.1 更新为 6.9.1，修复
+[GHSA-54p9-h82j-f925](https://github.com/aio-libs/multidict/security/advisories/GHSA-54p9-h82j-f925)
+的引用泄漏。aiohttp 已有 `multidict>=4.5,<7` 约束兼容，许可证仍为 Apache-2.0，
+未升级其他包或增加直接依赖。`uv audit --locked --no-dev` 审计 105 包未发现已知漏洞，
+更新后全量 526 测试通过。该结果有时间与锁文件边界，不能替代候选镜像和目标环境门禁。
