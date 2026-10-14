@@ -82,7 +82,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.65b0,<1" },
     { name = "opentelemetry-sdk", specifier = ">=1.44,<2" },
     { name = "pydantic-settings", specifier = ">=2.10,<3" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10,<3" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.13.0,<3" },
     { name = "redis", specifier = ">=6.4,<7" },
     { name = "structlog", specifier = ">=25.4,<26" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
