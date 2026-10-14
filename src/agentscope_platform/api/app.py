@@ -181,10 +181,13 @@ def create_app(
             tool_implementation_revision=TOOL_IMPLEMENTATION_REVISION,
         ),
     )
+    app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     app_reviewer = reviewer or AgentScopeDagQualityReviewer(app_settings)
     dag_service = AgentDagApplicationService(
         app_runner,
         max_tasks=app_settings.agent_dag_max_tasks,
+        optimized=app_settings.agent_dag_optimization_enabled,
+        synthesizer=app_text_generator,
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
         reviewer=app_reviewer,
         review_policy=DagReviewPolicy(
@@ -201,11 +204,14 @@ def create_app(
     process_dag_service = AgentDagApplicationService(
         app_runner,
         max_tasks=min(app_settings.agent_dag_max_tasks, 4),
+        optimized=app_settings.agent_dag_optimization_enabled,
+        synthesizer=app_text_generator,
+        allowed_tools=frozenset({"workflow_status", "workflow_tasks", "rag_search"})
+        | (frozenset({"refund_start"}) if app_settings.agent_refund_start_enabled else frozenset()),
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
         review_policy=DagReviewPolicy(enabled=False),
     )
     app_planner = planner or AgentScopeDagPlanner(app_settings)
-    app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     task_gateway = async_task_gateway or HttpAsyncTaskClient(
         app_settings,
         guards=dependency_guards,

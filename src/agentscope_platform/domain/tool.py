@@ -34,6 +34,7 @@ class RetryPolicy(StrEnum):
 
 class ToolPolicyReason(StrEnum):
     ALLOWED = "allowed"
+    CAPABILITY_DENIED = "capability_denied"
     MISSING_SCOPE = "missing_scope"
     CONFIRMATION_REQUIRED = "confirmation_required"
     CONFIRMATION_INVALID = "confirmation_invalid"
@@ -110,6 +111,12 @@ class ToolPolicy:
         context: RunContext,
         arguments: Mapping[str, Any] | None = None,
     ) -> ToolPolicyDecision:
+        if context.allowed_tools is not None and metadata.name not in context.allowed_tools:
+            return ToolPolicyDecision(
+                allowed=False,
+                reason=ToolPolicyReason.CAPABILITY_DENIED,
+                message="tool permission denied: outside server-assigned capabilities",
+            )
         missing_scopes = sorted(set(metadata.required_scopes) - set(context.identity.scopes))
         if missing_scopes:
             return ToolPolicyDecision(

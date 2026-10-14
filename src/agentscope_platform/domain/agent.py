@@ -27,6 +27,8 @@ class RunContext:
     token_expires_at: datetime | None = None
     confirmation_grants: tuple[ToolConfirmationGrant, ...] = field(default_factory=tuple)
     idempotency_key: str | None = None
+    # 服务端只可收窄节点能力; None 保持旧调用行为, 空集合表示禁止工具。
+    allowed_tools: frozenset[str] | None = None
 
     def has_confirmation_for_tool(self, tool_name: str) -> bool:
         return any(

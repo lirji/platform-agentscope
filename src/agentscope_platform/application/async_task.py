@@ -23,6 +23,7 @@ from agentscope_platform.domain.async_task import (
     AsyncTaskStatus,
     CentralAsyncTask,
 )
+from agentscope_platform.domain.dag import AgentDagRunReply
 
 
 class AsyncTaskRejectedError(RuntimeError):
@@ -427,6 +428,9 @@ class AsyncTaskManager:
 
     @staticmethod
     def _json_value(value: Any) -> Any:
+        # 调度完成不等于业务完成; PARTIAL/ERROR 不能落为中央 SUCCEEDED。
+        if isinstance(value, AgentDagRunReply) and value.synthesis.stop_reason != "DONE":
+            raise ValueError("DAG execution did not complete successfully")
         if isinstance(value, BaseModel):
             return value.model_dump(by_alias=True, mode="json")
         return value
