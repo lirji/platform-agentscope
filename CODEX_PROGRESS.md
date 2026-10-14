@@ -10,13 +10,16 @@
 - 真实跨进程SIGKILL恢复通过：首节点不重做，未知次节点重做，累计4次模型预留，旧epoch被拒；本地恢复16.00秒，不承诺生产RTO。
 - 计划、报告、验证和问答同步在docs/delivery/dag-recovery/及docs/dag-recovery.md；之前进度保留PREVIOUS_PROGRESS.md。
 
+- Python源码c5b6cef、Java源码555c1d2及门禁修复8f50ad6已正常合入推送两仓main，未强推；并发ETL提交完整保留。
+- Python CI38538810884、Java Cutover38540055512及Tax AI通过；Java供应链38540055244在依赖SBOM扫描失败。详情见DELIVERY_RESULT.md。
+
 ## 已修改文件
 - Python application/dag_recovery及dag/planning/async_task、domain检查点协议、worker/HTTP/模型预算适配、配置和契约。
 - 对应行为/契约测试、跨进程演练脚本、README/指南/问答/交付文档。
 - Java改动位于独立工作树：~/.local/share/git-worktrees/langchain4j-platform/dag-node-recovery；原目录知识ETL改动未触碰。
 
 ## 未完成
-- S4：两仓逻辑提交、Java契约固定到Python不可变commit、合入推送main及远程CI核对。
+- 本次实现、验证、Git交付已完成；未执行生产启用/部署。Java依赖SBOM扫描未通过，后续依赖整改单独处理，不宣称生产发布就绪。
 
 ## 当前问题
 - 无实现阻塞。PyPI临时超时后离线构建成功；Code Hygiene仅有formatter自动发现限制，无阻断。
@@ -24,7 +27,7 @@
 - 保留历史工作树、私有配置、测试缓存/日志；未清理用户数据或部署。
 
 ## 下一步建议
-1. 完成S4 Git与契约pin，更新DELIVERY_RESULT和当前进度。
+1. 按docs/dag-recovery.md规划后续启用；生产发布前单独处理Java依赖安全扫描，不重复实施本次功能。
 
 ## 恢复 Prompt
-读取docs/delivery/dag-recovery/和本文件，从S4交付继续；不要重做已通过功能，不要部署，不要触碰Java原目录知识ETL改动；保护历史工作树和忽略文件。
+本轮已交付。读取docs/delivery/dag-recovery/DELIVERY_RESULT.md核对源码、CI和边界；不要重复实现、部署或清理历史工作树/忽略文件。恢复默认关闭，Java依赖安全扫描仍未通过。

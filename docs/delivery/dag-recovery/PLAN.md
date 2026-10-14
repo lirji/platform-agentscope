@@ -30,3 +30,7 @@ technology_selection=PASS：复用现有稳定依赖。feature_architecture=PASS
 ## 回滚
 
 先停止 v2 入队并排空/取消 v2，再关闭 worker 恢复；v1 继续运行。旧 worker 不可领取 v2。保留 V5 与检查点记录，不能把回滚镜像视为撤销已执行效果。无需新增生产容量承诺；恢复时间仅报告实测，不外推 RTO/RPO。
+
+## 最终状态
+
+S1–S4完成，源码已合入推送两仓main；验证、CI与未启用边界见TEST_RESULT和DELIVERY_RESULT。Java依赖SBOM扫描未通过，不宣称生产发布就绪。
