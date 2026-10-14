@@ -55,6 +55,17 @@ class AgentDagPlanningService:
         kind: DagPlanKind = DagPlanKind.GENERAL,
         progress: ProgressSink | None = None,
     ) -> AgentDagRunReply:
+        """规划与 DAG 执行共享预算, 防止规划耗时游离于总时限。"""
+        async with self._dag_service.execution_scope(context):
+            return await self._plan_and_run(request, context, kind, progress)
+
+    async def _plan_and_run(
+        self,
+        request: AgentPlanRunRequest,
+        context: RunContext,
+        kind: DagPlanKind,
+        progress: ProgressSink | None,
+    ) -> AgentDagRunReply:
         goal = (request.goal or "").strip()
         if not goal:
             raise DagValidationError("goal is required")

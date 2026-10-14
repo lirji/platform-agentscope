@@ -18,6 +18,11 @@ from agentscope_platform.application.dag import (
     DagReviewPolicy,
     DagValidationError,
 )
+from agentscope_platform.application.dag_budget import (
+    DagBudgetExceeded,
+    DagDeadlineExceeded,
+    DagRunLimits,
+)
 from agentscope_platform.application.dag_scheduler import DagWorkerCapacity
 from agentscope_platform.application.observer import CompositeRunObserver
 from agentscope_platform.application.planning import AgentDagPlanningService
@@ -184,6 +189,12 @@ def create_app(
     )
     app_text_generator = text_generator or AgentScopeTextGenerator(app_settings)
     app_reviewer = reviewer or AgentScopeDagQualityReviewer(app_settings)
+    dag_limits = DagRunLimits(
+        timeout_seconds=app_settings.agent_dag_timeout_seconds,
+        max_model_calls=app_settings.agent_dag_max_model_calls,
+        max_reserved_tokens=app_settings.agent_dag_max_reserved_tokens,
+        max_evidence_chars=app_settings.agent_dag_max_evidence_chars,
+    )
     dag_capacity = DagWorkerCapacity(
         app_settings.agent_dag_max_parallel_workers,
         app_settings.agent_dag_tenant_max_workers,
@@ -193,6 +204,7 @@ def create_app(
         max_tasks=app_settings.agent_dag_max_tasks,
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
+        limits=dag_limits,
         synthesizer=app_text_generator,
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
         reviewer=app_reviewer,
@@ -212,6 +224,7 @@ def create_app(
         max_tasks=min(app_settings.agent_dag_max_tasks, 4),
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
+        limits=dag_limits,
         synthesizer=app_text_generator,
         allowed_tools=frozenset({"workflow_status", "workflow_tasks", "rag_search"})
         | (frozenset({"refund_start"}) if app_settings.agent_refund_start_enabled else frozenset()),
@@ -335,6 +348,28 @@ def create_app(
             status_code=503,
             content={
                 "error": "agent model is not configured",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(DagBudgetExceeded)
+    async def dag_budget_exceeded(request: Request, exc: DagBudgetExceeded) -> JSONResponse:
+        """只返回稳定预算错误码, 不暴露模型输入或底层异常。"""
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "AGENT_DAG_BUDGET_EXCEEDED",
+                "traceId": request.state.trace_id,
+            },
+        )
+
+    @app.exception_handler(DagDeadlineExceeded)
+    async def dag_deadline_exceeded(request: Request, exc: DagDeadlineExceeded) -> JSONResponse:
+        """总截止时间与单个工具超时分开映射。"""
+        return JSONResponse(
+            status_code=504,
+            content={
+                "error": "AGENT_DAG_DEADLINE_EXCEEDED",
                 "traceId": request.state.trace_id,
             },
         )

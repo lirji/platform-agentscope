@@ -8,6 +8,7 @@ from agentscope.message import Msg, SystemMsg, TextBlock, UserMsg
 from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 from pydantic import BaseModel, ValidationError
 
+from agentscope_platform.application.dag_budget import DagBudgetExceeded
 from agentscope_platform.application.ports import (
     DagQualityError,
     DagQualityReviewer,
@@ -170,6 +171,8 @@ class AgentScopeDagQualityReviewer(DagQualityReviewer):
             raise
         except (ValidationError, ValueError, TypeError) as exc:
             raise DagQualityError(f"{operation} response contract is invalid") from exc
+        except DagBudgetExceeded:
+            raise
         except Exception as exc:
             log.warning(
                 "DAG quality model call failed: %s",

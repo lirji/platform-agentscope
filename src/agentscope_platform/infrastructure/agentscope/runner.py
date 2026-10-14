@@ -11,6 +11,7 @@ from agentscope.message import Msg, TextBlock, ToolResultState, UserMsg
 from agentscope.state import AgentState
 from agentscope.tool import ToolBase, ToolChunk, Toolkit
 
+from agentscope_platform.application.dag_budget import DagBudgetExceeded
 from agentscope_platform.application.observer import (
     NoopRunObserver,
     RunObservation,
@@ -179,6 +180,8 @@ class AgentScopeRunner(AgentRunner):
                 stop_reason="CANCELLED",
                 steps=collector.steps(),
             )
+        except DagBudgetExceeded:
+            raise
         except Exception as exc:
             log.warning("agent execution failed: %s", type(exc).__name__)
             execution = AgentExecution(

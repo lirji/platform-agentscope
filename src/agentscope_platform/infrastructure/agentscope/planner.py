@@ -7,6 +7,7 @@ from agentscope.message import Msg, SystemMsg, TextBlock, UserMsg
 from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 from pydantic import ValidationError
 
+from agentscope_platform.application.dag_budget import DagBudgetExceeded
 from agentscope_platform.application.ports import DagPlanner, DagPlanningError
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import run_context
@@ -178,6 +179,8 @@ class AgentScopeDagPlanner(DagPlanner):
             raise
         except (ValidationError, ValueError, TypeError) as exc:
             raise DagPlanningError("Planner response contract is invalid") from exc
+        except DagBudgetExceeded:
+            raise
         except Exception as exc:
             log.warning(
                 "DAG Planner model call failed: %s",

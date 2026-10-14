@@ -3,10 +3,12 @@
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextvars import ContextVar
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from agentscope.message import Msg
 from agentscope.model import ChatResponse, OpenAIChatModel
+
+from agentscope_platform.infrastructure.agentscope.dag_budget_model import dag_budgeted_call
 
 _closers: ContextVar[list[Callable[[], Awaitable[None]]] | None] = ContextVar(
     "openai_stream_closers", default=None
@@ -34,6 +36,24 @@ class ClosingOpenAIChatModel(OpenAIChatModel):
         tool_choice: Any = None,
         **kwargs: Any,
     ) -> ChatResponse | AsyncGenerator[ChatResponse, None]:
+        limit = cast(OpenAIChatModel.Parameters, self.parameters).max_tokens
+        return await dag_budgeted_call(
+            self._call_with_resources,
+            messages,
+            output_limit=limit or 4096,
+            tools=tools,
+            tool_choice=tool_choice,
+            **kwargs,
+        )
+
+    async def _call_with_resources(
+        self,
+        messages: list[Msg],
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: Any = None,
+        **kwargs: Any,
+    ) -> ChatResponse | AsyncGenerator[ChatResponse, None]:
+        """预算准入之后管理 SDK 资源, 供中央预算适配器复用避免重复扣减。"""
         resources: list[Callable[[], Awaitable[None]]] = []
         token = _closers.set(resources)
 

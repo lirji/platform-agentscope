@@ -1,8 +1,14 @@
 import asyncio
 import json
-from collections.abc import Mapping
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 
+from agentscope_platform.application.dag_budget import (
+    DagRunLimits,
+    current_dag_budget,
+    dag_execution_scope,
+)
 from agentscope_platform.application.dag_scheduler import DagWorkerCapacity, run_ready
 from agentscope_platform.application.ports import (
     AgentRunner,
@@ -84,6 +90,7 @@ class AgentDagApplicationService:
         synthesizer: TextGenerator | None = None,
         allowed_tools: frozenset[str] = READONLY_DAG_TOOLS,
         capacity: DagWorkerCapacity | None = None,
+        limits: DagRunLimits | None = None,
     ) -> None:
         self._runner = runner
         self._max_tasks = max(1, max_tasks)
@@ -91,6 +98,7 @@ class AgentDagApplicationService:
         self._reviewer = reviewer
         self._review_policy = review_policy or DagReviewPolicy()
         self._capacity = capacity or DagWorkerCapacity(max_parallel_workers, max_parallel_workers)
+        self._limits = limits or DagRunLimits()
         self._optimized = optimized
         self._synthesizer = synthesizer
         self._allowed_tools = allowed_tools
@@ -100,6 +108,25 @@ class AgentDagApplicationService:
             raise ValueError("reviewer is required when DAG replan is enabled")
 
     async def run(
+        self,
+        request: AgentDagRunRequest,
+        context: RunContext,
+        progress: ProgressSink | None = None,
+    ) -> AgentDagRunReply:
+        """从入口起绑定一次预算, 不因评审或重规划重置。"""
+        async with self.execution_scope(context):
+            return await self._run(request, context, progress)
+
+    @asynccontextmanager
+    async def execution_scope(self, context: RunContext) -> AsyncIterator[None]:
+        """供 Planner 在第一次模型调用前进入同一执行范围。"""
+        if self._optimized:
+            async with dag_execution_scope(self._limits, context):
+                yield
+        else:
+            yield
+
+    async def _run(
         self,
         request: AgentDagRunRequest,
         context: RunContext,
@@ -510,6 +537,9 @@ class AgentDagApplicationService:
                     },
                 )
                 execution = await self._runner.run(worker_goal, context)
+                budget = current_dag_budget()
+                if budget is not None:
+                    budget.ensure_available()
         else:
             await self._emit(
                 progress,
@@ -570,10 +600,9 @@ class AgentDagApplicationService:
                     raise DagValidationError("unknown dependency in task graph")
         return normalized
 
-    @staticmethod
-    def _evidence(goal: str, results: list[AgentDagTaskResult]) -> str:
+    def _evidence(self, goal: str, results: list[AgentDagTaskResult]) -> str:
         """携带状态和工具证据, 明确剔除失败节点的残余回答。"""
-        return json.dumps(
+        evidence = json.dumps(
             {
                 "goal": goal,
                 "tasks": [
@@ -595,6 +624,11 @@ class AgentDagApplicationService:
             },
             ensure_ascii=False,
         )
+        if len(evidence) > self._limits.max_evidence_chars:
+            from agentscope_platform.application.dag_budget import DagBudgetExceeded
+
+            raise DagBudgetExceeded("DAG evidence exceeds input budget")
+        return evidence
 
     def _topological_levels(
         self,

@@ -6,6 +6,7 @@ from typing import Any, Protocol
 from agentscope.message import Msg, SystemMsg, TextBlock, UserMsg
 from agentscope.model import ChatResponse, FinishedReason, OpenAIChatModel
 
+from agentscope_platform.application.dag_budget import DagBudgetExceeded
 from agentscope_platform.application.ports import TextGenerationError, TextGenerator
 from agentscope_platform.core.config import Settings
 from agentscope_platform.core.context import run_context
@@ -75,6 +76,8 @@ class AgentScopeTextGenerator(TextGenerator):
         except asyncio.CancelledError:
             raise
         except TextGenerationError:
+            raise
+        except DagBudgetExceeded:
             raise
         except Exception as exc:
             log.warning(

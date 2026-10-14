@@ -21,6 +21,7 @@ from agentscope_platform.domain.metering import (
     BudgetSettlementRequest,
 )
 from agentscope_platform.infrastructure.agentscope.closing_model import ClosingOpenAIChatModel
+from agentscope_platform.infrastructure.agentscope.dag_budget_model import dag_budgeted_call
 
 
 class ModelBudgetError(RuntimeError):
@@ -216,10 +217,22 @@ class BudgetedOpenAIChatModel(ClosingOpenAIChatModel):
         limit = cast(OpenAIChatModel.Parameters, self.parameters).max_tokens
         if limit is None:
             raise ModelBudgetError("model output must be explicitly bounded")
-        return await budgeted_call(
-            super().__call__,
-            BudgetAuthorityClient(self.budget_settings),
-            self.budget_settings,
+
+        async def tenant_budget_call(
+            actual_messages: list[Msg],
+            **options: Any,
+        ) -> ChatResponse | AsyncGenerator[ChatResponse, None]:
+            return await budgeted_call(
+                self._call_with_resources,
+                BudgetAuthorityClient(self.budget_settings),
+                self.budget_settings,
+                actual_messages,
+                output_limit=limit,
+                **options,
+            )
+
+        return await dag_budgeted_call(
+            tenant_budget_call,
             messages,
             output_limit=limit,
             tools=tools,

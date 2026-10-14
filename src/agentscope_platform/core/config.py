@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     # 保留旧模式供双跑和回退, 优化模式仅在显式启用时改变执行语义。
     agent_dag_optimization_enabled: bool = False
     agent_dag_tenant_max_workers: int = Field(default=2, ge=1, le=32)
+    agent_dag_timeout_seconds: float = Field(default=300, gt=0, le=3600)
+    agent_dag_max_model_calls: int = Field(default=64, ge=1, le=1000)
+    agent_dag_max_reserved_tokens: int = Field(default=240_000, ge=1, le=10_000_000)
+    agent_dag_max_evidence_chars: int = Field(default=48_000, ge=1000, le=60_000)
     agent_dag_max_parallel_workers: int = Field(default=8, ge=1, le=32)
     agent_dag_replan_enabled: bool = True
     agent_dag_replan_max_replans: int = Field(default=1, ge=0, le=5)
@@ -291,6 +295,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_orchestrator_limits(self) -> "Settings":
+        if self.agent_dag_optimization_enabled and (
+            self.agent_model_max_retries or self.agent_planner_max_retries
+        ):
+            raise ValueError("optimized DAG requires fail-once model calls")
         if self.http_max_keepalive_connections > self.http_max_connections:
             raise ValueError("HTTP_MAX_KEEPALIVE_CONNECTIONS must not exceed HTTP_MAX_CONNECTIONS")
         if self.agent_voting_n > self.agent_voting_max_candidates:
