@@ -19,20 +19,22 @@
 
 ## 未完成
 
-- 首批Python63db408和Javae7410ed已进入两仓远程main；Python远程CI38576775738通过。
-- v1接管关联与观测配置摘要修补已完成验证，待本批提交与推送；Java远程CI尚在运行。
+- 功能开发、本地验证和源码Git交付全部完成，无待实施项。
+- Python源码63db408/e6c378a、Java源码e7410ed已正常进入两仓远程main。最终Python CI38577390963及Java Cutover CI38576737391通过。
+- Java供应链38576737341在依赖SBOM扫描失败，后续另行整改；未执行运行环境部署。
 
 ## 当前问题
 
 - 无实现阻塞；生产部署、真实付费模型质量/账单校验不在本次范围。
-- Java基线a23cc6c远程38575411792在既有依赖SBOM扫描失败；不宣称生产门禁通过。
+- Java源码e7410ed的供应链38576737341在依赖SBOM扫描失败；基线同一步骤失败。不宣称生产发布门禁通过。
 - 既有节点恢复交付仍以docs/dag-recovery.md及docs/delivery/dag-recovery/为准；原进度可在Git69de7e9查看。
 
 ## 下一步建议
 
-1. 交付本批兼容性修补并更新最终Git/CI记录。
-2. 补充DELIVERY_RESULT和远程CI实际状态；保留原部署、私有配置、缓存及历史工作树。
+1. 本轮已完成；Git/CI证据见docs/delivery/dag-diagnostics/DELIVERY_RESULT.md。
+2. 后续如需实际使用，单独按部署授权先升级中央允许列表，再升级Python；当前Docker仍为此前部署版本。
+3. 费用估算需显式配置AGENT_DAG_COST_RATES_CONFIGURED及输入/输出费率；缺失用量/价格保持未知。
 
 ## 恢复 Prompt
 
-读取本文件及docs/delivery/dag-diagnostics/，继续Git交付与CI核查；不要重复实现或部署。Python分支feat/dag-diagnostics，Java同名分支位于上述独立工作树。仅处理本任务改动，不覆盖原部署任务。
+本轮DAG诊断功能已完成，不要重复实现、提交源码或部署。先读取docs/delivery/dag-diagnostics/DELIVERY_RESULT.md确认交付证据。Python与Java使用feat/dag-diagnostics分支，Java工作树位于~/.local/share/git-worktrees/langchain4j-platform/dag-diagnostics；保留原部署、私有配置和历史工作树。依赖SBOM整改及实际部署属于后续独立任务。
