@@ -2,19 +2,26 @@
 
 ## 架构与安全边界
 
-Python 只负责进程内执行；`async-task-service` 是任务快照、事件、终态和 webhook 的唯一
-权威。提交顺序固定为 create → lease → 返回 202，之后 manager 执行现有同步 service，
+Python 默认采用 inline 进程内执行；`async-task-service` 是任务快照、事件、终态和 webhook 的唯一
+权威。inline 提交顺序为 create → lease → 返回 202，之后 manager 执行现有同步 service，
 周期续租并写回唯一终态。内部 JWT 不持久化，任务硬截止不晚于
 `min(ASYNC_TASK_MAX_RUNTIME_SECONDS, token.exp - safety)`。
+
+可选 api/worker 模式通过 `compose.readonly-worker.yml` 启用，先持久化分派输入再由独立 worker
+领取执行；API 不再执行本地闭包。它只支持受限的只读任务，允许崩溃后的重复只读/模型调用，
+由中央 lease epoch 拒绝旧执行器写回。启用前的 Java 迁移、版本绑定、预算与回退要求见
+[S6 独立只读 worker](delivery/cross-runtime-reliability.md#s6独立只读-worker)。
+下文 create/lease、orphan 和进程内恢复描述适用于默认 inline 路径。
 
 中央 API 分为两个授权面：任务列表、查询、SSE 和取消按 `tenant + owner user` 隔离；
 `lease/status/events` 只接受 `X-Async-Worker-Token`。worker token 与普通内部 JWT 使用不同
 密钥，绑定 service/tenant/actor/worker/task/action，单次请求短时签发；Python 发送 worker
 请求时不会同时转发 caller `X-Internal-Token`。状态和进度写入必须持有当前未过期租约。
 
-五个中央 kind 固定为 `agent.run`、`agent.dag`、`agent.dag-plan`、`agent.analyst` 和
-`agent.process`。任务 API 会隐藏同租户的其他 kind。Process 仍只装配只读 workflow/RAG
-能力。
+inline 模式五个中央 kind 为 `agent.run`、`agent.dag`、`agent.dag-plan`、`agent.analyst` 和
+`agent.process`；持久化分派使用对应的 `agent.readonly.*.v1`。Process 默认装配只读
+workflow/RAG 能力；inline 路径复用开关、确认 grant 与幂等约束下的退款发起，
+该写能力不扩展到独立只读 worker。
 
 ## 启用
 
@@ -65,7 +72,8 @@ bulkhead 槽，超时、5xx 和传输失败会计入该依赖熔断，4xx 不会
 - Python 收到正常停止信号：先停止接收新任务，并在 `ASYNC_TASK_DRAIN_TIMEOUT_SECONDS`（默认 30 秒）
   内保持 heartbeat、等待在途任务完成；超时后只取消本地 work，不伪造终态。容器停止宽限必须大于
   drain（Compose/Helm 默认 45 秒）。当前执行闭包只存在于内存，进程崩溃后不会自动重放；租约到期
-  fencing 后由 orphan reaper 明确失败。可跨进程续跑的语言中立 checkpoint 留待 AC-14。
+  fencing 后由 orphan reaper 明确失败。显式 session/checkpoint 已在 AC-14 实现，但不等于
+  自动重放任意 inline 闭包；独立 worker 恢复遵循上述 S6 约束。
 - webhook 失败：由中央 outbox 重试/死信；Python 禁止直接投递。
 - 依赖 bulkhead 满或 circuit open：立即返回稳定 unavailable，不排队扩大拥塞；读取能力由调用方
   明确显示暂不可用，副作用能力绝不自动重试或构造成功结果。
@@ -75,13 +83,12 @@ taskId、prompt、result 或 token 作为高基数标签。
 
 ## 指标抓取与告警
 
-两侧 scrape endpoint 都沿用内部 JWT 认证：
+Python `/metrics` 免内部 JWT；Java 指标迁至独立 management 端口（async-task 默认 9086）。
+这些抓取入口应由内部网络隔离，业务路由继续执行 JWT 校验：
 
 ```bash
-curl -H "X-Internal-Token: ${INTERNAL_TOKEN}" \
-  http://localhost:8085/metrics
-curl -H "X-Internal-Token: ${INTERNAL_TOKEN}" \
-  http://localhost:8086/actuator/prometheus
+curl http://localhost:8085/metrics
+curl http://localhost:9086/actuator/prometheus
 ```
 
 Python 暴露：
@@ -105,7 +112,7 @@ Python 暴露：
 - `async_task_backlog`（数据库中 `PENDING` 数量）
 - `async_task_inflight`（数据库中 `RUNNING` 数量）
 
-部署验收必须同时验证无 token 返回 401、带 token 返回 200，且至少执行一次任务后能看到
+部署验收必须验证业务请求无 token 返回 401、内部指标抓取返回 200，且至少执行一次任务后能看到
 对应 counter/gauge。告警至少覆盖 heartbeat failure 增长、orphan failure 增长、backlog 持续增长、
 inflight 长时间不归零、错误/超时终止率和 webhook dead outbox；延迟告警使用 histogram quantile，
 token/cost 使用 rate 或窗口增量。上述自定义指标的标签中禁止出现 taskId、tenant、user、prompt、

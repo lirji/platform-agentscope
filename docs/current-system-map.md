@@ -10,10 +10,10 @@
 |---|---|---|
 | ReAct | `agent-service/DeepAgentService` | 迁移到 AgentScope Agent |
 | 工具注册 | `AgentAction` + Spring Bean | AgentScope Toolkit + 自有 Tool Policy |
-| DAG | `agent-service/dag` | 同步 run、plan-run、critic/replan 已迁；异步待迁 |
-| Analyst/Process | `agent-service/analyst`,`process` | Analyst 已迁；Process 仅迁状态/待办只读查询 |
+| DAG | `agent-service/dag` | 同步 run、plan-run、critic/replan 和异步提交已迁；可选独立只读 worker |
+| Analyst/Process | `agent-service/analyst`,`process` | Analyst 已迁；Process 默认只读，确认后可调用 Java 发起退款流程，不自动审批 |
 | Voting/Reflexion/Chain | `agent-service` 对应包 | 迁移为应用编排器 |
-| 异步任务 | `agent-service/async` + `async-task-service` | 中央任务服务保留 |
+| 异步任务 | `agent-service/async` + `async-task-service` | 中央任务服务保留；Python 默认 inline，可选持久化分派/独立只读 worker |
 | 对外 A2A/MCP | `interop-service` | 首期保留，代理新服务 |
 | 评测 | `eval-service` | 保留并扩充双跑门禁 |
 

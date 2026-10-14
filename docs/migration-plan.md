@@ -29,8 +29,8 @@
 
 状态：代码切片、离线门禁和 Shadow 双跑工具已完成；本地真实协议三轮双跑已通过。
 订单事实证据和 trace 归因估算成本门禁已通过；候选 `/agent/v2/run` 默认关闭入口已准备，
-且旧平台 edge 的本地 `acme` 测试租户透明切流/回滚演练已通过。开放式答案模型 grader 与
-生产扩量仍待批准。
+且旧平台 edge 的本地 `acme` 测试租户透明切流/回滚演练已通过。开放式答案模型 grader
+已实现，但已有本地模型质量验收未通过；真实模型复验与生产扩量仍待完成。
 
 范围：
 
@@ -60,7 +60,8 @@
 
 状态：`/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run`、critic/replan
 同步质量闭环，以及 Prompt Chaining、Voting、Reflexion 同步 sibling orchestrators 已完成。
-Process 状态/待办只读切片也已完成；流程发起写能力仍留在旧服务。
+Process 状态/待办查询已完成；后续 Phase 4 支持在开关、确认 grant 与幂等键约束下
+调用 Java 发起退款流程，领域写入及审批仍由 Java workflow-service 负责。
 
 范围：
 
@@ -79,14 +80,17 @@ Process 状态/待办只读切片也已完成；流程发起写能力仍留在�
 
 ## Phase 3：异步任务
 
-状态：候选实现完成，默认关闭，等待双仓故障注入、真实双跑和生产灰度审批。
+状态：实现及本地双仓故障注入已完成，默认关闭；可选独立只读 worker 已通过
+API 退出、worker 崩溃接管、DAG 和旧 epoch 拒绝验证。真实模型双跑和生产灰度仍未完成。
 
 范围：
 
 - 复用 `async-task-service`。
 - lease、心跳、取消、状态机。
 - SSE、断点恢复、webhook。
-- worker 重启后的遗留任务由五 kind allowlist reaper 明确失败；不恢复/重放模型调用。
+- 默认 inline 模式由五 kind allowlist reaper 明确失败；可选独立只读 worker 按持久化
+  输入恢复，恢复可能重复模型调用和费用，不重放副作用。见
+  [S6 运行边界](delivery/cross-runtime-reliability.md#s6独立只读-worker)。
 
 退出条件：
 
@@ -119,7 +123,8 @@ Process 状态/待办只读切片也已完成；流程发起写能力仍留在�
 ## Phase 5：灰度切换
 
 状态：本地全量默认切换已获批准并实施；edge、interop、Compose 与 Helm 默认指向
-AgentScope，Java 镜像/服务定义保留为整服务回滚目标。生产发布与 Java 代码删除未执行。
+AgentScope（Helm 位于同级 `langchain4j-platform/deploy/helm`）。Java 镜像/服务定义保留为
+整服务回滚目标；生产发布仍为 **NO-GO**，生产切流与 Java 代码删除未执行。
 
 1. Shadow：新服务运行但结果不返回用户。
 2. 按能力灰度：只读 Agent 先切。
@@ -139,7 +144,8 @@ AgentScope，Java 镜像/服务定义保留为整服务回滚目标。生产发�
   预算语义不一致。
 - [x] 使用有效种子租户完成每案例三轮本地真实双跑和质量/P95 门禁。
 - [x] 建立答案事实证据、W3C trace、脱敏成本账本 Join，并完成三轮本地门禁。
-- [ ] 使用 Java eval-service/模型 grader 覆盖 RAG 与分析等开放式答案。
+- [x] 建立模型 grader，覆盖 RAG 与分析等开放式答案；实现采用兼容 HTTP Judge，复用旧侧评分语义。
+- [ ] 使用获准的真实模型通过开放式答案质量门禁（已有本地结果未达标）。
 - [x] 完成 AgentScope Event 轨迹映射。
 - [x] 迁移只读工具。
 - [x] 接入安全运行日志、token 计量和可选 OTel。
@@ -150,7 +156,7 @@ AgentScope，Java 镜像/服务定义保留为整服务回滚目标。生产发�
 - [x] 实现同步 Prompt Chaining、Voting、Reflexion sibling orchestrators。
 - [x] 实现 Process 状态/待办只读查询切片，写能力保持在旧服务。
 - [x] 对接 async-task、持久事件 journal、任务 SSE、取消、心跳和定向 orphan reaper。
-- [ ] 建立副作用 Tool Policy。
+- [x] 建立副作用 Tool Policy、参数绑定确认 grant、持久防重放及幂等约束。
 - [x] 完成候选服务侧 `/agent/v2/run` 开关与本地启停回滚演练。
 - [x] 完成本地 edge 按 `acme` Casdoor 测试租户切流与回滚演练；生产扩量仍需独立审批。
 - [x] 补齐 `/agent/capabilities`，将 Compose/Helm、edge 与 interop 默认目标全量切到 AgentScope。

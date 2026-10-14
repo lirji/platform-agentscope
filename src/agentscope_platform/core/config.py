@@ -446,6 +446,11 @@ class Settings(BaseSettings):
             and self.agent_session_store != "redis"
         ):
             raise ValueError("AGENT_SESSION_STORE must be redis in production")
+        # 生产配置误关鉴权时直接拒绝启动, 避免业务请求降级为 anonymous 租户。
+        if self.app_env.strip().casefold() in {"prod", "production"} and not (
+            self.internal_auth_required
+        ):
+            raise ValueError("INTERNAL_AUTH_REQUIRED must be true in production")
         return self
 
     @property

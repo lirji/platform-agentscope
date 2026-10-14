@@ -8,10 +8,16 @@
 `/agent/dag/run`、`/agent/dag/plan-run`、`/agent/analyst/run` 契约，具备拓扑分层、
 同层有界并行 worker、直接上游结果传播、通用/分析专用规划、synthesis 以及
 critic/replan 质量闭环；五类异步提交、任务查询/取消/可恢复 SSE、Reflexion SSE 也已接入
-中央 `async-task-service`。Process 始终只读；异步总开关与中央 orphan reaper 默认关闭，
+中央 `async-task-service`。Process 默认只读；仅当 `AGENT_REFUND_START_ENABLED=true` 且请求携带
+参数绑定的确认 grant 与 `Idempotency-Key` 时可发起 `refund_start`（只发起、不审批）；
+异步总开关与中央 orphan reaper 默认关闭，
 旧平台 edge 与 interop 的默认目标已切到 `agentscope-orchestrator`，能力发现
 `GET /agent/capabilities` 也已兼容。旧 Java 服务仅保留为显式整服务回滚目标；当前只读
 工具面不宣称覆盖 Java-only 高风险/写能力，也未执行生产部署。
+
+“Phase 5 全量默认切换”仅指本地/Compose 默认目标。生产发布结论仍为 **NO-GO**：
+`docs/operations/production-release-runbook.md` 的外部证据门禁未通过前不得切换生产
+`AGENT_URI`。Helm chart 位于 `langchain4j-platform/deploy/helm`，不在本仓库。
 
 ## 技术基线
 
@@ -83,12 +89,13 @@ uv sync --dev
 ```bash
 curl http://localhost:8085/health
 curl http://localhost:8085/readiness
-curl -H "X-Internal-Token: ${INTERNAL_TOKEN}" http://localhost:8085/metrics
+curl http://localhost:8085/metrics
 ```
 
 `/agent/run` 默认要求来自旧平台 edge-gateway 的 `X-Internal-Token`。本地只验证路由时，
-可以在 `.env` 中临时设置 `INTERNAL_AUTH_REQUIRED=false`；该设置不得用于共享或生产环境。
-`/metrics` 同样要求有效内部 token，避免匿名暴露运行时与容量信息。
+可以在 `.env` 中临时设置 `INTERNAL_AUTH_REQUIRED=false`；该设置不得用于共享环境，
+`APP_ENV=prod/production` 时会拒绝启动。`/metrics` 与健康探针一样不要求内部 token，
+仅导出低基数且不含租户/用户/正文的指标；部署时通过内部网络限制抓取入口。
 `/readiness` 会并发探测模型网关，以及所有已启用的 async-task、MCP、Browser、Code
 和 Redis confirmation replay 依赖；任一必要依赖不可用时返回 503。Knowledge、Analytics、
 Workflow、Order 会显示状态，但降级不阻止只依赖模型的请求进入。响应只包含稳定的
@@ -111,9 +118,10 @@ Workflow、Order 会显示状态，但降级不阻止只依赖模型的请求进
 并发/阈值配置、安全边界与未迁范围见
 [Sibling Orchestrators 指南](docs/sibling-orchestrators.md)。
 
-`/agent/process/run` 是安全收窄的只读候选：可查询实例状态和待审批任务，但不会发起或
-审批退款。迁移决策见
-[Process 只读切片](docs/delivery/phase-2-process-readonly-slice.md)。
+`/agent/process/run` 默认查询实例状态和待审批任务；启用 `refund_start` 且携带参数绑定的
+确认 grant 与幂等键后可发起退款流程，始终不自动审批。早期范围见
+[Process 只读切片](docs/delivery/phase-2-process-readonly-slice.md)，当前写能力约束见
+[受治理工具运行手册](docs/governed-tools.md)。
 
 异步入口、中央依赖、token 截止、SSE 恢复、灰度和回滚见
 [异步编排运行手册](docs/async-orchestration.md)。本地需先启动中央服务，再显式设置

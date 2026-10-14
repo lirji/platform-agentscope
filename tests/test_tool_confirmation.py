@@ -8,6 +8,7 @@ from pydantic import SecretStr, ValidationError
 
 from agentscope_platform.api.app import create_app
 from agentscope_platform.application.confirmation import (
+    ToolConfirmationError,
     ToolConfirmationService,
     ToolConfirmationUnavailableError,
 )
@@ -106,11 +107,31 @@ def test_confirmation_grant_binds_identity_arguments_and_idempotency() -> None:
     )
 
 
+_BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+
+
+def tampered_signature(grant: str) -> str:
+    """修改签名有效位, 避免只改末字符填充位而没有真正篡改签名字节。"""
+    header, payload, signature = grant.split(".")
+    first = "A" if signature[0] != "A" else "B"
+    return f"{header}.{payload}.{first}{signature[1:]}"
+
+
+def non_canonical_signature_variant(grant: str) -> str:
+    """仅改变填充位, 构造签名字节相同但编码不规范的凭据。"""
+    header, payload, signature = grant.split(".")
+    value = _BASE64URL.index(signature[-1])
+    variant = _BASE64URL[(value & ~0b11) | ((value + 1) & 0b11)]
+    return f"{header}.{payload}.{signature[:-1]}{variant}"
+
+
 def test_confirmation_grant_rejects_tampering_cross_tenant_and_wrong_idempotency() -> None:
-    client = TestClient(create_app(configured_settings(), CapturingRunner()))
+    runner = CapturingRunner()
+    client = TestClient(create_app(configured_settings(), runner))
     grant = issue_grant(client)
     requests = [
-        (grant[:-1] + ("a" if grant[-1] != "a" else "b"), internal_token(), "refund-request-42"),
+        (tampered_signature(grant), internal_token(), "refund-request-42"),
+        (non_canonical_signature_variant(grant), internal_token(), "refund-request-42"),
         (grant, internal_token("globex", "bob"), "refund-request-42"),
         (grant, internal_token(), "different-request"),
     ]
@@ -127,6 +148,31 @@ def test_confirmation_grant_rejects_tampering_cross_tenant_and_wrong_idempotency
         )
         assert response.status_code == 400
         assert response.json()["detail"] == "invalid tool confirmation grant"
+        assert runner.context is None
+
+
+@pytest.mark.parametrize("already_consumed", [False, True])
+async def test_non_canonical_grant_encoding_is_rejected_before_replay_check(
+    already_consumed: bool,
+) -> None:
+    settings = configured_settings()
+    codec = JwtToolConfirmationCodec(settings)
+    store = InMemoryConfirmationReplayStore()
+    token = codec.encode(confirmation_grant("refund_start", {"message": "订单 101 申请退款"}))
+    variant = non_canonical_signature_variant(token)
+    assert variant != token
+
+    original = codec.decode(token)
+    if already_consumed:
+        assert await store.consume(original) is True
+
+    # 新版 PyJWT 在验签边界拒绝非规范编码, 不能为了复现旧路径放宽安全验证。
+    with pytest.raises(ToolConfirmationError, match=r"^invalid tool confirmation grant$"):
+        codec.decode(variant)
+
+    # 非法编码既不能消费合法 grant, 也不能恢复已经消费过的 grant。
+    assert await store.consume(original) is (not already_consumed)
+    assert await store.consume(original) is False
 
 
 def test_legacy_tool_name_confirmation_header_is_rejected() -> None:

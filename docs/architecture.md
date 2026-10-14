@@ -112,3 +112,4 @@ api ───────▶ application ───────▶ domain
 - Phase 3：统一异步任务、SSE、取消和 webhook。
 - Phase 4：受治理的副作用工具、Browser、MCP、Sandbox。
 - Phase 5：本地默认流量已全量切换；保留旧 Java 镜像一个回滚周期，生产发布与代码删除待后续执行。
+  生产发布结论为 NO-GO，以 `production-release-runbook.md` 证据门禁为准。

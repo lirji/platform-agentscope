@@ -4,6 +4,8 @@ from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import pytest
+
 from agentscope_platform.evaluation import cli
 from agentscope_platform.evaluation.dataset import build_dataset, write_dataset
 from agentscope_platform.evaluation.models import (
@@ -85,7 +87,12 @@ class AgentHandler(BaseHTTPRequestHandler):
         del format, args
 
 
-async def test_cli_runs_against_real_local_http_targets(tmp_path: Path) -> None:
+async def test_cli_runs_against_real_local_http_targets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 回环测试必须直连本地服务, 避免环境变量或系统代理把代理错误当作产品失败。
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     servers = [
         ThreadingHTTPServer(("127.0.0.1", 0), AgentHandler),
         ThreadingHTTPServer(("127.0.0.1", 0), AgentHandler),
