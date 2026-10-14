@@ -189,6 +189,7 @@ DAG 结构兼容双跑使用 `agentscope-dag-shadow-eval`，只在报告中保�
 - [Shadow 双跑指南](docs/shadow-evaluation.md)
 - [候选路由与回滚](docs/candidate-route.md)
 - [DAG 编排指南](docs/dag-orchestration.md)
+- [多步骤编排优化问答记录](docs/delivery/dag-optimization/QA_RECORD.md)
 - [Sibling Orchestrators 指南](docs/sibling-orchestrators.md)
 - [异步编排运行手册](docs/async-orchestration.md)
 - [开发指南](docs/development.md)

@@ -16,6 +16,7 @@
 - 五个逻辑提交 8545684、49a251d、36db8d6、4b506f8、82651a7 已正常合入推送 origin/main。
 - 源码 `82651a7` 的 CI 38529981435 SUCCESS（含镜像扫描）：https://github.com/lirji/platform-agentscope/actions/runs/38529981435 。收尾文档不改变已验证源码。
 - 优化默认关闭；未执行部署、付费模型验证或生产流量切换。
+- 按用户追加要求整理本轮问答：`docs/delivery/dag-optimization/QA_RECORD.md`，README 与交付记录已链接。
 
 ## 已修改文件
 

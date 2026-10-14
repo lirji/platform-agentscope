@@ -61,3 +61,7 @@
 源码提交 `82651a79ec603d22e3cec30a05f763684769f0c5` 对应远程 [CI 38529981435](https://github.com/lirji/platform-agentscope/actions/runs/38529981435) SUCCESS，含依赖审计、测试、镜像构建与漏洞扫描。后续收尾文档不改变已验证源码。无生产部署。
 
 原目录无未提交产品改动；保留任务分支与既有 detached `cross-runtime-verification` 工作树。本轮没有新建工作树。`.workflow/`、`.engineering/remediation/` 按当前忽略规则保留；私有配置、`.venv`、缓存、dist/reports 不删除。构建缓存/本轮 dist 可按需清理，但没有执行清理；旧工作树是否可删除需先核对其私有文件和其他任务用途。
+
+## 问答归档
+
+用户追加要求已整理为 [本轮问答记录](QA_RECORD.md)，覆盖改造前实现、优化建议、执行计划、验证结果及未实施的 S6 条件阶段。记录为整理版，非逐字转录；不改变已验证源码。
