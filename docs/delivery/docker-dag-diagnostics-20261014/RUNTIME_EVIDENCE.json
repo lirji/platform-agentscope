@@ -1,0 +1,398 @@
+{
+  "timeUtc": "2026-10-14T14:14:26Z",
+  "javaReadiness": {
+    "edge-gateway": {
+      "http": 200,
+      "status": "UP"
+    },
+    "conversation-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "workflow-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "analytics-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "knowledge-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "async-task-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "channel-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "interop-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "vision-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "voice-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "auth-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "order-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "tax-service": {
+      "http": 200,
+      "status": "UP"
+    },
+    "config-server": {
+      "http": 200,
+      "status": "UP"
+    }
+  },
+  "frontend": {
+    "http": 200
+  },
+  "casdoor": {
+    "http": 200,
+    "status": null,
+    "count": 0
+  },
+  "agentReadiness": {
+    "http": 200,
+    "status": "UP",
+    "count": 0
+  },
+  "anonymousSync": {
+    "http": 401
+  },
+  "authorizedSync": {
+    "http": 200,
+    "count": 0
+  },
+  "authorizedQuality": {
+    "http": 200,
+    "count": 0
+  },
+  "preservedHistoricalContainers": [
+    "/infra-smoke-32bf704108d3",
+    "/infra-smoke-96e528df4e73",
+    "/infra-smoke-4e4fe1b77e34"
+  ],
+  "containers": [
+    {
+      "name": "/langchain4j-platform-agentscope-orchestrator-1",
+      "image": "agentscope-platform:3cb39f6",
+      "imageId": "sha256:8bd78ad6daa069c82ec08c9988398c3720fcb917721d02c865c4e6d3d9d7a046",
+      "revision": "3cb39f6e125a17d5be40430d85dc3aea39bad045",
+      "status": "running",
+      "exitCode": 0,
+      "health": "healthy",
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-async-task-service-1",
+      "image": "langchain4j-platform-async-task-service:5cdb6f3",
+      "imageId": "sha256:cc9af3ca6e65f730e0d14cbecec313d072ebfcb4a6f0f21980aea523e67130af",
+      "revision": "5cdb6f35e266701ef34d11e258dd604739e7bb0e",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-edge-gateway-1",
+      "image": "langchain4j-platform-edge-gateway:3f31dfd",
+      "imageId": "sha256:7592344e17314739373d3cb3cb09e7ed7c1dae8ca85496130a54ee88d1bb0fb8",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-interop-service-1",
+      "image": "langchain4j-platform-interop-service:3f31dfd",
+      "imageId": "sha256:fffa4579e2895deb4bd2fc9d7c658b18c8f2c74df7c22bec3658b3268f00f4dc",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-workflow-service-1",
+      "image": "langchain4j-platform-workflow-service:3f31dfd",
+      "imageId": "sha256:3d6f5d96052f67138a868a23992a6393352f28f0192917e32d669783dcbb8b52",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-voice-service-1",
+      "image": "langchain4j-platform-voice-service:3f31dfd",
+      "imageId": "sha256:e1fd7c27ed41c6d098d0f6ceecffb7f8c6261399366e46038d200310765c319c",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-conversation-service-1",
+      "image": "langchain4j-platform-conversation-service:3f31dfd",
+      "imageId": "sha256:6a0f6469668fb7d95f3df44e4004bfb93521fddbf84281a653c3b017fb167d74",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-tax-service-1",
+      "image": "langchain4j-platform-tax-service:3f31dfd",
+      "imageId": "sha256:be55037ae202037b8c30382c70290c3c2c2d891863c1b465da264a78743685e2",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-channel-service-1",
+      "image": "langchain4j-platform-channel-service:3f31dfd",
+      "imageId": "sha256:e933903db4551adc3c6a91bb12745faefd37a66666259fbff525884cd7f78aa8",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-knowledge-service-1",
+      "image": "langchain4j-platform-knowledge-service:3f31dfd",
+      "imageId": "sha256:34e5d3e6db1669ea04c1f687016f6de1e165cf8ecea87f6b88a4d4450826afa1",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-order-service-1",
+      "image": "langchain4j-platform-order-service:3f31dfd",
+      "imageId": "sha256:a1e8b281a4f875154b6a13a476cb2a21c2720d588372597c3c8bdaa457f98e50",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-analytics-service-1",
+      "image": "langchain4j-platform-analytics-service:3f31dfd",
+      "imageId": "sha256:a9f17622c08f84de0f2ff134499bd7e42a80534e67485e20ae6cdd9f6ce0251e",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-auth-service-1",
+      "image": "langchain4j-platform-auth-service:3f31dfd",
+      "imageId": "sha256:ba4d1ab4817d6061897112f51481c7dfaaccb3fba52a483ddae67299c860b049",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-config-server-1",
+      "image": "langchain4j-platform-config-server:3f31dfd",
+      "imageId": "sha256:aa680a7cb4f30476ccacc3718d27b0a2dcf7a57bb48450ccf8148b4fc747929d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-order-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-async-task-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-conversation-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-analytics-demo-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-capability-showcase-frontend-1",
+      "image": "langchain4j-platform-capability-showcase-frontend:3f31dfd",
+      "imageId": "sha256:199d578fa4338d7b3efcdc111ad5292fbc709163f053a5b1e84f621d556919fc",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-channel-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-knowledge-ingestion-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-knowledge-graph-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-vision-service-1",
+      "image": "langchain4j-platform-vision-service:3f31dfd",
+      "imageId": "sha256:ea400aa4601561c5a15a793cb626adeb66bf2b0a032901f40913b7f7313adc9b",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-auth-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-migrate-workflow-1",
+      "image": "platform-database-migrations:3f31dfd",
+      "imageId": "sha256:3d87d01e5cbcb2e6d874f61658c2bc8651f62f26ff31e126fe22a38ecf5c418d",
+      "revision": "3f31dfdb878416cc281848b8df9f3497e6918d9d",
+      "status": "exited",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    },
+    {
+      "name": "/langchain4j-platform-litellm-1",
+      "image": "ghcr.io/berriai/litellm:v1.74.3-stable",
+      "imageId": "sha256:229665e372493ab0948f36ca813a5a20f352e258424383d6a7043bf088eb12fb",
+      "revision": "fe7aee26944261fc74e25eabf15d99a0b627cf74",
+      "status": "running",
+      "exitCode": 0,
+      "health": null,
+      "restarts": 0
+    }
+  ],
+  "imageVerification": true,
+  "pass": true,
+  "diagnostics": {
+    "pass": true,
+    "taskId": "deploy-diagnostics-34350e50316949e093cc08bd947c3f07",
+    "taskStatus": "SUCCEEDED",
+    "diagnosticEvents": [
+      "dag-diagnostic-model",
+      "dag-diagnostic-operation",
+      "dag-diagnostic-summary"
+    ],
+    "sseReplay": true,
+    "idempotency": true,
+    "crossTenantIsolation": true,
+    "staleLeaseRejected": true,
+    "unconfiguredCostUnknown": true,
+    "modelProviderCalls": 0,
+    "settings": {
+      "diagnosticsEnabled": true,
+      "costRatesConfigured": false,
+      "recoveryEnabled": false
+    }
+  },
+  "previousImages": [
+    {
+      "name": "/langchain4j-platform-async-task-service-1",
+      "image": "langchain4j-platform-async-task-service:3f31dfd",
+      "imageId": "sha256:b227b3567475a24d147fe8415da3ab7c1f3b79b838339d422b1ff77f6a490d27"
+    },
+    {
+      "name": "/langchain4j-platform-agentscope-orchestrator-1",
+      "image": "agentscope-platform:69de7e9",
+      "imageId": "sha256:0064f4b6c217a830dbb0230fad550cde421828e7b0b7f0c2cbeaddae787daed7"
+    }
+  ],
+  "javaValidation": {
+    "tests": 199,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "build": "PASS"
+  },
+  "limitations": [
+    "Synthetic usage only; no provider calls or billing verification",
+    "Java supply-chain SBOM scan remains failed; local Docker deployment only"
+  ]
+}
