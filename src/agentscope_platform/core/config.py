@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     agent_dag_optimization_enabled: bool = False
     agent_dag_tenant_max_workers: int = Field(default=2, ge=1, le=32)
     agent_dag_timeout_seconds: float = Field(default=300, gt=0, le=3600)
+    agent_dag_result_reuse_ttl_seconds: float = Field(default=30, ge=0, le=300)
     agent_dag_max_model_calls: int = Field(default=64, ge=1, le=1000)
     agent_dag_max_reserved_tokens: int = Field(default=240_000, ge=1, le=10_000_000)
     agent_dag_max_evidence_chars: int = Field(default=48_000, ge=1000, le=60_000)

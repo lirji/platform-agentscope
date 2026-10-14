@@ -5,10 +5,12 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 
 from agentscope_platform.application.dag_budget import (
+    DagBudgetExceeded,
     DagRunLimits,
     current_dag_budget,
     dag_execution_scope,
 )
+from agentscope_platform.application.dag_reuse import DagResultReuse
 from agentscope_platform.application.dag_scheduler import DagWorkerCapacity, run_ready
 from agentscope_platform.application.ports import (
     AgentRunner,
@@ -91,6 +93,7 @@ class AgentDagApplicationService:
         allowed_tools: frozenset[str] = READONLY_DAG_TOOLS,
         capacity: DagWorkerCapacity | None = None,
         limits: DagRunLimits | None = None,
+        reuse_ttl_seconds: float = 30,
     ) -> None:
         self._runner = runner
         self._max_tasks = max(1, max_tasks)
@@ -99,9 +102,16 @@ class AgentDagApplicationService:
         self._review_policy = review_policy or DagReviewPolicy()
         self._capacity = capacity or DagWorkerCapacity(max_parallel_workers, max_parallel_workers)
         self._limits = limits or DagRunLimits()
+        self._reuse_ttl_seconds = reuse_ttl_seconds
         self._optimized = optimized
         self._synthesizer = synthesizer
         self._allowed_tools = allowed_tools
+        if (
+            optimized
+            and self._review_policy.enabled
+            and not allowed_tools.issubset(READONLY_DAG_TOOLS)
+        ):
+            raise ValueError("DAG replan cannot replay write capabilities")
         if optimized and synthesizer is None:
             raise ValueError("optimized DAG requires a tool-free synthesizer")
         if self._review_policy.enabled and self._reviewer is None:
@@ -142,7 +152,13 @@ class AgentDagApplicationService:
         if not goal:
             raise DagValidationError("goal is required")
         tasks = self._validate_and_normalize(request.tasks)
-        execution = await self._execute(goal, tasks, context, progress, 1)
+        # 缓存只归属于本次调用, 身份/权限/模型版本在此期间固定。
+        reuse = (
+            DagResultReuse(self._reuse_ttl_seconds)
+            if self._optimized and self._allowed_tools.issubset(READONLY_DAG_TOOLS)
+            else None
+        )
+        execution = await self._execute(goal, tasks, context, progress, 1, reuse)
         if not self._review_policy.enabled:
             return self._to_reply(
                 goal,
@@ -222,6 +238,7 @@ class AgentDagApplicationService:
                 context,
                 progress,
                 attempt_number + 1,
+                reuse,
             )
         return self._to_reply(goal, execution, context, attempts, accepted)
 
@@ -232,6 +249,7 @@ class AgentDagApplicationService:
         context: RunContext,
         progress: ProgressSink | None = None,
         attempt: int = 1,
+        reuse: DagResultReuse | None = None,
     ) -> _DagExecution:
         levels = self._topological_levels(tasks)
         await self._emit(
@@ -244,7 +262,7 @@ class AgentDagApplicationService:
         )
 
         if self._optimized:
-            ordered = await self._run_ready(goal, levels, context, progress, attempt)
+            ordered = await self._run_ready(goal, levels, context, progress, attempt, reuse)
         else:
             by_id: dict[str, AgentDagTaskResult] = {}
             ordered = []
@@ -319,10 +337,12 @@ class AgentDagApplicationService:
         context: RunContext,
         progress: ProgressSink | None,
         attempt: int,
+        reuse: DagResultReuse | None,
     ) -> list[AgentDagTaskResult]:
         """level 仅用于展示拓扑分组, 不再作为执行屏障。"""
         tasks = {task.id: task for level in levels for task in level}
         level_of = {task.id: n for n, level in enumerate(levels, 1) for task in level}
+        versions: dict[str, str] = {}
         started: set[int] = set()
         remaining = {n: len(level) for n, level in enumerate(levels, 1)}
 
@@ -341,15 +361,34 @@ class AgentDagApplicationService:
                         "taskIds": [task.id for task in levels[index - 1]],
                     },
                 )
-            result = await self._run_one(
+            task = tasks[task_id]
+            fingerprint = DagResultReuse.fingerprint(
                 goal,
-                tasks[task_id],
-                dict(upstream),
-                context,
-                progress,
-                attempt,
-                index,
+                task.id,
+                task.description,
+                [(d, versions[d]) for d in task.depends_on],
             )
+            cached = reuse.get(task_id, fingerprint) if reuse is not None else None
+            if cached is not None:
+                result, versions[task_id] = cached
+                await self._emit(
+                    progress,
+                    "dag-worker-reused",
+                    {
+                        "attempt": attempt,
+                        "level": index,
+                        "taskId": task_id,
+                    },
+                )
+            else:
+                result = await self._run_one(
+                    goal, task, dict(upstream), context, progress, attempt, index
+                )
+                versions[task_id] = (
+                    reuse.record(task_id, fingerprint, result)
+                    if reuse is not None
+                    else str(attempt)
+                )
             await self._emit(
                 progress,
                 "dag-worker-result",
@@ -400,11 +439,32 @@ class AgentDagApplicationService:
     ) -> AgentDagCritique:
         if self._reviewer is None:
             raise RuntimeError("DAG reviewer is unavailable")
-        return await self._reviewer.critique(
-            goal,
-            execution.synthesis.final_answer,
-            context,
+        answer = execution.synthesis.final_answer
+        if self._optimized:
+            failed = [r.task_id for r in execution.results if r.result.stop_reason != "DONE"]
+            if failed or execution.synthesis.stop_reason != "DONE":
+                # 确定性门禁先于模型评分, 失败不能靠表达流畅获得高分。
+                return AgentDagCritique(
+                    correctness=0,
+                    completeness=0,
+                    clarity=0,
+                    mainIssue="Required tasks did not succeed: " + ", ".join(failed)[:1800],
+                )
+            answer = self._review_evidence(goal, execution)
+        return await self._reviewer.critique(goal, answer, context)
+
+    def _review_evidence(self, goal: str, execution: _DagExecution) -> str:
+        """给评审和重规划提供节点状态/工具证据, 不只评价最终文案。"""
+        answer = json.dumps(
+            {
+                "answer": execution.synthesis.final_answer,
+                "evidence": json.loads(self._evidence(goal, execution.results)),
+            },
+            ensure_ascii=False,
         )
+        if len(answer) > self._limits.max_evidence_chars:
+            raise DagBudgetExceeded("DAG review evidence exceeds input budget")
+        return answer
 
     async def _revise(
         self,
@@ -429,7 +489,9 @@ class AgentDagApplicationService:
         revised = await self._reviewer.revise(
             goal,
             previous_plan,
-            execution.synthesis.final_answer,
+            self._review_evidence(goal, execution)
+            if self._optimized
+            else execution.synthesis.final_answer,
             critique,
             context,
         )
@@ -625,8 +687,6 @@ class AgentDagApplicationService:
             ensure_ascii=False,
         )
         if len(evidence) > self._limits.max_evidence_chars:
-            from agentscope_platform.application.dag_budget import DagBudgetExceeded
-
             raise DagBudgetExceeded("DAG evidence exceeds input budget")
         return evidence
 

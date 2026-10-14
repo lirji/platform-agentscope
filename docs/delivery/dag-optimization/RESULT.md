@@ -31,3 +31,12 @@
 - 超限 HTTP 429/AGENT_DAG_BUDGET_EXCEEDED；截止 HTTP 504/AGENT_DAG_DEADLINE_EXCEEDED。异步沿用中央 FAILED 映射。
 - 红灯 4 项；绿灯 8 项新测试，包含真实适配器配合本地 stub provider，未连接真实模型。全量 553 passed。
 - Ruff/format/Mypy/contract snapshots/diff check PASS。
+
+## S4：证据评审和只读节点复用
+
+- Critic/Replanner 接收结构化状态/工具观察；必需节点失败由代码生成零分，不浪费模型评审且不能被高分覆盖。
+- 每请求新建结果复用容器，默认 TTL 30 秒，可设 0 禁用；仅成功且无工具或只调用 rag_search/schema_explore 的节点可复用。
+- 时钟、订单、流程状态、analytics_sql、未知工具和所有写操作不复用；带写能力的优化 DAG 禁止开启 replan。
+- 指纹绑定目标、任务描述、依赖执行版本；上游重跑即使得到同样文本也使下游失效。复用返回深拷贝。
+- 红灯：重复根节点调用和失败被模型评分两项暴露旧行为；绿灯覆盖 TTL、禁用、跨请求/租户、工具扩大拒绝及依赖失效。
+- 相关 50 项 PASS；全量 566 passed；Ruff/format/Mypy/contract snapshots/diff check PASS。

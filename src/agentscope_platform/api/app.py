@@ -205,6 +205,7 @@ def create_app(
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
         limits=dag_limits,
+        reuse_ttl_seconds=app_settings.agent_dag_result_reuse_ttl_seconds,
         synthesizer=app_text_generator,
         max_parallel_workers=app_settings.agent_dag_max_parallel_workers,
         reviewer=app_reviewer,
@@ -225,6 +226,7 @@ def create_app(
         optimized=app_settings.agent_dag_optimization_enabled,
         capacity=dag_capacity,
         limits=dag_limits,
+        reuse_ttl_seconds=app_settings.agent_dag_result_reuse_ttl_seconds,
         synthesizer=app_text_generator,
         allowed_tools=frozenset({"workflow_status", "workflow_tasks", "rag_search"})
         | (frozenset({"refund_start"}) if app_settings.agent_refund_start_enabled else frozenset()),
